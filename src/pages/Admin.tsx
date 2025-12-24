@@ -20,13 +20,15 @@ import {
   useCreateSport, useUpdateSport, useDeleteSport,
   Match, Team, Tournament, Banner, Sport
 } from "@/hooks/useSportsData";
+import { useSiteSettings, useUpdateSiteSettings, SiteSettings } from "@/hooks/useSiteSettings";
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, Calendar, Trophy, Users, LogOut, Loader2, Image, Link as LinkIcon, Gamepad2, Star, ShieldAlert, Settings, Tv } from "lucide-react";
+import { Plus, Edit2, Trash2, Calendar, Trophy, Users, LogOut, Loader2, Image, Link as LinkIcon, Gamepad2, Star, ShieldAlert, Settings, Tv, Save } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import DateTimePicker from "@/components/DateTimePicker";
 import { format } from "date-fns";
 import StreamingServersManager from "@/components/StreamingServersManager";
+import { Textarea } from "@/components/ui/textarea";
 
 const Admin = () => {
   const { user, loading, signOut } = useAuth();
@@ -42,6 +44,8 @@ const Admin = () => {
   const { data: tournaments, isLoading: tournamentsLoading } = useTournaments();
   const { data: banners, isLoading: bannersLoading } = useBanners();
   const { data: sports, isLoading: sportsLoading } = useSports();
+  const { data: siteSettings, isLoading: siteSettingsLoading } = useSiteSettings();
+  const updateSiteSettings = useUpdateSiteSettings();
 
   // Mutation hooks
   const createMatch = useCreateMatch();
@@ -122,6 +126,35 @@ const Admin = () => {
     name: '',
     icon_url: '',
   });
+
+  const [siteSettingsForm, setSiteSettingsForm] = useState({
+    site_name: '',
+    site_title: '',
+    site_description: '',
+    site_keywords: '',
+    logo_url: '',
+    favicon_url: '',
+    og_image_url: '',
+    footer_text: '',
+    google_analytics_id: '',
+  });
+
+  // Initialize site settings form when data is loaded
+  useEffect(() => {
+    if (siteSettings) {
+      setSiteSettingsForm({
+        site_name: siteSettings.site_name || '',
+        site_title: siteSettings.site_title || '',
+        site_description: siteSettings.site_description || '',
+        site_keywords: siteSettings.site_keywords || '',
+        logo_url: siteSettings.logo_url || '',
+        favicon_url: siteSettings.favicon_url || '',
+        og_image_url: siteSettings.og_image_url || '',
+        footer_text: siteSettings.footer_text || '',
+        google_analytics_id: siteSettings.google_analytics_id || '',
+      });
+    }
+  }, [siteSettings]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -473,6 +506,32 @@ const Admin = () => {
   const resetSportForm = () => {
     setEditingSport(null);
     setSportForm({ name: '', icon_url: '' });
+  };
+
+  // Site Settings handler
+  const handleSaveSiteSettings = async () => {
+    if (!siteSettings?.id) {
+      toast({ title: "Error", description: "Site settings not found", variant: "destructive" });
+      return;
+    }
+    
+    try {
+      await updateSiteSettings.mutateAsync({
+        id: siteSettings.id,
+        site_name: siteSettingsForm.site_name,
+        site_title: siteSettingsForm.site_title,
+        site_description: siteSettingsForm.site_description || null,
+        site_keywords: siteSettingsForm.site_keywords || null,
+        logo_url: siteSettingsForm.logo_url || null,
+        favicon_url: siteSettingsForm.favicon_url || null,
+        og_image_url: siteSettingsForm.og_image_url || null,
+        footer_text: siteSettingsForm.footer_text || null,
+        google_analytics_id: siteSettingsForm.google_analytics_id || null,
+      });
+      toast({ title: "Site settings updated successfully" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -1327,15 +1386,115 @@ const Admin = () => {
 
             {/* Settings Tab */}
             <TabsContent value="settings" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Site Settings</CardTitle>
-                  <CardDescription>Configure your website name, logo, SEO settings and more</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">Site settings management coming soon. You can manage streaming servers directly from match pages.</p>
-                </CardContent>
-              </Card>
+              {siteSettingsLoading ? (
+                <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Site Settings</CardTitle>
+                    <CardDescription>Configure your website name, logo, SEO settings and more</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Basic Info */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Site Name</Label>
+                        <Input 
+                          placeholder="My Sports Site" 
+                          value={siteSettingsForm.site_name} 
+                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, site_name: e.target.value })} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Site Title (SEO)</Label>
+                        <Input 
+                          placeholder="My Sports Site - Watch Live Matches" 
+                          value={siteSettingsForm.site_title} 
+                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, site_title: e.target.value })} 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Site Description (SEO)</Label>
+                      <Textarea 
+                        placeholder="Describe your site for search engines..." 
+                        value={siteSettingsForm.site_description} 
+                        onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, site_description: e.target.value })} 
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Site Keywords (SEO)</Label>
+                      <Input 
+                        placeholder="live sports, cricket, football, streaming" 
+                        value={siteSettingsForm.site_keywords} 
+                        onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, site_keywords: e.target.value })} 
+                      />
+                      <p className="text-xs text-muted-foreground">Comma-separated keywords for SEO</p>
+                    </div>
+
+                    {/* Media URLs */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Logo URL</Label>
+                        <Input 
+                          placeholder="https://..." 
+                          value={siteSettingsForm.logo_url} 
+                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, logo_url: e.target.value })} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Favicon URL</Label>
+                        <Input 
+                          placeholder="https://..." 
+                          value={siteSettingsForm.favicon_url} 
+                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, favicon_url: e.target.value })} 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Open Graph Image URL (Social Sharing)</Label>
+                      <Input 
+                        placeholder="https://..." 
+                        value={siteSettingsForm.og_image_url} 
+                        onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, og_image_url: e.target.value })} 
+                      />
+                      <p className="text-xs text-muted-foreground">Image shown when shared on social media</p>
+                    </div>
+
+                    {/* Footer & Analytics */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Footer Text</Label>
+                        <Input 
+                          placeholder="© 2024 My Sports Site. All rights reserved." 
+                          value={siteSettingsForm.footer_text} 
+                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, footer_text: e.target.value })} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Google Analytics ID</Label>
+                        <Input 
+                          placeholder="G-XXXXXXXXXX" 
+                          value={siteSettingsForm.google_analytics_id} 
+                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, google_analytics_id: e.target.value })} 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t">
+                      <Button variant="gradient" onClick={handleSaveSiteSettings} disabled={updateSiteSettings.isPending}>
+                        {updateSiteSettings.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>

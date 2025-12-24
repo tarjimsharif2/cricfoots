@@ -145,11 +145,60 @@ const MatchPage = () => {
       
       <main className="flex-1 py-6">
         <div className="container mx-auto px-4 max-w-6xl">
-          {/* Match Header */}
+          {/* Video Player Section - FIRST */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="mb-6"
+          >
+            <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur">
+              <CardContent className="p-0">
+                {activeServer ? (
+                  <VideoPlayer url={activeServer.server_url} type={activeServer.server_type} />
+                ) : (
+                  <div className="aspect-video bg-muted flex items-center justify-center">
+                    <div className="text-center text-muted-foreground">
+                      <Tv className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No streaming servers available</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Server Selection */}
+          {servers && servers.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mb-6"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Server className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Select Server:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {servers.map((server) => (
+                  <Button
+                    key={server.id}
+                    variant={activeServer?.id === server.id ? 'gradient' : 'outline'}
+                    onClick={() => setActiveServer(server)}
+                    className="min-w-[100px]"
+                  >
+                    {server.server_name}
+                  </Button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Match Header - AFTER video */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
             <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur">
               <CardContent className="p-6">
@@ -225,54 +274,6 @@ const MatchPage = () => {
             </Card>
           </motion.div>
 
-          {/* Video Player Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-6"
-          >
-            <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur">
-              <CardContent className="p-0">
-                {activeServer ? (
-                  <VideoPlayer url={activeServer.server_url} type={activeServer.server_type} />
-                ) : (
-                  <div className="aspect-video bg-muted flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <Tv className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No streaming servers available</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Server Selection */}
-          {servers && servers.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Server className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Select Server:</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {servers.map((server) => (
-                  <Button
-                    key={server.id}
-                    variant={activeServer?.id === server.id ? 'gradient' : 'outline'}
-                    onClick={() => setActiveServer(server)}
-                    className="min-w-[100px]"
-                  >
-                    {server.server_name}
-                  </Button>
-                ))}
-              </div>
-            </motion.div>
-          )}
         </div>
       </main>
 
