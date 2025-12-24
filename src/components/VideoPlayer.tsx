@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { AlertCircle, Play, Settings, Check, Loader2 } from 'lucide-react';
+import { AlertCircle, Play, Settings, Check, Loader2, PictureInPicture2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface StreamHeaders {
   referer?: string | null;
@@ -63,6 +64,44 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
   const [currentQuality, setCurrentQuality] = useState<number>(-1);
   const [showControls, setShowControls] = useState(true);
   const [proxyPlaylistUrl, setProxyPlaylistUrl] = useState<string | null>(null);
+  const [isPiPActive, setIsPiPActive] = useState(false);
+
+  // Check if PiP is supported
+  const isPiPSupported = 'pictureInPictureEnabled' in document;
+
+  const togglePiP = async () => {
+    if (!videoRef.current) return;
+    
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setIsPiPActive(false);
+      } else if (document.pictureInPictureEnabled) {
+        await videoRef.current.requestPictureInPicture();
+        setIsPiPActive(true);
+      }
+    } catch (err) {
+      console.error('PiP error:', err);
+      toast.error('Picture-in-Picture not available');
+    }
+  };
+
+  // Listen for PiP events
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleEnterPiP = () => setIsPiPActive(true);
+    const handleLeavePiP = () => setIsPiPActive(false);
+
+    video.addEventListener('enterpictureinpicture', handleEnterPiP);
+    video.addEventListener('leavepictureinpicture', handleLeavePiP);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', handleEnterPiP);
+      video.removeEventListener('leavepictureinpicture', handleLeavePiP);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchPlaylistViaProxy = async () => {
@@ -273,41 +312,58 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
         onPause={() => setIsPlaying(false)}
       />
       
-      {qualityLevels.length > 1 && showControls && (
-        <div className="absolute bottom-14 right-4 z-10 transition-opacity duration-300">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="bg-black/70 hover:bg-black/90 text-white border-0 gap-1.5"
-              >
-                <Settings className="w-4 h-4" />
-                <span className="text-xs">{getCurrentQualityLabel()}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-black/90 border-white/10">
-              <DropdownMenuItem 
-                onClick={() => handleQualityChange(-1)}
-                className="text-white hover:bg-white/20 gap-2"
-              >
-                {currentQuality === -1 && <Check className="w-4 h-4" />}
-                <span className={currentQuality !== -1 ? 'ml-6' : ''}>Auto</span>
-              </DropdownMenuItem>
-              {qualityLevels.map((level) => (
-                <DropdownMenuItem
-                  key={level.index}
-                  onClick={() => handleQualityChange(level.index)}
+      {/* Controls overlay */}
+      {showControls && (
+        <div className="absolute bottom-14 right-4 z-10 transition-opacity duration-300 flex gap-2">
+          {/* PiP Button */}
+          {isPiPSupported && (
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              className={`bg-black/70 hover:bg-black/90 text-white border-0 ${isPiPActive ? 'ring-2 ring-primary' : ''}`}
+              onClick={togglePiP}
+              title="Picture-in-Picture"
+            >
+              <PictureInPicture2 className="w-4 h-4" />
+            </Button>
+          )}
+          
+          {/* Quality Selector */}
+          {qualityLevels.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="bg-black/70 hover:bg-black/90 text-white border-0 gap-1.5"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="text-xs">{getCurrentQualityLabel()}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-black/90 border-white/10">
+                <DropdownMenuItem 
+                  onClick={() => handleQualityChange(-1)}
                   className="text-white hover:bg-white/20 gap-2"
                 >
-                  {currentQuality === level.index && <Check className="w-4 h-4" />}
-                  <span className={currentQuality !== level.index ? 'ml-6' : ''}>
-                    {level.label}
-                  </span>
+                  {currentQuality === -1 && <Check className="w-4 h-4" />}
+                  <span className={currentQuality !== -1 ? 'ml-6' : ''}>Auto</span>
                 </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {qualityLevels.map((level) => (
+                  <DropdownMenuItem
+                    key={level.index}
+                    onClick={() => handleQualityChange(level.index)}
+                    className="text-white hover:bg-white/20 gap-2"
+                  >
+                    {currentQuality === level.index && <Check className="w-4 h-4" />}
+                    <span className={currentQuality !== level.index ? 'ml-6' : ''}>
+                      {level.label}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       )}
 
@@ -333,7 +389,32 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
   const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([]);
   const [currentQuality, setCurrentQuality] = useState<number>(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [isPiPActive, setIsPiPActive] = useState(false);
   const playerIdRef = useRef(`clappr-${Math.random().toString(36).substr(2, 9)}`);
+
+  const isPiPSupported = 'pictureInPictureEnabled' in document;
+
+  const togglePiP = async () => {
+    try {
+      // Get the video element from Clappr
+      const videoElement = containerRef.current?.querySelector('video');
+      if (!videoElement) {
+        toast.error('Video element not found');
+        return;
+      }
+
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setIsPiPActive(false);
+      } else if (document.pictureInPictureEnabled) {
+        await videoElement.requestPictureInPicture();
+        setIsPiPActive(true);
+      }
+    } catch (err) {
+      console.error('PiP error:', err);
+      toast.error('Picture-in-Picture not available');
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -487,9 +568,23 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
         style={{ zIndex: 1 }}
       />
       
-      {/* Quality Selector */}
-      {qualityLevels.length > 1 && (
-        <div className="absolute bottom-16 right-4 z-20">
+      {/* Controls - PiP and Quality */}
+      <div className="absolute bottom-16 right-4 z-20 flex gap-2">
+        {/* PiP Button */}
+        {isPiPSupported && (
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className={`bg-black/70 hover:bg-black/90 text-white border-0 ${isPiPActive ? 'ring-2 ring-primary' : ''}`}
+            onClick={togglePiP}
+            title="Picture-in-Picture"
+          >
+            <PictureInPicture2 className="w-4 h-4" />
+          </Button>
+        )}
+
+        {/* Quality Selector */}
+        {qualityLevels.length > 1 && (
           <DropdownMenu open={showQualityMenu} onOpenChange={setShowQualityMenu}>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -523,8 +618,8 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
