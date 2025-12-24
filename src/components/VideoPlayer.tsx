@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { AlertCircle, Play, Settings, Check } from 'lucide-react';
+import { AlertCircle, Play, Settings, Check, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 interface StreamHeaders {
   referer?: string | null;
@@ -32,6 +33,12 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
+// Check if headers are specified and need proxy
+const needsProxy = (headers?: StreamHeaders): boolean => {
+  if (!headers) return false;
+  return !!(headers.referer || headers.origin || headers.cookie || headers.userAgent);
+};
+
 interface QualityLevel {
   index: number;
   height: number;
@@ -44,13 +51,70 @@ const HlsPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) =
   const hlsRef = useRef<Hls | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([]);
   const [currentQuality, setCurrentQuality] = useState<number>(-1); // -1 = auto
   const [showControls, setShowControls] = useState(true);
+  const [proxyPlaylistUrl, setProxyPlaylistUrl] = useState<string | null>(null);
+
+  // Fetch playlist through proxy if headers are specified
+  useEffect(() => {
+    const fetchPlaylistViaProxy = async () => {
+      if (!needsProxy(headers)) {
+        setProxyPlaylistUrl(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke('stream-proxy', {
+          body: {
+            url,
+            headers: {
+              referer: headers?.referer || null,
+              origin: headers?.origin || null,
+              cookie: headers?.cookie || null,
+              userAgent: headers?.userAgent || null,
+            },
+          },
+        });
+
+        if (fnError) {
+          console.error('Proxy error:', fnError);
+          setError('Failed to load stream via proxy');
+          setIsLoading(false);
+          return;
+        }
+
+        // Create a blob URL from the playlist content
+        const blob = new Blob([data], { type: 'application/vnd.apple.mpegurl' });
+        const blobUrl = URL.createObjectURL(blob);
+        setProxyPlaylistUrl(blobUrl);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Proxy fetch error:', err);
+        setError('Failed to connect to stream proxy');
+        setIsLoading(false);
+      }
+    };
+
+    fetchPlaylistViaProxy();
+
+    return () => {
+      if (proxyPlaylistUrl) {
+        URL.revokeObjectURL(proxyPlaylistUrl);
+      }
+    };
+  }, [url, headers]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Wait for proxy if needed
+    if (needsProxy(headers) && !proxyPlaylistUrl) return;
 
     // Cleanup previous instance
     if (hlsRef.current) {
@@ -62,23 +126,16 @@ const HlsPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) =
     setQualityLevels([]);
     setCurrentQuality(-1);
 
-    if (Hls.isSupported()) {
-      // Build custom headers for XHR requests
-      const xhrSetup = (xhr: XMLHttpRequest, url: string) => {
-        // Note: Due to browser security restrictions, we cannot set certain headers
-        // like Referer, Origin, or Cookie via XHR. These need to be handled by a proxy server.
-        // The user_agent also cannot be modified in browsers.
-        // This is a client-side limitation. For full header support, use a backend proxy.
-      };
+    const streamUrl = proxyPlaylistUrl || url;
 
+    if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
         startLevel: -1, // Auto quality
-        xhrSetup: xhrSetup,
       });
 
-      hls.loadSource(url);
+      hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
@@ -121,7 +178,7 @@ const HlsPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) =
       hlsRef.current = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Native HLS support (Safari)
-      video.src = url;
+      video.src = streamUrl;
     } else {
       setError('HLS playback not supported in this browser');
     }
@@ -132,7 +189,7 @@ const HlsPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) =
         hlsRef.current = null;
       }
     };
-  }, [url, headers]);
+  }, [url, headers, proxyPlaylistUrl]);
 
   const handlePlay = async () => {
     try {
@@ -168,6 +225,15 @@ const HlsPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) =
       <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex flex-col items-center justify-center gap-3">
         <AlertCircle className="w-10 h-10 text-destructive" />
         <p className="text-destructive text-center px-4">{error}</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-muted-foreground text-center px-4">Loading stream...</p>
       </div>
     );
   }
