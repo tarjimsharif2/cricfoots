@@ -312,6 +312,7 @@ export type Database = {
           is_active: boolean | null
           match_id: string
           origin_value: string | null
+          player_type: string | null
           referer_value: string | null
           server_name: string
           server_type: string
@@ -329,6 +330,7 @@ export type Database = {
           is_active?: boolean | null
           match_id: string
           origin_value?: string | null
+          player_type?: string | null
           referer_value?: string | null
           server_name: string
           server_type?: string
@@ -346,6 +348,7 @@ export type Database = {
           is_active?: boolean | null
           match_id?: string
           origin_value?: string | null
+          player_type?: string | null
           referer_value?: string | null
           server_name?: string
           server_type?: string
