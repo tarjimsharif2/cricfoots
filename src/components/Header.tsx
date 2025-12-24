@@ -9,10 +9,10 @@ const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
 
+  // Only show Home and Matches - no Admin link
   const navItems = [
     { name: "Home", path: "/" },
     { name: "Matches", path: "/#matches" },
-    { name: "Admin", path: "/admin" },
   ];
 
   return (
