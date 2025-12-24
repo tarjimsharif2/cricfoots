@@ -1,0 +1,41 @@
+import { Tv, MessageCircle } from "lucide-react";
+import { Link } from "react-router-dom";
+
+const Footer = () => {
+  return (
+    <footer className="bg-card border-t border-border py-8">
+      <div className="container mx-auto px-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-pink-500 flex items-center justify-center">
+              <Tv className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="font-display text-lg tracking-wider text-gradient">LIVE SPORTS</span>
+          </Link>
+
+          {/* Links */}
+          <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+            <Link to="/admin" className="hover:text-foreground transition-colors">Admin</Link>
+          </nav>
+
+          {/* Social / CTA */}
+          <a
+            href="#"
+            className="inline-flex items-center gap-2 bg-accent/20 hover:bg-accent/30 text-accent px-4 py-2 rounded-full transition-colors text-sm font-medium"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Join Telegram
+          </a>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">
+          <p>© 2025 Live Sports. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
