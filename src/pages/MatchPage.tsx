@@ -166,6 +166,7 @@ const MatchPage = () => {
                       licenseUrl: activeServer.drm_license_url,
                       scheme: activeServer.drm_scheme,
                     }}
+                    playerType={activeServer.player_type || 'hls'}
                   />
                 ) : (
                   <div className="aspect-video bg-muted flex items-center justify-center">

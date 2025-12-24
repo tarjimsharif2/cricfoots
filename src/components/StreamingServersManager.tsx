@@ -44,6 +44,7 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     user_agent: '',
     drm_license_url: '',
     drm_scheme: 'none' as 'none' | 'widevine' | 'playready' | 'clearkey',
+    player_type: 'hls' as 'hls' | 'clappr',
   });
 
   const resetForm = () => {
@@ -60,6 +61,7 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
       user_agent: '',
       drm_license_url: '',
       drm_scheme: 'none',
+      player_type: 'hls',
     });
   };
 
@@ -77,6 +79,7 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
       user_agent: server.user_agent || '',
       drm_license_url: server.drm_license_url || '',
       drm_scheme: server.drm_scheme || 'none',
+      player_type: server.player_type || 'hls',
     });
     setDialogOpen(true);
   };
@@ -106,6 +109,7 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
       user_agent: serverForm.user_agent || null,
       drm_license_url: serverForm.drm_license_url || null,
       drm_scheme: serverForm.drm_scheme === 'none' ? null : serverForm.drm_scheme,
+      player_type: serverForm.server_type === 'm3u8' ? serverForm.player_type : null,
     };
 
     try {
@@ -306,12 +310,30 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
               />
             </div>
 
-            {/* M3U8 Stream Headers - Only show for m3u8 type */}
+            {/* M3U8 Stream Settings - Only show for m3u8 type */}
             {serverForm.server_type === 'm3u8' && (
               <div className="space-y-4 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label>Player Type</Label>
+                  <Select 
+                    value={serverForm.player_type} 
+                    onValueChange={(v: 'hls' | 'clappr') => setServerForm({ ...serverForm, player_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hls">HLS.js (Default)</SelectItem>
+                      <SelectItem value="clappr">Clappr Player</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the player for M3U8 playback
+                  </p>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium">Stream Headers (Optional)</Label>
-                  <span className="text-xs text-muted-foreground">(for M3U8 streams)</span>
                 </div>
 
                 <div className="space-y-2">
@@ -388,6 +410,27 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                       </p>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Iframe Referrer - Only show for iframe type */}
+            {serverForm.server_type === 'iframe' && (
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Iframe Settings (Optional)</Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Referrer Policy URL</Label>
+                  <Input
+                    placeholder="https://example.com"
+                    value={serverForm.referer_value}
+                    onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Set the referrer for the iframe (uses referrerpolicy attribute)
+                  </p>
                 </div>
               </div>
             )}

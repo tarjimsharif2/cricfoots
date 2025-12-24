@@ -27,6 +27,7 @@ interface VideoPlayerProps {
   type: 'iframe' | 'm3u8' | 'embed';
   headers?: StreamHeaders;
   drm?: DrmConfig;
+  playerType?: 'hls' | 'clappr';
 }
 
 // Validate that URL uses safe protocols (http:// or https://)
@@ -59,11 +60,10 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([]);
-  const [currentQuality, setCurrentQuality] = useState<number>(-1); // -1 = auto
+  const [currentQuality, setCurrentQuality] = useState<number>(-1);
   const [showControls, setShowControls] = useState(true);
   const [proxyPlaylistUrl, setProxyPlaylistUrl] = useState<string | null>(null);
 
-  // Fetch playlist through proxy if headers are specified
   useEffect(() => {
     const fetchPlaylistViaProxy = async () => {
       if (!needsProxy(headers)) {
@@ -94,7 +94,6 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
           return;
         }
 
-        // Create a blob URL from the playlist content
         const blob = new Blob([data], { type: 'application/vnd.apple.mpegurl' });
         const blobUrl = URL.createObjectURL(blob);
         setProxyPlaylistUrl(blobUrl);
@@ -119,10 +118,8 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
     const video = videoRef.current;
     if (!video) return;
 
-    // Wait for proxy if needed
     if (needsProxy(headers) && !proxyPlaylistUrl) return;
 
-    // Cleanup previous instance
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
@@ -135,14 +132,12 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
     const streamUrl = proxyPlaylistUrl || url;
 
     if (Hls.isSupported()) {
-      // Build HLS config with optional DRM
       const hlsConfig: Partial<Hls['config']> = {
         enableWorker: true,
         lowLatencyMode: true,
-        startLevel: -1, // Auto quality
+        startLevel: -1,
       };
 
-      // Add DRM configuration if specified
       if (drm?.licenseUrl && drm?.scheme) {
         const drmSystemId = drm.scheme === 'widevine' 
           ? 'com.widevine.alpha' 
@@ -166,7 +161,6 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
-        // Extract available quality levels
         const levels: QualityLevel[] = data.levels.map((level, index) => ({
           index,
           height: level.height,
@@ -174,7 +168,6 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
           label: level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)}kbps`,
         }));
         
-        // Sort by height descending
         levels.sort((a, b) => b.height - a.height);
         setQualityLevels(levels);
       });
@@ -204,7 +197,6 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
 
       hlsRef.current = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
       video.src = streamUrl;
     } else {
       setError('HLS playback not supported in this browser');
@@ -281,7 +273,6 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
         onPause={() => setIsPlaying(false)}
       />
       
-      {/* Quality Selector */}
       {qualityLevels.length > 1 && showControls && (
         <div className="absolute bottom-14 right-4 z-10 transition-opacity duration-300">
           <DropdownMenu>
@@ -320,7 +311,6 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
         </div>
       )}
 
-      {/* Play Button Overlay */}
       {!isPlaying && (
         <button
           onClick={handlePlay}
@@ -335,7 +325,93 @@ const HlsPlayer = ({ url, headers, drm }: { url: string; headers?: StreamHeaders
   );
 };
 
-const VideoPlayer = ({ url, type, headers, drm }: VideoPlayerProps) => {
+const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadClappr = async () => {
+      if (!containerRef.current) return;
+
+      try {
+        // Dynamically import Clappr
+        const Clappr = await import('@clappr/player');
+        
+        // Cleanup previous player
+        if (playerRef.current) {
+          playerRef.current.destroy();
+        }
+
+        // Create player
+        playerRef.current = new Clappr.default({
+          source: url,
+          parentId: `#${containerRef.current.id}`,
+          width: '100%',
+          height: '100%',
+          autoPlay: false,
+          mute: false,
+          playback: {
+            hlsjsConfig: {
+              enableWorker: true,
+              lowLatencyMode: true,
+            },
+          },
+          events: {
+            onReady: () => {
+              setIsLoading(false);
+            },
+            onError: (e: any) => {
+              console.error('Clappr error:', e);
+              setError('Failed to load stream');
+              setIsLoading(false);
+            },
+          },
+        });
+      } catch (err) {
+        console.error('Failed to load Clappr:', err);
+        setError('Failed to initialize player');
+        setIsLoading(false);
+      }
+    };
+
+    loadClappr();
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
+    };
+  }, [url, headers]);
+
+  if (error) {
+    return (
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex flex-col items-center justify-center gap-3">
+        <AlertCircle className="w-10 h-10 text-destructive" />
+        <p className="text-destructive text-center px-4">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        </div>
+      )}
+      <div 
+        ref={containerRef} 
+        id={`clappr-player-${Date.now()}`}
+        className="absolute inset-0 w-full h-full"
+      />
+    </div>
+  );
+};
+
+const VideoPlayer = ({ url, type, headers, drm, playerType = 'hls' }: VideoPlayerProps) => {
   // Validate URL before rendering to prevent XSS attacks
   if (!isValidUrl(url)) {
     return (
@@ -345,12 +421,17 @@ const VideoPlayer = ({ url, type, headers, drm }: VideoPlayerProps) => {
     );
   }
 
-  // For M3U8 streams, use HLS.js player
+  // For M3U8 streams, select player based on playerType
   if (type === 'm3u8') {
+    if (playerType === 'clappr') {
+      return <ClapprPlayer url={url} headers={headers} />;
+    }
     return <HlsPlayer url={url} headers={headers} drm={drm} />;
   }
 
-  // For iframe and embed types
+  // For iframe and embed types - handle referrer if specified
+  const referrerPolicy = headers?.referer ? 'origin' : 'no-referrer-when-downgrade';
+  
   return (
     <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
       <iframe
@@ -359,6 +440,7 @@ const VideoPlayer = ({ url, type, headers, drm }: VideoPlayerProps) => {
         allowFullScreen
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         frameBorder="0"
+        referrerPolicy={referrerPolicy}
       />
     </div>
   );
