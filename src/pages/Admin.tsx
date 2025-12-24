@@ -537,12 +537,12 @@ const Admin = () => {
                       {/* Tournament (Optional) */}
                       <div className="space-y-2">
                         <Label>Tournament (optional)</Label>
-                        <Select value={matchForm.tournament_id || ''} onValueChange={(v) => setMatchForm({ ...matchForm, tournament_id: v || null })}>
+                        <Select value={matchForm.tournament_id || 'none'} onValueChange={(v) => setMatchForm({ ...matchForm, tournament_id: v === 'none' ? null : v })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select tournament (optional)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">No Tournament</SelectItem>
+                            <SelectItem value="none">No Tournament</SelectItem>
                             {tournaments?.map((t) => (
                               <SelectItem key={t.id} value={t.id}>{t.name} {t.season}</SelectItem>
                             ))}
@@ -602,12 +602,12 @@ const Admin = () => {
                       {/* Match Label (Optional - Final, Semi-Final, etc.) */}
                       <div className="space-y-2">
                         <Label>Match Label (optional)</Label>
-                        <Select value={matchForm.match_label} onValueChange={(v) => setMatchForm({ ...matchForm, match_label: v })}>
+                        <Select value={matchForm.match_label || 'none'} onValueChange={(v) => setMatchForm({ ...matchForm, match_label: v === 'none' ? null : v })}>
                           <SelectTrigger>
                             <SelectValue placeholder="e.g., Final, Semi-Final" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
                             <SelectItem value="Final">Final</SelectItem>
                             <SelectItem value="Semi-Final">Semi-Final</SelectItem>
                             <SelectItem value="Quarter-Final">Quarter-Final</SelectItem>
