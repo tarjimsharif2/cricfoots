@@ -5,6 +5,8 @@ import Footer from '@/components/Footer';
 import VideoPlayer from '@/components/VideoPlayer';
 import SEOHead from '@/components/SEOHead';
 import AdSlot from '@/components/AdSlot';
+import PlayingXI from '@/components/PlayingXI';
+import PointsTable from '@/components/PointsTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -290,6 +292,28 @@ const MatchPage = () => {
               </CardContent>
             </Card>
           </motion.div>
+
+          {/* Playing XI Section */}
+          {teamA && teamB && (
+            <div className="mt-6">
+              <PlayingXI
+                matchId={match.id}
+                teamAId={teamA.id}
+                teamBId={teamB.id}
+                teamAName={teamA.name}
+                teamBName={teamB.name}
+                teamALogo={teamA.logo_url}
+                teamBLogo={teamB.logo_url}
+              />
+            </div>
+          )}
+
+          {/* Points Table Section */}
+          {tournament?.id && (
+            <div className="mt-6">
+              <PointsTable tournamentId={tournament.id} tournamentName={tournament.name} />
+            </div>
+          )}
 
         </div>
       </main>

@@ -125,6 +125,8 @@ const Admin = () => {
     sport: 'Cricket',
     season: '',
     logo_url: '',
+    slug: '',
+    is_active: true,
   });
 
   const [bannerForm, setBannerForm] = useState({
@@ -474,9 +476,18 @@ const Admin = () => {
   // Tournament handlers
   const handleSaveTournament = async () => {
     try {
+      // Generate slug from name if not provided
+      const generateSlug = (name: string) => {
+        return name.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+      };
+
       const tournamentData = {
         ...tournamentForm,
         logo_url: tournamentForm.logo_url || null,
+        slug: tournamentForm.slug || generateSlug(tournamentForm.name),
+        is_active: tournamentForm.is_active,
       };
       
       if (editingTournament) {
@@ -500,6 +511,8 @@ const Admin = () => {
       sport: tournament.sport,
       season: tournament.season,
       logo_url: tournament.logo_url || '',
+      slug: tournament.slug || '',
+      is_active: tournament.is_active ?? true,
     });
     setTournamentDialogOpen(true);
   };
@@ -515,7 +528,7 @@ const Admin = () => {
 
   const resetTournamentForm = () => {
     setEditingTournament(null);
-    setTournamentForm({ name: '', sport: 'Cricket', season: '', logo_url: '' });
+    setTournamentForm({ name: '', sport: 'Cricket', season: '', logo_url: '', slug: '', is_active: true });
   };
 
   // Banner handlers
