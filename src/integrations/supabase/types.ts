@@ -107,6 +107,63 @@ export type Database = {
           },
         ]
       }
+      match_playing_xi: {
+        Row: {
+          batting_order: number | null
+          created_at: string
+          id: string
+          is_captain: boolean | null
+          is_vice_captain: boolean | null
+          is_wicket_keeper: boolean | null
+          match_id: string
+          player_name: string
+          player_role: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          batting_order?: number | null
+          created_at?: string
+          id?: string
+          is_captain?: boolean | null
+          is_vice_captain?: boolean | null
+          is_wicket_keeper?: boolean | null
+          match_id: string
+          player_name: string
+          player_role?: string | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          batting_order?: number | null
+          created_at?: string
+          id?: string
+          is_captain?: boolean | null
+          is_vice_captain?: boolean | null
+          is_wicket_keeper?: boolean | null
+          match_id?: string
+          player_name?: string
+          player_role?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_playing_xi_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_playing_xi_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           created_at: string
@@ -471,31 +528,100 @@ export type Database = {
         }
         Relationships: []
       }
+      tournament_points_table: {
+        Row: {
+          created_at: string
+          id: string
+          lost: number | null
+          net_run_rate: number | null
+          no_result: number | null
+          played: number | null
+          points: number | null
+          position: number | null
+          team_id: string
+          tied: number | null
+          tournament_id: string
+          updated_at: string
+          won: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lost?: number | null
+          net_run_rate?: number | null
+          no_result?: number | null
+          played?: number | null
+          points?: number | null
+          position?: number | null
+          team_id: string
+          tied?: number | null
+          tournament_id: string
+          updated_at?: string
+          won?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lost?: number | null
+          net_run_rate?: number | null
+          no_result?: number | null
+          played?: number | null
+          points?: number | null
+          position?: number | null
+          team_id?: string
+          tied?: number | null
+          tournament_id?: string
+          updated_at?: string
+          won?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_points_table_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_points_table_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tournaments: {
         Row: {
           created_at: string
           id: string
+          is_active: boolean | null
           logo_url: string | null
           name: string
           season: string
+          slug: string | null
           sport: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_active?: boolean | null
           logo_url?: string | null
           name: string
           season: string
+          slug?: string | null
           sport?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_active?: boolean | null
           logo_url?: string | null
           name?: string
           season?: string
+          slug?: string | null
           sport?: string
           updated_at?: string
         }

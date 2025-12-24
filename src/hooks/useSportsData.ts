@@ -24,6 +24,8 @@ export interface Tournament {
   sport: string;
   season: string;
   logo_url: string | null;
+  slug: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
