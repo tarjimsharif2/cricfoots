@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+export interface Sport {
+  id: string;
+  name: string;
+  icon_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -22,7 +30,7 @@ export interface Tournament {
 
 export interface Match {
   id: string;
-  tournament_id: string;
+  tournament_id: string | null;
   team_a_id: string;
   team_b_id: string;
   match_number: number;
@@ -35,11 +43,15 @@ export interface Match {
   match_link: string | null;
   match_duration_minutes: number | null;
   match_start_time: string | null;
+  is_priority: boolean;
+  match_label: string | null;
+  sport_id: string | null;
   created_at: string;
   updated_at: string;
   tournament?: Tournament;
   team_a?: Team;
   team_b?: Team;
+  sport?: Sport;
 }
 
 export interface Banner {
@@ -52,6 +64,81 @@ export interface Banner {
   created_at: string;
   updated_at: string;
 }
+
+// Sports hooks
+export const useSports = () => {
+  return useQuery({
+    queryKey: ['sports'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sports')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data as Sport[];
+    },
+  });
+};
+
+export const useCreateSport = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (sport: Omit<Sport, 'id' | 'created_at' | 'updated_at'>) => {
+      const { data, error } = await supabase
+        .from('sports')
+        .insert(sport)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sports'] });
+    },
+  });
+};
+
+export const useUpdateSport = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, ...sport }: Partial<Sport> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('sports')
+        .update(sport)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sports'] });
+    },
+  });
+};
+
+export const useDeleteSport = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('sports')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sports'] });
+    },
+  });
+};
 
 // Teams hooks
 export const useTeams = () => {
@@ -214,8 +301,10 @@ export const useMatches = () => {
           *,
           tournament:tournaments(*),
           team_a:teams!matches_team_a_id_fkey(*),
-          team_b:teams!matches_team_b_id_fkey(*)
+          team_b:teams!matches_team_b_id_fkey(*),
+          sport:sports(*)
         `)
+        .order('is_priority', { ascending: false })
         .order('match_date')
         .order('match_time');
       
@@ -229,7 +318,7 @@ export const useCreateMatch = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (match: Omit<Match, 'id' | 'created_at' | 'updated_at' | 'tournament' | 'team_a' | 'team_b'>) => {
+    mutationFn: async (match: Omit<Match, 'id' | 'created_at' | 'updated_at' | 'tournament' | 'team_a' | 'team_b' | 'sport'>) => {
       const { data, error } = await supabase
         .from('matches')
         .insert(match)
@@ -372,5 +461,26 @@ export const useDeleteBanner = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['banners'] });
     },
+  });
+};
+
+// User roles hooks
+export const useIsAdmin = (userId: string | undefined) => {
+  return useQuery({
+    queryKey: ['user_roles', userId],
+    queryFn: async () => {
+      if (!userId) return false;
+      
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: !!userId,
   });
 };

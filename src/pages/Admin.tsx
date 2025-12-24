@@ -12,15 +12,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { 
-  useMatches, useTeams, useTournaments, useBanners,
+  useMatches, useTeams, useTournaments, useBanners, useSports, useIsAdmin,
   useCreateMatch, useUpdateMatch, useDeleteMatch,
   useCreateTeam, useUpdateTeam, useDeleteTeam,
   useCreateTournament, useUpdateTournament, useDeleteTournament,
   useCreateBanner, useUpdateBanner, useDeleteBanner,
-  Match, Team, Tournament, Banner
+  useCreateSport, useUpdateSport, useDeleteSport,
+  Match, Team, Tournament, Banner, Sport
 } from "@/hooks/useSportsData";
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, Calendar, Trophy, Users, LogOut, Loader2, Image, Link as LinkIcon } from "lucide-react";
+import { Plus, Edit2, Trash2, Calendar, Trophy, Users, LogOut, Loader2, Image, Link as LinkIcon, Gamepad2, Star, ShieldAlert } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -31,11 +32,15 @@ const Admin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Check if user is admin
+  const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin(user?.id);
+
   // Data hooks
   const { data: matches, isLoading: matchesLoading } = useMatches();
   const { data: teams, isLoading: teamsLoading } = useTeams();
   const { data: tournaments, isLoading: tournamentsLoading } = useTournaments();
   const { data: banners, isLoading: bannersLoading } = useBanners();
+  const { data: sports, isLoading: sportsLoading } = useSports();
 
   // Mutation hooks
   const createMatch = useCreateMatch();
@@ -50,20 +55,25 @@ const Admin = () => {
   const createBanner = useCreateBanner();
   const updateBanner = useUpdateBanner();
   const deleteBanner = useDeleteBanner();
+  const createSport = useCreateSport();
+  const updateSport = useUpdateSport();
+  const deleteSport = useDeleteSport();
 
   // Dialog states
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [tournamentDialogOpen, setTournamentDialogOpen] = useState(false);
   const [bannerDialogOpen, setBannerDialogOpen] = useState(false);
+  const [sportDialogOpen, setSportDialogOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [editingSport, setEditingSport] = useState<Sport | null>(null);
 
   // Form states
   const [matchForm, setMatchForm] = useState({
-    tournament_id: '',
+    tournament_id: '' as string | null,
     team_a_id: '',
     team_b_id: '',
     match_number: 1,
@@ -76,6 +86,9 @@ const Admin = () => {
     match_link: '',
     match_duration_minutes: 180,
     match_start_time: null as string | null,
+    is_priority: false,
+    match_label: '',
+    sport_id: '' as string | null,
   });
 
   const [teamForm, setTeamForm] = useState({
@@ -99,13 +112,46 @@ const Admin = () => {
     display_order: 0,
   });
 
+  const [sportForm, setSportForm] = useState({
+    name: '',
+    icon_url: '',
+  });
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  // Show access denied if not admin
+  if (!loading && !isAdminLoading && user && !isAdmin) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center py-20">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center max-w-md mx-4"
+          >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-destructive/10 flex items-center justify-center">
+              <ShieldAlert className="w-10 h-10 text-destructive" />
+            </div>
+            <h1 className="font-display text-3xl text-gradient mb-4">Access Denied</h1>
+            <p className="text-muted-foreground mb-6">
+              You don't have admin privileges to access this page.
+            </p>
+            <Button variant="gradient" onClick={() => navigate('/')}>
+              Go to Home
+            </Button>
+          </motion.div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (loading || isAdminLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -130,13 +176,22 @@ const Admin = () => {
   const handleSaveMatch = async () => {
     try {
       const matchData = {
-        ...matchForm,
+        tournament_id: matchForm.tournament_id || null,
+        team_a_id: matchForm.team_a_id,
+        team_b_id: matchForm.team_b_id,
+        match_number: matchForm.match_number,
+        match_date: matchForm.match_date,
+        match_time: matchForm.match_time,
+        status: matchForm.status,
         venue: matchForm.venue || null,
         score_a: matchForm.score_a || null,
         score_b: matchForm.score_b || null,
         match_link: matchForm.match_link || null,
         match_duration_minutes: matchForm.match_duration_minutes || 180,
         match_start_time: matchForm.match_start_time || null,
+        is_priority: matchForm.is_priority,
+        match_label: matchForm.match_label || null,
+        sport_id: matchForm.sport_id || null,
       };
       
       if (editingMatch) {
@@ -156,7 +211,7 @@ const Admin = () => {
   const handleEditMatch = (match: Match) => {
     setEditingMatch(match);
     setMatchForm({
-      tournament_id: match.tournament_id,
+      tournament_id: match.tournament_id || '',
       team_a_id: match.team_a_id,
       team_b_id: match.team_b_id,
       match_number: match.match_number,
@@ -169,6 +224,9 @@ const Admin = () => {
       match_link: match.match_link || '',
       match_duration_minutes: match.match_duration_minutes || 180,
       match_start_time: match.match_start_time || null,
+      is_priority: match.is_priority || false,
+      match_label: match.match_label || '',
+      sport_id: match.sport_id || '',
     });
     setMatchDialogOpen(true);
   };
@@ -198,6 +256,9 @@ const Admin = () => {
       match_link: '',
       match_duration_minutes: 180,
       match_start_time: null,
+      is_priority: false,
+      match_label: '',
+      sport_id: '',
     });
   };
 
@@ -342,6 +403,51 @@ const Admin = () => {
     setBannerForm({ title: '', image_url: '', link_url: '', is_active: true, display_order: 0 });
   };
 
+  // Sport handlers
+  const handleSaveSport = async () => {
+    try {
+      const sportData = {
+        name: sportForm.name,
+        icon_url: sportForm.icon_url || null,
+      };
+      
+      if (editingSport) {
+        await updateSport.mutateAsync({ id: editingSport.id, ...sportData });
+        toast({ title: "Sport updated successfully" });
+      } else {
+        await createSport.mutateAsync(sportData);
+        toast({ title: "Sport created successfully" });
+      }
+      setSportDialogOpen(false);
+      resetSportForm();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleEditSport = (sport: Sport) => {
+    setEditingSport(sport);
+    setSportForm({
+      name: sport.name,
+      icon_url: sport.icon_url || '',
+    });
+    setSportDialogOpen(true);
+  };
+
+  const handleDeleteSport = async (id: string) => {
+    try {
+      await deleteSport.mutateAsync(id);
+      toast({ title: "Sport deleted successfully" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const resetSportForm = () => {
+    setEditingSport(null);
+    setSportForm({ name: '', icon_url: '' });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
@@ -358,7 +464,7 @@ const Admin = () => {
                 Admin Panel
               </h1>
               <p className="text-muted-foreground">
-                Manage matches, teams, tournaments & banners
+                Manage matches, teams, tournaments, sports & banners
               </p>
             </div>
             <Button variant="outline" onClick={handleSignOut}>
@@ -380,6 +486,10 @@ const Admin = () => {
               <TabsTrigger value="tournaments" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Tournaments
+              </TabsTrigger>
+              <TabsTrigger value="sports" className="gap-2">
+                <Gamepad2 className="w-4 h-4" />
+                Sports
               </TabsTrigger>
               <TabsTrigger value="banners" className="gap-2">
                 <Image className="w-4 h-4" />
@@ -409,22 +519,40 @@ const Admin = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
+                      {/* Sport Selection */}
                       <div className="space-y-2">
-                        <Label>Tournament</Label>
-                        <Select value={matchForm.tournament_id} onValueChange={(v) => setMatchForm({ ...matchForm, tournament_id: v })}>
+                        <Label>Sport *</Label>
+                        <Select value={matchForm.sport_id || ''} onValueChange={(v) => setMatchForm({ ...matchForm, sport_id: v || null })}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select tournament" />
+                            <SelectValue placeholder="Select sport" />
                           </SelectTrigger>
                           <SelectContent>
+                            {sports?.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Tournament (Optional) */}
+                      <div className="space-y-2">
+                        <Label>Tournament (optional)</Label>
+                        <Select value={matchForm.tournament_id || ''} onValueChange={(v) => setMatchForm({ ...matchForm, tournament_id: v || null })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select tournament (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">No Tournament</SelectItem>
                             {tournaments?.map((t) => (
                               <SelectItem key={t.id} value={t.id}>{t.name} {t.season}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Team A</Label>
+                          <Label>Team A *</Label>
                           <Select value={matchForm.team_a_id} onValueChange={(v) => setMatchForm({ ...matchForm, team_a_id: v })}>
                             <SelectTrigger>
                               <SelectValue placeholder="Select team" />
@@ -437,7 +565,7 @@ const Admin = () => {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Team B</Label>
+                          <Label>Team B *</Label>
                           <Select value={matchForm.team_b_id} onValueChange={(v) => setMatchForm({ ...matchForm, team_b_id: v })}>
                             <SelectTrigger>
                               <SelectValue placeholder="Select team" />
@@ -450,6 +578,7 @@ const Admin = () => {
                           </Select>
                         </div>
                       </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Match Number</Label>
@@ -469,8 +598,43 @@ const Admin = () => {
                           </Select>
                         </div>
                       </div>
+                      
+                      {/* Match Label (Optional - Final, Semi-Final, etc.) */}
                       <div className="space-y-2">
-                        <Label>Match Date & Time</Label>
+                        <Label>Match Label (optional)</Label>
+                        <Select value={matchForm.match_label} onValueChange={(v) => setMatchForm({ ...matchForm, match_label: v })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="e.g., Final, Semi-Final" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">None</SelectItem>
+                            <SelectItem value="Final">Final</SelectItem>
+                            <SelectItem value="Semi-Final">Semi-Final</SelectItem>
+                            <SelectItem value="Quarter-Final">Quarter-Final</SelectItem>
+                            <SelectItem value="Qualifier">Qualifier</SelectItem>
+                            <SelectItem value="Eliminator">Eliminator</SelectItem>
+                            <SelectItem value="Group Stage">Group Stage</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Priority Match Toggle */}
+                      <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <Label className="flex items-center gap-2">
+                            <Star className="w-4 h-4 text-yellow-500" />
+                            Priority Match
+                          </Label>
+                          <p className="text-xs text-muted-foreground">Show this match at the top of the list</p>
+                        </div>
+                        <Switch
+                          checked={matchForm.is_priority}
+                          onCheckedChange={(checked) => setMatchForm({ ...matchForm, is_priority: checked })}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Match Date & Time *</Label>
                         <DateTimePicker
                           value={matchForm.match_start_time ? new Date(matchForm.match_start_time) : null}
                           onChange={(date) => {
@@ -500,16 +664,18 @@ const Admin = () => {
                           </p>
                         )}
                       </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Duration (minutes)</Label>
                           <Input type="number" placeholder="180" value={matchForm.match_duration_minutes} onChange={(e) => setMatchForm({ ...matchForm, match_duration_minutes: parseInt(e.target.value) || 180 })} />
                         </div>
                         <div className="space-y-2">
-                          <Label>Venue</Label>
+                          <Label>Venue (optional)</Label>
                           <Input placeholder="Stadium name" value={matchForm.venue} onChange={(e) => setMatchForm({ ...matchForm, venue: e.target.value })} />
                         </div>
                       </div>
+                      
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <LinkIcon className="w-4 h-4" />
@@ -517,6 +683,7 @@ const Admin = () => {
                         </Label>
                         <Input placeholder="https://..." value={matchForm.match_link} onChange={(e) => setMatchForm({ ...matchForm, match_link: e.target.value })} />
                       </div>
+                      
                       {matchForm.status !== 'upcoming' && (
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -555,15 +722,19 @@ const Admin = () => {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
-                      <Card className="hover:border-primary/50 transition-colors">
+                      <Card className={`hover:border-primary/50 transition-colors ${match.is_priority ? 'border-yellow-500/50 bg-yellow-500/5' : ''}`}>
                         <CardContent className="p-4">
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="sport">{match.tournament?.sport}</Badge>
-                                <span className="text-muted-foreground text-sm">
-                                  {match.tournament?.name} {match.tournament?.season}
-                                </span>
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                {match.is_priority && <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />}
+                                {match.match_label && <Badge variant="outline" className="text-xs">{match.match_label}</Badge>}
+                                <Badge variant="sport">{match.sport?.name || match.tournament?.sport}</Badge>
+                                {match.tournament && (
+                                  <span className="text-muted-foreground text-sm">
+                                    {match.tournament.name} {match.tournament.season}
+                                  </span>
+                                )}
                                 {match.match_link && (
                                   <LinkIcon className="w-3 h-3 text-primary" />
                                 )}
@@ -573,6 +744,7 @@ const Admin = () => {
                               </p>
                               <p className="text-muted-foreground text-sm">
                                 {match.match_date} • {match.match_time}
+                                {match.venue && ` • ${match.venue}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -719,8 +891,9 @@ const Admin = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Cricket">Cricket</SelectItem>
-                            <SelectItem value="Football">Football</SelectItem>
+                            {sports?.map((s) => (
+                              <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -794,6 +967,93 @@ const Admin = () => {
               )}
             </TabsContent>
 
+            {/* Sports Tab */}
+            <TabsContent value="sports" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">All Sports</h2>
+                <Dialog open={sportDialogOpen} onOpenChange={(open) => {
+                  setSportDialogOpen(open);
+                  if (!open) resetSportForm();
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="gradient" size="sm">
+                      <Plus className="w-4 h-4" />
+                      Add Sport
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{editingSport ? 'Edit Sport' : 'Add New Sport'}</DialogTitle>
+                      <DialogDescription>
+                        Add a new sport type with an optional icon
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Sport Name</Label>
+                        <Input placeholder="e.g., Badminton" value={sportForm.name} onChange={(e) => setSportForm({ ...sportForm, name: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Icon URL (optional)</Label>
+                        <Input placeholder="https://..." value={sportForm.icon_url} onChange={(e) => setSportForm({ ...sportForm, icon_url: e.target.value })} />
+                        <p className="text-xs text-muted-foreground">Leave empty to use default icon</p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setSportDialogOpen(false)}>Cancel</Button>
+                      <Button variant="gradient" onClick={handleSaveSport} disabled={createSport.isPending || updateSport.isPending}>
+                        {(createSport.isPending || updateSport.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        {editingSport ? 'Update' : 'Create'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {sportsLoading ? (
+                <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {sports?.length === 0 && (
+                    <p className="text-center text-muted-foreground py-8 col-span-full">No sports yet. Add your first sport!</p>
+                  )}
+                  {sports?.map((sport, index) => (
+                    <motion.div
+                      key={sport.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Card className="hover:border-primary/50 transition-colors">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center border border-primary/20">
+                              {sport.icon_url ? (
+                                <img src={sport.icon_url} alt={sport.name} className="w-6 h-6 object-contain" />
+                              ) : (
+                                <Gamepad2 className="w-6 h-6 text-primary" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-semibold">{sport.name}</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => handleEditSport(sport)}>
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteSport(sport.id)}>
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
             {/* Banners Tab */}
             <TabsContent value="banners" className="space-y-6">
               <div className="flex items-center justify-between">
@@ -812,13 +1072,13 @@ const Admin = () => {
                     <DialogHeader>
                       <DialogTitle>{editingBanner ? 'Edit Banner' : 'Add New Banner'}</DialogTitle>
                       <DialogDescription>
-                        Banners appear above the match list
+                        Fill in the banner details below
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label>Title</Label>
-                        <Input placeholder="e.g., Watch Live Now!" value={bannerForm.title} onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })} />
+                        <Input placeholder="Banner title" value={bannerForm.title} onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })} />
                       </div>
                       <div className="space-y-2">
                         <Label>Image URL</Label>
@@ -833,11 +1093,12 @@ const Admin = () => {
                           <Label>Display Order</Label>
                           <Input type="number" value={bannerForm.display_order} onChange={(e) => setBannerForm({ ...bannerForm, display_order: parseInt(e.target.value) || 0 })} />
                         </div>
-                        <div className="space-y-2">
+                        <div className="flex items-center gap-2 pt-7">
+                          <Switch
+                            checked={bannerForm.is_active}
+                            onCheckedChange={(checked) => setBannerForm({ ...bannerForm, is_active: checked })}
+                          />
                           <Label>Active</Label>
-                          <div className="flex items-center h-10">
-                            <Switch checked={bannerForm.is_active} onCheckedChange={(checked) => setBannerForm({ ...bannerForm, is_active: checked })} />
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -862,34 +1123,33 @@ const Admin = () => {
                   {banners?.map((banner, index) => (
                     <motion.div
                       key={banner.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
-                      <Card className="hover:border-primary/50 transition-colors overflow-hidden">
-                        <CardContent className="p-0">
-                          <div className="flex items-stretch">
-                            <div className="w-32 h-24 flex-shrink-0 bg-muted">
+                      <Card className="hover:border-primary/50 transition-colors">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col md:flex-row md:items-center gap-4">
+                            <div className="w-full md:w-48 h-24 rounded-lg overflow-hidden bg-muted">
                               <img src={banner.image_url} alt={banner.title} className="w-full h-full object-cover" />
                             </div>
-                            <div className="flex-1 p-4 flex items-center justify-between">
-                              <div>
-                                <p className="font-semibold">{banner.title}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge variant={banner.is_active ? 'completed' : 'secondary'}>
-                                    {banner.is_active ? 'Active' : 'Inactive'}
-                                  </Badge>
-                                  <span className="text-muted-foreground text-sm">Order: {banner.display_order}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => handleEditBanner(banner)}>
-                                  <Edit2 className="w-4 h-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDeleteBanner(banner.id)}>
-                                  <Trash2 className="w-4 h-4 text-destructive" />
-                                </Button>
-                              </div>
+                            <div className="flex-1">
+                              <p className="font-semibold text-lg">{banner.title}</p>
+                              <p className="text-muted-foreground text-sm">Order: {banner.display_order}</p>
+                              {banner.link_url && (
+                                <p className="text-primary text-sm truncate">{banner.link_url}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={banner.is_active ? 'upcoming' : 'completed'}>
+                                {banner.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
+                              <Button variant="ghost" size="icon" onClick={() => handleEditBanner(banner)}>
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteBanner(banner.id)}>
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
                             </div>
                           </div>
                         </CardContent>

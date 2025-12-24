@@ -51,58 +51,74 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_priority: boolean | null
           match_date: string
           match_duration_minutes: number | null
+          match_label: string | null
           match_link: string | null
           match_number: number
           match_start_time: string | null
           match_time: string
           score_a: string | null
           score_b: string | null
+          sport_id: string | null
           status: string
           team_a_id: string
           team_b_id: string
-          tournament_id: string
+          tournament_id: string | null
           updated_at: string
           venue: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          is_priority?: boolean | null
           match_date: string
           match_duration_minutes?: number | null
+          match_label?: string | null
           match_link?: string | null
           match_number?: number
           match_start_time?: string | null
           match_time: string
           score_a?: string | null
           score_b?: string | null
+          sport_id?: string | null
           status?: string
           team_a_id: string
           team_b_id: string
-          tournament_id: string
+          tournament_id?: string | null
           updated_at?: string
           venue?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          is_priority?: boolean | null
           match_date?: string
           match_duration_minutes?: number | null
+          match_label?: string | null
           match_link?: string | null
           match_number?: number
           match_start_time?: string | null
           match_time?: string
           score_a?: string | null
           score_b?: string | null
+          sport_id?: string | null
           status?: string
           team_a_id?: string
           team_b_id?: string
-          tournament_id?: string
+          tournament_id?: string | null
           updated_at?: string
           venue?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "matches_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matches_team_a_id_fkey"
             columns: ["team_a_id"]
@@ -153,6 +169,30 @@ export type Database = {
           is_admin?: boolean
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      sports: {
+        Row: {
+          created_at: string
+          icon_url: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon_url?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon_url?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -213,15 +253,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -348,6 +415,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
