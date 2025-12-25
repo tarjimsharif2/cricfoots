@@ -109,16 +109,17 @@ const TournamentPage = () => {
   const upcomingMatches = matches.filter(m => m.status === 'upcoming');
   const completedMatches = matches.filter(m => m.status === 'completed');
 
-  // SEO
-  const seoTitle = `${tournament.name} - ${tournament.season} | ${siteSettings?.site_name || 'Live Sports'}`;
-  const seoDescription = `Follow ${tournament.name} ${tournament.season}. Live scores, match schedules, points table and streaming links.`;
+  // SEO - use tournament's custom SEO if available
+  const seoTitle = tournament.seo_title || `${tournament.name} - ${tournament.season} | ${siteSettings?.site_name || 'Live Sports'}`;
+  const seoDescription = tournament.seo_description || `Follow ${tournament.name} ${tournament.season}. Live scores, match schedules, points table and streaming links.`;
+  const seoKeywords = tournament.seo_keywords || `${tournament.name}, ${tournament.sport}, ${tournament.season}, live scores, points table`;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <SEOHead 
         title={seoTitle}
         description={seoDescription}
-        keywords={`${tournament.name}, ${tournament.sport}, ${tournament.season}, live scores, points table`}
+        keywords={seoKeywords}
       />
       <Header />
       

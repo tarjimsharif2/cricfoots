@@ -1,8 +1,9 @@
+import { forwardRef } from "react";
 import { Tv, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
-const Footer = () => {
+const Footer = forwardRef<HTMLElement>((_, ref) => {
   const { data: settings } = useSiteSettings();
 
   const siteName = settings?.site_name || "LIVE SPORTS";
@@ -53,6 +54,8 @@ const Footer = () => {
       </div>
     </footer>
   );
-};
+});
+
+Footer.displayName = 'Footer';
 
 export default Footer;
