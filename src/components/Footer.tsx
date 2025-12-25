@@ -1,9 +1,9 @@
 import { Tv, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { usePublicSiteSettings } from "@/hooks/usePublicSiteSettings";
 
 const Footer = () => {
-  const { data: settings } = useSiteSettings();
+  const { data: settings } = usePublicSiteSettings();
 
   const siteName = settings?.site_name || "LIVE SPORTS";
   const footerText = settings?.footer_text || `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`;
@@ -40,7 +40,7 @@ const Footer = () => {
             href={telegramLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-accent/20 hover:bg-accent/30 text-accent px-4 py-2 rounded-full transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-full transition-colors text-sm font-medium shadow-md"
           >
             <MessageCircle className="w-4 h-4" />
             Join Telegram
