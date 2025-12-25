@@ -26,6 +26,9 @@ export interface Tournament {
   logo_url: string | null;
   slug: string | null;
   is_active: boolean;
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_keywords: string | null;
   created_at: string;
   updated_at: string;
 }

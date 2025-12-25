@@ -629,6 +629,9 @@ export type Database = {
           logo_url: string | null
           name: string
           season: string
+          seo_description: string | null
+          seo_keywords: string | null
+          seo_title: string | null
           slug: string | null
           sport: string
           updated_at: string
@@ -640,6 +643,9 @@ export type Database = {
           logo_url?: string | null
           name: string
           season: string
+          seo_description?: string | null
+          seo_keywords?: string | null
+          seo_title?: string | null
           slug?: string | null
           sport?: string
           updated_at?: string
@@ -651,6 +657,9 @@ export type Database = {
           logo_url?: string | null
           name?: string
           season?: string
+          seo_description?: string | null
+          seo_keywords?: string | null
+          seo_title?: string | null
           slug?: string | null
           sport?: string
           updated_at?: string

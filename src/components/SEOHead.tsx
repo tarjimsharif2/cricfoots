@@ -48,6 +48,8 @@ const SEOHead = ({
     updateMeta('description', finalDescription);
     updateMeta('keywords', finalKeywords);
     updateMeta('author', settings.site_name);
+    updateMeta('robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+    updateMeta('googlebot', 'index, follow');
     
     // Open Graph
     updateMeta('og:title', finalTitle, true);

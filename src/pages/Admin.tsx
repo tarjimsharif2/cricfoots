@@ -91,7 +91,10 @@ const Admin = () => {
   
   // Match search state
   const [matchSearchQuery, setMatchSearchQuery] = useState('');
+  const [matchStatusFilter, setMatchStatusFilter] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
   const [streamingSearchQuery, setStreamingSearchQuery] = useState('');
+  const [streamingStatusFilter, setStreamingStatusFilter] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
+  const [tournamentSearchQuery, setTournamentSearchQuery] = useState('');
   const [fetchingResultFor, setFetchingResultFor] = useState<string | null>(null);
 
   // Form states
@@ -141,6 +144,9 @@ const Admin = () => {
     logo_url: '',
     slug: '',
     is_active: true,
+    seo_title: '',
+    seo_description: '',
+    seo_keywords: '',
   });
 
   const [bannerForm, setBannerForm] = useState({
@@ -701,6 +707,9 @@ const Admin = () => {
         logo_url: tournamentForm.logo_url || null,
         slug: tournamentForm.slug || generateSlug(tournamentForm.name),
         is_active: tournamentForm.is_active,
+        seo_title: tournamentForm.seo_title || null,
+        seo_description: tournamentForm.seo_description || null,
+        seo_keywords: tournamentForm.seo_keywords || null,
       };
       
       if (editingTournament) {
@@ -726,6 +735,9 @@ const Admin = () => {
       logo_url: tournament.logo_url || '',
       slug: tournament.slug || '',
       is_active: tournament.is_active ?? true,
+      seo_title: tournament.seo_title || '',
+      seo_description: tournament.seo_description || '',
+      seo_keywords: tournament.seo_keywords || '',
     });
     setTournamentDialogOpen(true);
   };
@@ -741,7 +753,7 @@ const Admin = () => {
 
   const resetTournamentForm = () => {
     setEditingTournament(null);
-    setTournamentForm({ name: '', sport: 'Cricket', season: '', logo_url: '', slug: '', is_active: true });
+    setTournamentForm({ name: '', sport: 'Cricket', season: '', logo_url: '', slug: '', is_active: true, seo_title: '', seo_description: '', seo_keywords: '' });
   };
 
   // Banner handlers
@@ -1364,14 +1376,27 @@ const Admin = () => {
                 </Dialog>
               </div>
 
-              {/* Match Search */}
-              <div className="relative">
+              {/* Match Search & Filter */}
+              <div className="flex flex-col md:flex-row gap-4">
                 <Input
                   placeholder="Search matches by team name, tournament, or venue..."
                   value={matchSearchQuery}
                   onChange={(e) => setMatchSearchQuery(e.target.value)}
                   className="max-w-md"
                 />
+                <div className="flex gap-2">
+                  {(['all', 'live', 'upcoming', 'completed'] as const).map((status) => (
+                    <Button
+                      key={status}
+                      variant={matchStatusFilter === status ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setMatchStatusFilter(status)}
+                      className="capitalize"
+                    >
+                      {status}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
               {matchesLoading ? (
@@ -1383,6 +1408,9 @@ const Admin = () => {
                   )}
                   {matches
                     ?.filter((match) => {
+                      // Status filter
+                      if (matchStatusFilter !== 'all' && match.status !== matchStatusFilter) return false;
+                      // Search filter
                       if (!matchSearchQuery.trim()) return true;
                       const query = matchSearchQuery.toLowerCase();
                       return (
@@ -1535,14 +1563,27 @@ const Admin = () => {
                 </div>
               </div>
 
-              {/* Streaming Search */}
-              <div className="relative">
+              {/* Streaming Search & Filter */}
+              <div className="flex flex-col md:flex-row gap-4">
                 <Input
                   placeholder="Search matches by team name..."
                   value={streamingSearchQuery}
                   onChange={(e) => setStreamingSearchQuery(e.target.value)}
                   className="max-w-md"
                 />
+                <div className="flex gap-2">
+                  {(['all', 'live', 'upcoming', 'completed'] as const).map((status) => (
+                    <Button
+                      key={status}
+                      variant={streamingStatusFilter === status ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStreamingStatusFilter(status)}
+                      className="capitalize"
+                    >
+                      {status}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
               {matchesLoading ? (
@@ -1555,6 +1596,9 @@ const Admin = () => {
                   {matches
                     ?.filter(m => m.page_type === 'page')
                     .filter((match) => {
+                      // Status filter
+                      if (streamingStatusFilter !== 'all' && match.status !== streamingStatusFilter) return false;
+                      // Search filter
                       if (!streamingSearchQuery.trim()) return true;
                       const query = streamingSearchQuery.toLowerCase();
                       return (
@@ -1819,7 +1863,7 @@ const Admin = () => {
                       Add Tournament
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>{editingTournament ? 'Edit Tournament' : 'Add New Tournament'}</DialogTitle>
                       <DialogDescription>
@@ -1827,30 +1871,68 @@ const Admin = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Tournament Name</Label>
-                        <Input placeholder="e.g., BPL" value={tournamentForm.name} onChange={(e) => setTournamentForm({ ...tournamentForm, name: e.target.value })} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Tournament Name</Label>
+                          <Input placeholder="e.g., BPL" value={tournamentForm.name} onChange={(e) => setTournamentForm({ ...tournamentForm, name: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Sport</Label>
+                          <Select value={tournamentForm.sport} onValueChange={(v) => setTournamentForm({ ...tournamentForm, sport: v })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sports?.map((s) => (
+                                <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Season</Label>
+                          <Input placeholder="e.g., 2025-26" value={tournamentForm.season} onChange={(e) => setTournamentForm({ ...tournamentForm, season: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>URL Slug</Label>
+                          <Input placeholder="e.g., bpl-2025" value={tournamentForm.slug} onChange={(e) => setTournamentForm({ ...tournamentForm, slug: e.target.value })} />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Logo URL (optional)</Label>
+                          <Input placeholder="https://..." value={tournamentForm.logo_url} onChange={(e) => setTournamentForm({ ...tournamentForm, logo_url: e.target.value })} />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Sport</Label>
-                        <Select value={tournamentForm.sport} onValueChange={(v) => setTournamentForm({ ...tournamentForm, sport: v })}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sports?.map((s) => (
-                              <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Season</Label>
-                        <Input placeholder="e.g., 2025-26" value={tournamentForm.season} onChange={(e) => setTournamentForm({ ...tournamentForm, season: e.target.value })} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Logo URL (optional)</Label>
-                        <Input placeholder="https://..." value={tournamentForm.logo_url} onChange={(e) => setTournamentForm({ ...tournamentForm, logo_url: e.target.value })} />
+                      
+                      {/* SEO Section */}
+                      <div className="border-t pt-4 mt-4">
+                        <h4 className="font-medium mb-3 text-sm text-muted-foreground">SEO Settings</h4>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>SEO Title</Label>
+                            <Input 
+                              placeholder="e.g., BPL 2025 Live Scores & Schedule" 
+                              value={tournamentForm.seo_title} 
+                              onChange={(e) => setTournamentForm({ ...tournamentForm, seo_title: e.target.value })} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>SEO Description</Label>
+                            <Textarea 
+                              placeholder="A brief description for search engines (150-160 characters recommended)" 
+                              value={tournamentForm.seo_description} 
+                              onChange={(e) => setTournamentForm({ ...tournamentForm, seo_description: e.target.value })}
+                              rows={3}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>SEO Keywords</Label>
+                            <Input 
+                              placeholder="e.g., BPL 2025, Bangladesh Premier League, cricket live" 
+                              value={tournamentForm.seo_keywords} 
+                              onChange={(e) => setTournamentForm({ ...tournamentForm, seo_keywords: e.target.value })} 
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <DialogFooter>
@@ -1864,6 +1946,16 @@ const Admin = () => {
                 </Dialog>
               </div>
 
+              {/* Tournament Search */}
+              <div className="mb-4">
+                <Input
+                  placeholder="Search tournaments by name or sport..."
+                  value={tournamentSearchQuery}
+                  onChange={(e) => setTournamentSearchQuery(e.target.value)}
+                  className="max-w-md"
+                />
+              </div>
+
               {tournamentsLoading ? (
                 <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
               ) : (
@@ -1871,7 +1963,17 @@ const Admin = () => {
                   {tournaments?.length === 0 && (
                     <p className="text-center text-muted-foreground py-8 col-span-full">No tournaments yet. Add your first tournament!</p>
                   )}
-                  {tournaments?.map((tournament, index) => (
+                  {tournaments
+                    ?.filter((tournament) => {
+                      if (!tournamentSearchQuery.trim()) return true;
+                      const query = tournamentSearchQuery.toLowerCase();
+                      return (
+                        tournament.name?.toLowerCase().includes(query) ||
+                        tournament.sport?.toLowerCase().includes(query) ||
+                        tournament.season?.toLowerCase().includes(query)
+                      );
+                    })
+                    .map((tournament, index) => (
                     <motion.div
                       key={tournament.id}
                       initial={{ opacity: 0, y: 10 }}
