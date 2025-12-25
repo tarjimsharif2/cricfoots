@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit2, Trash2, Loader2 } from "lucide-react";
 import { Tournament, Team } from "@/hooks/useSportsData";
+import SearchableSelect from "@/components/SearchableSelect";
 
 interface PointsTableEntry {
   id: string;
@@ -286,18 +286,19 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Team</Label>
-              <Select value={form.team_id} onValueChange={(value) => setForm({ ...form, team_id: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select team" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTeams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={availableTeams.map((team) => ({
+                  value: team.id,
+                  label: team.name,
+                  sublabel: team.short_name,
+                  imageUrl: team.logo_url,
+                }))}
+                value={form.team_id}
+                onValueChange={(value) => setForm({ ...form, team_id: value })}
+                placeholder="Select team"
+                searchPlaceholder="Search teams..."
+                emptyText="No teams found."
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
