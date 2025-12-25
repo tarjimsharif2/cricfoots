@@ -34,128 +34,141 @@ serve(async (req) => {
       );
     }
 
-    // Fetch match info from Cricbuzz unofficial API
-    const matchInfoUrl = `https://www.cricbuzz.com/api/html/cricket-scorecard/${matchId}`;
-    const scoreUrl = `https://www.cricbuzz.com/api/cricket-match/${matchId}/full-commentary/0`;
-    
-    // Try the mini score endpoint first (more reliable)
-    const miniScoreUrl = `https://www.cricbuzz.com/api/cricket-match/${matchId}/mini-scorecard`;
-    
-    let scoreData: CricbuzzScore | null = null;
+    console.log(`Fetching Cricbuzz score for match ID: ${matchId}`);
 
-    try {
-      // Try mini scorecard endpoint
-      const response = await fetch(miniScoreUrl, {
+    // Try the mcrs (mini card) API endpoint - this is the most reliable
+    const mcrsUrl = `https://www.cricbuzz.com/api/html/cricket-scorecard-mcrs/${matchId}`;
+    
+    const response = await fetch(mcrsUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": `https://www.cricbuzz.com/live-cricket-scores/${matchId}`,
+        "Origin": "https://www.cricbuzz.com",
+        "Cache-Control": "no-cache",
+      },
+    });
+
+    console.log(`MCRS Response status: ${response.status}`);
+
+    if (!response.ok) {
+      // Try alternative mobile endpoint
+      const mobileUrl = `https://m.cricbuzz.com/api/html/cricket-scorecard/${matchId}`;
+      console.log(`Trying mobile endpoint: ${mobileUrl}`);
+      
+      const mobileResponse = await fetch(mobileUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+          "Accept": "*/*",
         },
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      console.log(`Mobile response status: ${mobileResponse.status}`);
+      
+      if (!mobileResponse.ok) {
+        throw new Error(`All Cricbuzz endpoints returned errors. Status: ${response.status}, ${mobileResponse.status}`);
+      }
+    }
+
+    const text = await response.text();
+    console.log(`Response length: ${text.length}`);
+    console.log(`Response preview: ${text.substring(0, 500)}`);
+
+    if (!text || text.length < 10) {
+      throw new Error("Empty response from Cricbuzz API");
+    }
+
+    // Parse the HTML/JSON response to extract score data
+    const scores: Array<{ r: number; w: number; o: number; inning: string }> = [];
+    let status = "";
+    let matchEnded = false;
+    let title = `Match ${matchId}`;
+
+    // Try parsing as JSON first
+    try {
+      if (text.trim().startsWith("{") || text.trim().startsWith("[")) {
+        const data = JSON.parse(text);
+        console.log(`JSON keys: ${Object.keys(data).join(", ")}`);
         
-        if (data) {
-          const scores: Array<{ r: number; w: number; o: number; inning: string }> = [];
-          
-          // Parse innings data from mini scorecard
-          if (data.miniscore) {
-            const mini = data.miniscore;
-            
-            // Current batting team
-            if (mini.batTeam && mini.batTeam.teamScore) {
-              scores.push({
-                r: mini.batTeam.teamScore.inngs1?.runs || 0,
-                w: mini.batTeam.teamScore.inngs1?.wickets || 0,
-                o: parseFloat(mini.batTeam.teamScore.inngs1?.overs || "0"),
-                inning: `${mini.batTeam.teamName || 'Team'} Inning 1`,
-              });
-            }
-            
-            // Bowling team (previous innings if available)
-            if (mini.bowlTeam && mini.bowlTeam.teamScore) {
-              scores.push({
-                r: mini.bowlTeam.teamScore.inngs1?.runs || 0,
-                w: mini.bowlTeam.teamScore.inngs1?.wickets || 0,
-                o: parseFloat(mini.bowlTeam.teamScore.inngs1?.overs || "0"),
-                inning: `${mini.bowlTeam.teamName || 'Team'} Inning 1`,
-              });
-            }
-            
-            scoreData = {
-              matchId,
-              title: mini.matchDesc || `Match ${matchId}`,
-              status: mini.status || "",
-              matchStarted: true,
-              matchEnded: mini.matchState === "COMPLETE",
-              score: scores,
-            };
+        // Handle various JSON response formats
+        if (data.score && Array.isArray(data.score)) {
+          for (const sc of data.score) {
+            scores.push({
+              r: sc.r || sc.runs || 0,
+              w: sc.w || sc.wickets || 0,
+              o: parseFloat(sc.o || sc.overs || "0"),
+              inning: sc.inning || sc.innings || `Inning ${scores.length + 1}`,
+            });
           }
         }
+        
+        status = data.status || data.matchStatus || "";
+        matchEnded = data.matchEnded || status.toLowerCase().includes("won") || status.toLowerCase().includes("draw");
+        title = data.title || data.matchDesc || title;
       }
-    } catch (e) {
-      console.error("Mini scorecard failed, trying alternative:", e);
+    } catch {
+      console.log("Not valid JSON, parsing as HTML...");
     }
 
-    // Try alternative endpoint if mini scorecard failed
-    if (!scoreData) {
-      try {
-        const altUrl = `https://www.cricbuzz.com/api/cricket-match/${matchId}/commentary`;
-        const response = await fetch(altUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json",
-          },
+    // If JSON parsing didn't work, try HTML parsing
+    if (scores.length === 0) {
+      // Extract score patterns like "134/8 (20)" or "138/4 (19.1 ov)"
+      const scoreRegex = /(\d+)[\s\/]+(\d+)\s*\((\d+\.?\d*)/g;
+      let match;
+      let idx = 0;
+      
+      while ((match = scoreRegex.exec(text)) !== null && idx < 4) {
+        scores.push({
+          r: parseInt(match[1]),
+          w: parseInt(match[2]),
+          o: parseFloat(match[3]),
+          inning: `Inning ${idx + 1}`,
         });
+        idx++;
+      }
 
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data && data.matchHeader) {
-            const scores: Array<{ r: number; w: number; o: number; inning: string }> = [];
-            
-            // Parse from matchHeader
-            const header = data.matchHeader;
-            
-            if (header.team1 && header.team1.inngs1) {
-              scores.push({
-                r: header.team1.inngs1.runs || 0,
-                w: header.team1.inngs1.wickets || 0,
-                o: parseFloat(header.team1.inngs1.overs || "0"),
-                inning: `${header.team1.name || 'Team 1'} Inning 1`,
-              });
-            }
-            
-            if (header.team2 && header.team2.inngs1) {
-              scores.push({
-                r: header.team2.inngs1.runs || 0,
-                w: header.team2.inngs1.wickets || 0,
-                o: parseFloat(header.team2.inngs1.overs || "0"),
-                inning: `${header.team2.name || 'Team 2'} Inning 1`,
-              });
-            }
+      // Try to find team names
+      const teamRegex = /<[^>]*class="[^"]*team[^"]*"[^>]*>([^<]+)<\/[^>]*>/gi;
+      const teamMatches = [...text.matchAll(teamRegex)];
+      
+      for (let i = 0; i < Math.min(teamMatches.length, scores.length); i++) {
+        scores[i].inning = `${teamMatches[i][1].trim()} Inning ${Math.floor(i / 2) + 1}`;
+      }
 
-            scoreData = {
-              matchId,
-              title: header.matchDescription || `Match ${matchId}`,
-              status: header.status || "",
-              matchStarted: header.state !== "preview",
-              matchEnded: header.state === "complete",
-              score: scores,
-            };
-          }
-        }
-      } catch (e) {
-        console.error("Alternative endpoint also failed:", e);
+      // Check for match status
+      if (text.toLowerCase().includes("won by") || text.toLowerCase().includes("match drawn")) {
+        matchEnded = true;
+      }
+      
+      // Extract status text if available
+      const statusMatch = text.match(/<[^>]*class="[^"]*status[^"]*"[^>]*>([^<]+)<\/[^>]*>/i);
+      if (statusMatch) {
+        status = statusMatch[1].trim();
       }
     }
 
-    if (!scoreData) {
+    if (scores.length === 0) {
+      console.log("Could not extract any score data");
       return new Response(
-        JSON.stringify({ error: "Could not fetch score data from Cricbuzz" }),
+        JSON.stringify({ 
+          error: "Could not extract score data from Cricbuzz. The API may have changed or the match is not available.",
+          hint: "Try using CricAPI as an alternative by enabling 'Live Score API' in match settings."
+        }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const scoreData: CricbuzzScore = {
+      matchId,
+      title,
+      status,
+      matchStarted: true,
+      matchEnded,
+      score: scores,
+    };
+
+    console.log(`Successfully extracted score data: ${JSON.stringify(scoreData)}`);
 
     return new Response(
       JSON.stringify(scoreData),
@@ -166,7 +179,10 @@ serve(async (req) => {
     console.error("Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        error: errorMessage,
+        hint: "Cricbuzz API may be temporarily unavailable. Try using CricAPI as an alternative."
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
