@@ -1,4 +1,4 @@
-import { useMemo, forwardRef } from 'react';
+import { useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 
@@ -7,7 +7,7 @@ interface AdSlotProps {
   className?: string;
 }
 
-const AdSlot = forwardRef<HTMLDivElement, AdSlotProps>(({ position, className = '' }, ref) => {
+const AdSlot = ({ position, className = '' }: AdSlotProps) => {
   const { data: settings } = useSiteSettings();
 
   // Sanitize ad code to prevent XSS attacks
@@ -56,13 +56,10 @@ const AdSlot = forwardRef<HTMLDivElement, AdSlotProps>(({ position, className = 
 
   return (
     <div 
-      ref={ref}
       className={`ad-slot ad-slot-${position} ${className}`}
       dangerouslySetInnerHTML={{ __html: sanitizedAdCode }}
     />
   );
-});
-
-AdSlot.displayName = 'AdSlot';
+};
 
 export default AdSlot;
