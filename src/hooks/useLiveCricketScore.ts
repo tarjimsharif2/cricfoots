@@ -101,7 +101,7 @@ export const useLiveCricketScore = (
       
       const data: CricketAPIResponse = await response.json();
       
-      if (data.status !== 'success' || !data.data) {
+      if (!data.data || data.data.length === 0) {
         return null;
       }
       
