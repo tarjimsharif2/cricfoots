@@ -92,6 +92,7 @@ const Admin = () => {
   // Match search state
   const [matchSearchQuery, setMatchSearchQuery] = useState('');
   const [streamingSearchQuery, setStreamingSearchQuery] = useState('');
+  const [fetchingResultFor, setFetchingResultFor] = useState<string | null>(null);
 
   // Form states
   const [matchForm, setMatchForm] = useState({
@@ -262,8 +263,6 @@ const Admin = () => {
     return null;
   }
 
-  // Fetch result state
-  const [fetchingResultFor, setFetchingResultFor] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     await signOut();
