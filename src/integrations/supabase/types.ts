@@ -168,6 +168,7 @@ export type Database = {
         Row: {
           api_score_enabled: boolean | null
           created_at: string
+          cricbuzz_match_id: string | null
           day_start_time: string | null
           id: string
           is_priority: boolean | null
@@ -203,6 +204,7 @@ export type Database = {
         Insert: {
           api_score_enabled?: boolean | null
           created_at?: string
+          cricbuzz_match_id?: string | null
           day_start_time?: string | null
           id?: string
           is_priority?: boolean | null
@@ -238,6 +240,7 @@ export type Database = {
         Update: {
           api_score_enabled?: boolean | null
           created_at?: string
+          cricbuzz_match_id?: string | null
           day_start_time?: string | null
           id?: string
           is_priority?: boolean | null
