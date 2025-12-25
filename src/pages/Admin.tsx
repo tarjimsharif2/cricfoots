@@ -90,6 +90,7 @@ const Admin = () => {
   
   // Match search state
   const [matchSearchQuery, setMatchSearchQuery] = useState('');
+  const [streamingSearchQuery, setStreamingSearchQuery] = useState('');
 
   // Form states
   const [matchForm, setMatchForm] = useState({
@@ -1151,6 +1152,16 @@ const Admin = () => {
                         match.match_label?.toLowerCase().includes(query)
                       );
                     })
+                    .sort((a, b) => {
+                      // Sort by status: live first, then upcoming, then completed
+                      const statusOrder = { live: 0, upcoming: 1, completed: 2 };
+                      const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+                      if (statusDiff !== 0) return statusDiff;
+                      // Within same status, sort by start time
+                      const timeA = a.match_start_time ? new Date(a.match_start_time).getTime() : 0;
+                      const timeB = b.match_start_time ? new Date(b.match_start_time).getTime() : 0;
+                      return timeA - timeB;
+                    })
                     .map((match, index) => (
                     <motion.div
                       key={match.id}
@@ -1265,6 +1276,16 @@ const Admin = () => {
                 </div>
               </div>
 
+              {/* Streaming Search */}
+              <div className="relative">
+                <Input
+                  placeholder="Search matches by team name..."
+                  value={streamingSearchQuery}
+                  onChange={(e) => setStreamingSearchQuery(e.target.value)}
+                  className="max-w-md"
+                />
+              </div>
+
               {matchesLoading ? (
                 <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
               ) : (
@@ -1272,7 +1293,29 @@ const Admin = () => {
                   {matches?.length === 0 && (
                     <p className="text-center text-muted-foreground py-8">No matches available. Create matches first to add streaming servers.</p>
                   )}
-                  {matches?.filter(m => m.page_type === 'page').map((match, index) => (
+                  {matches
+                    ?.filter(m => m.page_type === 'page')
+                    .filter((match) => {
+                      if (!streamingSearchQuery.trim()) return true;
+                      const query = streamingSearchQuery.toLowerCase();
+                      return (
+                        match.team_a?.name?.toLowerCase().includes(query) ||
+                        match.team_b?.name?.toLowerCase().includes(query) ||
+                        match.team_a?.short_name?.toLowerCase().includes(query) ||
+                        match.team_b?.short_name?.toLowerCase().includes(query)
+                      );
+                    })
+                    .sort((a, b) => {
+                      // Sort by status: live first, then upcoming, then completed
+                      const statusOrder = { live: 0, upcoming: 1, completed: 2 };
+                      const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+                      if (statusDiff !== 0) return statusDiff;
+                      // Within same status, sort by start time
+                      const timeA = a.match_start_time ? new Date(a.match_start_time).getTime() : 0;
+                      const timeB = b.match_start_time ? new Date(b.match_start_time).getTime() : 0;
+                      return timeA - timeB;
+                    })
+                    .map((match, index) => (
                     <motion.div
                       key={match.id}
                       initial={{ opacity: 0, y: 10 }}
