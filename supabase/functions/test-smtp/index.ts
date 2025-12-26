@@ -69,11 +69,15 @@ const handler = async (req: Request): Promise<Response> => {
     // Send test email using SMTP
     const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
 
+    const port = settings.smtp_port || 587;
+    // Port 465 uses direct TLS, port 587 uses STARTTLS
+    const useTls = port === 465;
+
     const client = new SMTPClient({
       connection: {
         hostname: settings.smtp_host,
-        port: settings.smtp_port || 587,
-        tls: true,
+        port: port,
+        tls: useTls,
         auth: {
           username: settings.smtp_user,
           password: settings.smtp_password,
