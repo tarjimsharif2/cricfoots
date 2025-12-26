@@ -55,11 +55,9 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
   const [currentQuality, setCurrentQuality] = useState<number>(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isPiPActive, setIsPiPActive] = useState(false);
-  const [needsUserInteraction, setNeedsUserInteraction] = useState(false);
   const playerIdRef = useRef(`clappr-${Math.random().toString(36).substr(2, 9)}`);
 
   const isPiPSupported = 'pictureInPictureEnabled' in document;
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   const togglePiP = async () => {
     try {
@@ -79,22 +77,6 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
     } catch (err) {
       console.error('PiP error:', err);
       toast.error('Picture-in-Picture not available');
-    }
-  };
-
-  const handleManualPlay = () => {
-    try {
-      const videoElement = containerRef.current?.querySelector('video') as HTMLVideoElement;
-      if (videoElement) {
-        videoElement.play().then(() => {
-          setNeedsUserInteraction(false);
-        }).catch(console.warn);
-      } else if (playerRef.current) {
-        playerRef.current.play();
-        setNeedsUserInteraction(false);
-      }
-    } catch (e) {
-      console.warn('Manual play failed:', e);
     }
   };
 
@@ -130,13 +112,13 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
           parent: containerRef.current,
           width: '100%',
           height: '100%',
-          autoPlay: !isMobile, // Don't autoplay on mobile
+          autoPlay: true,
           mute: false,
           hideMediaControl: false,
           mediacontrol: { seekbar: '#E91E63', buttons: '#E91E63' },
           playback: {
             playInline: true,
-            controls: isMobile, // Show native controls on mobile for better touch support
+            controls: false,
             hlsjsConfig: {
               enableWorker: true,
               lowLatencyMode: false,
@@ -148,11 +130,6 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
         player.on('ready', () => {
           if (mounted) {
             setIsLoading(false);
-            
-            // On mobile, show play button if autoplay didn't work
-            if (isMobile) {
-              setNeedsUserInteraction(true);
-            }
             
             try {
               const playback = player.core?.activePlayback;
@@ -176,11 +153,6 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
           }
         });
 
-        player.on('play', () => {
-          if (mounted) {
-            setNeedsUserInteraction(false);
-          }
-        });
 
         player.on('error', (e: any) => {
           console.error('Clappr playback error:', e);
@@ -220,7 +192,7 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
         playerRef.current = null;
       }
     };
-  }, [url, isMobile]);
+  }, [url]);
 
   const handleQualityChange = (levelIndex: number) => {
     try {
@@ -264,21 +236,9 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
         style={{ zIndex: 1 }}
       />
       
-      {/* Mobile Play Button Overlay */}
-      {needsUserInteraction && !isLoading && (
-        <button
-          onClick={handleManualPlay}
-          className="absolute inset-0 flex items-center justify-center bg-black/50 hover:bg-black/40 transition-colors cursor-pointer z-20"
-        >
-          <div className="w-20 h-20 rounded-full bg-primary/90 flex items-center justify-center hover:scale-110 transition-transform">
-            <Play className="w-8 h-8 text-primary-foreground ml-1" />
-          </div>
-        </button>
-      )}
       
-      {/* Controls - PiP and Quality (only show when not needing interaction) */}
-      {!needsUserInteraction && (
-        <div className="absolute bottom-16 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Controls - PiP and Quality */}
+      <div className="absolute bottom-16 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {/* PiP Button */}
           {isPiPSupported && (
             <Button 
@@ -329,7 +289,6 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
             </DropdownMenu>
           )}
         </div>
-      )}
     </div>
   );
 };
