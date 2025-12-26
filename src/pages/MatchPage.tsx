@@ -30,6 +30,11 @@ const MatchPage = () => {
   const { data: siteSettings } = useSiteSettings();
   const { data: servers, isLoading: serversLoading } = useStreamingServers(match?.id || '');
 
+  // Scroll to top when match page loads
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [slug]);
+
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const tzAbbr = new Date().toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || '';
