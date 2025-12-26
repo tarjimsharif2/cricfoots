@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.cricket-api]
 verify_jwt = false
+
+[functions.google-indexing]
+verify_jwt = true
+
+[functions.update-match-status]
+verify_jwt = false
