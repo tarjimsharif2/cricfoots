@@ -746,6 +746,7 @@ export type Database = {
       site_settings_public: {
         Row: {
           ads_enabled: boolean | null
+          ads_txt_content: string | null
           canonical_url: string | null
           created_at: string | null
           cricket_api_enabled: boolean | null
@@ -775,6 +776,7 @@ export type Database = {
         }
         Insert: {
           ads_enabled?: boolean | null
+          ads_txt_content?: string | null
           canonical_url?: string | null
           created_at?: string | null
           cricket_api_enabled?: boolean | null
@@ -804,6 +806,7 @@ export type Database = {
         }
         Update: {
           ads_enabled?: boolean | null
+          ads_txt_content?: string | null
           canonical_url?: string | null
           created_at?: string | null
           cricket_api_enabled?: boolean | null
