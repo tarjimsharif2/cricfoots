@@ -105,9 +105,9 @@ const MatchList = () => {
       const dateA = parseMatchDateTime(a.match_date, a.match_time, a.match_start_time);
       const dateB = parseMatchDateTime(b.match_date, b.match_time, b.match_start_time);
       
-      // For upcoming matches, show soonest first
-      // For live and completed, show most recent first
-      if (a.status === 'upcoming') {
+      // For live and upcoming matches, sort by start time (earliest first)
+      // For completed, show most recent first
+      if (a.status === 'live' || a.status === 'upcoming') {
         return dateA.getTime() - dateB.getTime();
       }
       return dateB.getTime() - dateA.getTime();
