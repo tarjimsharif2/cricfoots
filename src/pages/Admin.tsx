@@ -22,7 +22,7 @@ import {
 } from "@/hooks/useSportsData";
 import { useSiteSettings, useUpdateSiteSettings, SiteSettings } from "@/hooks/useSiteSettings";
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Edit2, Trash2, Calendar, Trophy, Users, LogOut, Loader2, Image, Link as LinkIcon, Gamepad2, Star, ShieldAlert, Settings, Tv, Save, Play, Copy, Download, RefreshCw } from "lucide-react";
+import { Plus, Edit2, Trash2, Calendar, Trophy, Users, LogOut, Loader2, Image, Link as LinkIcon, Gamepad2, Star, ShieldAlert, Settings, Tv, Save, Play, Copy, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import LiveScoreUpdater from "@/components/LiveScoreUpdater";
 import { motion } from "framer-motion";
@@ -99,7 +99,7 @@ const Admin = () => {
   const [streamingSportFilter, setStreamingSportFilter] = useState<string>('all');
   const [tournamentSearchQuery, setTournamentSearchQuery] = useState('');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
-  const [fetchingResultFor, setFetchingResultFor] = useState<string | null>(null);
+  
 
   // Form states
   const [matchForm, setMatchForm] = useState({
@@ -325,185 +325,6 @@ const Admin = () => {
     });
   };
 
-  // Fetch match result from CricAPI (client-side, like live score)
-  const handleFetchMatchResult = async (match: Match) => {
-    if (!siteSettings?.cricket_api_key || !siteSettings?.cricket_api_enabled) {
-      toast({ title: "Error", description: "Cricket API not configured in site settings", variant: "destructive" });
-      return;
-    }
-
-    const teamAName = match.team_a?.name || '';
-    const teamBName = match.team_b?.name || '';
-    const teamAShort = match.team_a?.short_name || '';
-    const teamBShort = match.team_b?.short_name || '';
-
-    if (!teamAName || !teamBName) {
-      toast({ title: "Error", description: "Match teams not found", variant: "destructive" });
-      return;
-    }
-
-    setFetchingResultFor(match.id);
-
-    try {
-      // Fetch from client-side (bypasses cloud server blocking)
-      const response = await fetch(
-        `https://api.cricapi.com/v1/currentMatches?apikey=${siteSettings.cricket_api_key}&offset=0`
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch from CricAPI');
-
-      const data = await response.json();
-      if (data.status !== 'success' || !data.data) {
-        throw new Error(data.info || 'No match data from API');
-      }
-
-      // Find matching match by team names
-      const normalizeTeamName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const teamANorm = normalizeTeamName(teamAName);
-      const teamBNorm = normalizeTeamName(teamBName);
-      const teamAShortNorm = normalizeTeamName(teamAShort);
-      const teamBShortNorm = normalizeTeamName(teamBShort);
-
-      const matchingMatch = data.data.find((m: any) => {
-        if (!m.teams || m.teams.length < 2) return false;
-        const [t1, t2] = m.teams.map((t: string) => normalizeTeamName(t));
-        
-        const t1MatchesA = t1.includes(teamANorm) || teamANorm.includes(t1) || t1.includes(teamAShortNorm);
-        const t1MatchesB = t1.includes(teamBNorm) || teamBNorm.includes(t1) || t1.includes(teamBShortNorm);
-        const t2MatchesA = t2.includes(teamANorm) || teamANorm.includes(t2) || t2.includes(teamAShortNorm);
-        const t2MatchesB = t2.includes(teamBNorm) || teamBNorm.includes(t2) || t2.includes(teamBShortNorm);
-
-        return (t1MatchesA && t2MatchesB) || (t1MatchesB && t2MatchesA);
-      });
-
-      if (!matchingMatch) {
-        toast({ title: "Not found", description: `No match found for ${teamAShort} vs ${teamBShort} in CricAPI`, variant: "destructive" });
-        return;
-      }
-
-      if (!matchingMatch.matchEnded) {
-        toast({ title: "Match not ended", description: `Status: ${matchingMatch.status}`, variant: "destructive" });
-        return;
-      }
-
-      // Determine winner
-      let matchResult: 'team_a_won' | 'team_b_won' | 'tied' | 'no_result' | 'draw' | null = null;
-      const statusLower = matchingMatch.status?.toLowerCase() || '';
-      
-      if (matchingMatch.matchWinner) {
-        const winnerNorm = normalizeTeamName(matchingMatch.matchWinner);
-        if (winnerNorm.includes(teamANorm) || teamANorm.includes(winnerNorm) || winnerNorm.includes(teamAShortNorm)) {
-          matchResult = 'team_a_won';
-        } else if (winnerNorm.includes(teamBNorm) || teamBNorm.includes(winnerNorm) || winnerNorm.includes(teamBShortNorm)) {
-          matchResult = 'team_b_won';
-        }
-      }
-
-      if (!matchResult) {
-        if (statusLower.includes('tied') || statusLower.includes('tie')) matchResult = 'tied';
-        else if (statusLower.includes('no result') || statusLower.includes('abandoned')) matchResult = 'no_result';
-        else if (statusLower.includes('draw')) matchResult = 'draw';
-        else if (statusLower.includes(teamANorm) && statusLower.includes('won')) matchResult = 'team_a_won';
-        else if (statusLower.includes(teamBNorm) && statusLower.includes('won')) matchResult = 'team_b_won';
-      }
-
-      if (!matchResult) {
-        toast({ title: "Could not determine result", description: `Status: ${matchingMatch.status}`, variant: "destructive" });
-        return;
-      }
-
-      // Parse scores for innings
-      const scores = matchingMatch.score || [];
-      let teamARuns = 0, teamAOvers = 0, teamAWickets = 0;
-      let teamBRuns = 0, teamBOvers = 0, teamBWickets = 0;
-
-      for (const score of scores) {
-        const inningNorm = normalizeTeamName(score.inning || '');
-        if (inningNorm.includes(teamANorm) || inningNorm.includes(teamAShortNorm)) {
-          teamARuns += score.r || 0;
-          teamAOvers += score.o || 0;
-          teamAWickets += score.w || 0;
-        } else if (inningNorm.includes(teamBNorm) || inningNorm.includes(teamBShortNorm)) {
-          teamBRuns += score.r || 0;
-          teamBOvers += score.o || 0;
-          teamBWickets += score.w || 0;
-        }
-      }
-
-      // Delete existing innings and insert new ones
-      await supabase.from('match_innings').delete().eq('match_id', match.id);
-
-      const hasDetailedScores = (teamARuns > 0 || teamAOvers > 0) || (teamBRuns > 0 || teamBOvers > 0);
-
-      if (teamARuns > 0 || teamAOvers > 0) {
-        await supabase.from('match_innings').insert({
-          match_id: match.id,
-          batting_team_id: match.team_a_id,
-          innings_number: 1,
-          runs: teamARuns,
-          overs: teamAOvers,
-          wickets: teamAWickets,
-          is_current: false,
-        });
-      }
-
-      if (teamBRuns > 0 || teamBOvers > 0) {
-        await supabase.from('match_innings').insert({
-          match_id: match.id,
-          batting_team_id: match.team_b_id,
-          innings_number: 2,
-          runs: teamBRuns,
-          overs: teamBOvers,
-          wickets: teamBWickets,
-          is_current: false,
-        });
-      }
-
-      // Build score strings - use detailed scores if available, otherwise use API status
-      let scoreA: string | null = null;
-      let scoreB: string | null = null;
-
-      if (hasDetailedScores) {
-        if (teamARuns > 0 || teamAOvers > 0) {
-          scoreA = `${teamARuns}/${teamAWickets} (${teamAOvers} ov)`;
-        }
-        if (teamBRuns > 0 || teamBOvers > 0) {
-          scoreB = `${teamBRuns}/${teamBWickets} (${teamBOvers} ov)`;
-        }
-      } else {
-        // Fallback: use API status text as score display
-        scoreA = matchingMatch.status || null;
-      }
-
-      // Update match result with scores
-      const { error: updateError } = await supabase
-        .from('matches')
-        .update({ 
-          match_result: matchResult, 
-          status: 'completed',
-          score_a: scoreA,
-          score_b: scoreB
-        })
-        .eq('id', match.id);
-
-      if (updateError) throw updateError;
-
-      const toastDescription = hasDetailedScores 
-        ? `${matchResult.replace('_', ' ')} - ${teamAShort}: ${teamARuns}/${teamAWickets}, ${teamBShort}: ${teamBRuns}/${teamBWickets}`
-        : `${matchResult.replace('_', ' ')} (No detailed scores available)`;
-
-      toast({ 
-        title: "Result fetched!", 
-        description: toastDescription
-      });
-
-    } catch (err: any) {
-      console.error('Fetch result error:', err);
-      toast({ title: "Error", description: err.message || 'Failed to fetch result', variant: "destructive" });
-    } finally {
-      setFetchingResultFor(null);
-    }
-  };
 
   // Match handlers
   const handleSaveMatch = async () => {
@@ -1545,22 +1366,6 @@ const Admin = () => {
                                 >
                                   <Play className="w-3 h-3 mr-1" />
                                   Innings
-                                </Button>
-                              )}
-                              {match.sport?.name?.toLowerCase() === 'cricket' && siteSettings?.cricket_api_enabled && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleFetchMatchResult(match)}
-                                  disabled={fetchingResultFor === match.id}
-                                  title="Fetch result from CricAPI by team names"
-                                >
-                                  {fetchingResultFor === match.id ? (
-                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Download className="w-3 h-3 mr-1" />
-                                  )}
-                                  Result
                                 </Button>
                               )}
                               <Button 

@@ -9,11 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, Loader2, Upload } from "lucide-react";
+import { Plus, Edit2, Trash2, Loader2, Upload, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Team } from "@/hooks/useSportsData";
 import { useToast } from "@/hooks/use-toast";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Player {
   id: string;
@@ -149,7 +150,9 @@ const PLAYER_ROLES = [
 
 const PlayingXIManager = ({ matchId, teamA, teamB }: PlayingXIManagerProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: players, isLoading } = usePlayingXI(matchId);
+  const { data: siteSettings } = useSiteSettings();
   const createPlayer = useCreatePlayer();
   const bulkCreatePlayers = useBulkCreatePlayers();
   const updatePlayer = useUpdatePlayer();
@@ -159,6 +162,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB }: PlayingXIManagerProps) => {
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [activeTeam, setActiveTeam] = useState<string>(teamA.id);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [fetchingSquad, setFetchingSquad] = useState(false);
   const [form, setForm] = useState({
     player_name: '',
     player_role: '',
@@ -318,6 +322,144 @@ const PlayingXIManager = ({ matchId, teamA, teamB }: PlayingXIManagerProps) => {
     }
   };
 
+  // Fetch squad from CricAPI and populate playing XI
+  const handleFetchSquad = async () => {
+    if (!siteSettings?.cricket_api_key || !siteSettings?.cricket_api_enabled) {
+      toast({ title: "Error", description: "Cricket API not configured in site settings", variant: "destructive" });
+      return;
+    }
+
+    setFetchingSquad(true);
+
+    try {
+      // First, find the match in currentMatches API by team names
+      const normalizeTeamName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const teamANorm = normalizeTeamName(teamA.name);
+      const teamBNorm = normalizeTeamName(teamB.name);
+      const teamAShortNorm = normalizeTeamName(teamA.short_name);
+      const teamBShortNorm = normalizeTeamName(teamB.short_name);
+
+      // Get current matches
+      const matchesResponse = await fetch(
+        `https://api.cricapi.com/v1/currentMatches?apikey=${siteSettings.cricket_api_key}&offset=0`
+      );
+
+      if (!matchesResponse.ok) throw new Error('Failed to fetch from CricAPI');
+
+      const matchesData = await matchesResponse.json();
+      if (matchesData.status !== 'success' || !matchesData.data) {
+        throw new Error(matchesData.info || 'No match data from API');
+      }
+
+      // Find matching match
+      const matchingMatch = matchesData.data.find((m: any) => {
+        if (!m.teams || m.teams.length < 2) return false;
+        const [t1, t2] = m.teams.map((t: string) => normalizeTeamName(t));
+        
+        const t1MatchesA = t1.includes(teamANorm) || teamANorm.includes(t1) || t1.includes(teamAShortNorm);
+        const t1MatchesB = t1.includes(teamBNorm) || teamBNorm.includes(t1) || t1.includes(teamBShortNorm);
+        const t2MatchesA = t2.includes(teamANorm) || teamANorm.includes(t2) || t2.includes(teamAShortNorm);
+        const t2MatchesB = t2.includes(teamBNorm) || teamBNorm.includes(t2) || t2.includes(teamBShortNorm);
+
+        return (t1MatchesA && t2MatchesB) || (t1MatchesB && t2MatchesA);
+      });
+
+      if (!matchingMatch) {
+        toast({ title: "Not found", description: `No match found for ${teamA.short_name} vs ${teamB.short_name} in CricAPI`, variant: "destructive" });
+        return;
+      }
+
+      // Now fetch squad for this match using match_squad endpoint
+      const squadResponse = await fetch(
+        `https://api.cricapi.com/v1/match_squad?apikey=${siteSettings.cricket_api_key}&id=${matchingMatch.id}`
+      );
+
+      if (!squadResponse.ok) throw new Error('Failed to fetch squad from CricAPI');
+
+      const squadData = await squadResponse.json();
+      if (squadData.status !== 'success' || !squadData.data) {
+        throw new Error(squadData.info || 'No squad data available');
+      }
+
+      // Clear existing players
+      const { error: deleteError } = await supabase
+        .from('match_playing_xi')
+        .delete()
+        .eq('match_id', matchId);
+
+      if (deleteError) throw deleteError;
+
+      // Process squad data - it comes as an array with teamInfo
+      const playersToAdd: Omit<Player, 'id'>[] = [];
+      
+      for (const teamData of squadData.data) {
+        if (!teamData.players || !Array.isArray(teamData.players)) continue;
+        
+        const apiTeamName = normalizeTeamName(teamData.name || teamData.teamName || '');
+        
+        // Determine which local team this API team matches
+        let localTeamId: string | null = null;
+        if (apiTeamName.includes(teamANorm) || teamANorm.includes(apiTeamName) || 
+            apiTeamName.includes(teamAShortNorm) || teamAShortNorm.includes(apiTeamName)) {
+          localTeamId = teamA.id;
+        } else if (apiTeamName.includes(teamBNorm) || teamBNorm.includes(apiTeamName) || 
+                   apiTeamName.includes(teamBShortNorm) || teamBShortNorm.includes(apiTeamName)) {
+          localTeamId = teamB.id;
+        }
+
+        if (!localTeamId) continue;
+
+        teamData.players.forEach((player: any, index: number) => {
+          const playerName = player.name || player.playerName || '';
+          const playerRole = player.role || player.playerRole || null;
+          
+          // Check for captain/wk markers in role
+          const roleLower = (playerRole || '').toLowerCase();
+          const isCaptain = roleLower.includes('captain') && !roleLower.includes('vice');
+          const isViceCaptain = roleLower.includes('vice') && roleLower.includes('captain');
+          const isWicketKeeper = roleLower.includes('keeper') || roleLower.includes('wk');
+
+          playersToAdd.push({
+            match_id: matchId,
+            team_id: localTeamId!,
+            player_name: playerName,
+            player_role: playerRole,
+            is_captain: isCaptain,
+            is_vice_captain: isViceCaptain,
+            is_wicket_keeper: isWicketKeeper,
+            batting_order: index + 1,
+          });
+        });
+      }
+
+      if (playersToAdd.length === 0) {
+        toast({ title: "No players found", description: "Squad data was empty", variant: "destructive" });
+        return;
+      }
+
+      // Insert all players
+      const { error: insertError } = await supabase
+        .from('match_playing_xi')
+        .insert(playersToAdd);
+
+      if (insertError) throw insertError;
+
+      // Refresh the query
+      queryClient.invalidateQueries({ queryKey: ['playing_xi', matchId] });
+
+      toast({ 
+        title: "Squad fetched!", 
+        description: `${playersToAdd.length} players added from CricAPI`
+      });
+
+    } catch (err: any) {
+      console.error('Fetch squad error:', err);
+      toast({ title: "Error", description: err.message || 'Failed to fetch squad', variant: "destructive" });
+    } finally {
+      setFetchingSquad(false);
+    }
+  };
+
   const renderPlayerCard = (player: Player) => (
     <Card key={player.id} className="hover:border-primary/30 transition-colors">
       <CardContent className="p-3">
@@ -423,6 +565,26 @@ const PlayingXIManager = ({ matchId, teamA, teamB }: PlayingXIManagerProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Squad Fetch Button */}
+      {siteSettings?.cricket_api_enabled && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleFetchSquad}
+            disabled={fetchingSquad}
+            className="gap-2"
+          >
+            {fetchingSquad ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Squad HIT
+          </Button>
+        </div>
+      )}
+
       <Tabs defaultValue={teamA.id} className="w-full">
         <TabsList className="w-full">
           <TabsTrigger value={teamA.id} className="flex-1 gap-2">
