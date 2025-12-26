@@ -11,7 +11,8 @@ import {
   Moon, 
   Calendar, 
   Save, 
-  RefreshCw
+  RefreshCw,
+  Play
 } from "lucide-react";
 
 interface TestMatchManagerProps {
@@ -25,6 +26,8 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
   const [dayStartTime, setDayStartTime] = useState<string>(match.day_start_time || "10:00");
   const [dailyStumpsTime, setDailyStumpsTime] = useState<string>("17:00");
   const [isSaving, setIsSaving] = useState(false);
+  const [isCallingStumps, setIsCallingStumps] = useState(false);
+  const [isResumingPlay, setIsResumingPlay] = useState(false);
 
   // Parse existing times
   useEffect(() => {
@@ -84,6 +87,49 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
     }
   };
 
+  // Manual STUMPS call
+  const handleCallStumps = async () => {
+    setIsCallingStumps(true);
+    try {
+      const nextDayTimestamp = calculateNextDayStart(dayStartTime);
+      
+      await updateMatch.mutateAsync({
+        id: match.id,
+        is_stumps: true,
+        next_day_start: nextDayTimestamp,
+      });
+      toast({ 
+        title: "STUMPS Called", 
+        description: `Day ${match.test_day || 1} play ended. Resumes tomorrow at ${dayStartTime}` 
+      });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsCallingStumps(false);
+    }
+  };
+
+  // Manual Resume Play (remove STUMPS and increment day)
+  const handleResumePlay = async () => {
+    setIsResumingPlay(true);
+    try {
+      await updateMatch.mutateAsync({
+        id: match.id,
+        is_stumps: false,
+        test_day: (match.test_day || 1) + 1,
+        next_day_start: null,
+      });
+      toast({ 
+        title: "Play Resumed", 
+        description: `Day ${(match.test_day || 1) + 1} started` 
+      });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsResumingPlay(false);
+    }
+  };
+
   return (
     <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
       <CardHeader className="py-3 px-4">
@@ -106,11 +152,44 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
         </div>
       </CardHeader>
       <CardContent className="py-3 px-4 space-y-4">
+        {/* Manual Controls */}
+        <div className="flex gap-2">
+          {!match.is_stumps ? (
+            <Button
+              onClick={handleCallStumps}
+              disabled={isCallingStumps}
+              variant="outline"
+              className="flex-1 gap-2 border-slate-500/50 hover:bg-slate-500/20"
+            >
+              {isCallingStumps ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+              Call STUMPS Now
+            </Button>
+          ) : (
+            <Button
+              onClick={handleResumePlay}
+              disabled={isResumingPlay}
+              variant="outline"
+              className="flex-1 gap-2 border-green-500/50 hover:bg-green-500/20 text-green-500"
+            >
+              {isResumingPlay ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              Resume Play (Start Day {(match.test_day || 1) + 1})
+            </Button>
+          )}
+        </div>
+
         {/* Daily Start Time */}
         <div className="space-y-2">
           <Label className="text-xs flex items-center gap-1.5">
             <Sun className="w-3 h-3 text-yellow-500" />
-            Daily Play Start Time
+            Daily Play Start Time (Auto-Resume)
           </Label>
           <div className="flex items-center gap-2">
             <Input
@@ -134,7 +213,7 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Every day at this time, Day will auto-increment and STUMPS will be removed
+            At this time daily, Day auto-increments & STUMPS is removed
           </p>
         </div>
 
@@ -142,7 +221,7 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
         <div className="space-y-2">
           <Label className="text-xs flex items-center gap-1.5">
             <Moon className="w-3 h-3 text-slate-400" />
-            Daily STUMPS Time
+            Daily STUMPS Time (Auto-Call)
           </Label>
           <div className="flex items-center gap-2">
             <Input
@@ -166,7 +245,7 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Every day at this time, STUMPS will be called automatically
+            At this time daily, STUMPS is called automatically
           </p>
         </div>
 
@@ -182,15 +261,14 @@ const TestMatchManager = ({ match }: TestMatchManagerProps) => {
           ) : (
             <Save className="w-4 h-4" />
           )}
-          Save Daily Schedule
+          Save Auto-Schedule
         </Button>
 
         {/* Status Info */}
         <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border/30">
-          <p>• Current: Day {match.test_day || 1}</p>
-          <p>• Play starts daily at {dayStartTime}</p>
-          <p>• STUMPS called daily at {dailyStumpsTime}</p>
-          <p className="text-primary">• Day count and STUMPS status change automatically</p>
+          <p>• Current: Day {match.test_day || 1} {match.is_stumps ? "(STUMPS)" : "(Live)"}</p>
+          <p>• Auto-STUMPS: {dailyStumpsTime} daily</p>
+          <p>• Auto-Resume: {dayStartTime} daily (next day starts)</p>
         </div>
       </CardContent>
     </Card>
