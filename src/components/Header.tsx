@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Tv, Trophy, ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "@/components/ThemeToggle";
 import { usePublicSiteSettings } from "@/hooks/usePublicSiteSettings";
@@ -24,6 +24,20 @@ const Header = () => {
   ];
 
   const menuTournaments = tournaments?.filter(t => t.is_active && t.show_in_menu) || [];
+  
+  // Group tournaments by sport
+  const tournamentsBySport = useMemo(() => {
+    const groups: Record<string, typeof menuTournaments> = {};
+    menuTournaments.forEach(tournament => {
+      const sport = tournament.sport || 'Other';
+      if (!groups[sport]) {
+        groups[sport] = [];
+      }
+      groups[sport].push(tournament);
+    });
+    return groups;
+  }, [menuTournaments]);
+  
   const siteName = settings?.site_name || "LIVE SPORTS";
 
   return (
@@ -62,7 +76,7 @@ const Header = () => {
               </Link>
             ))}
             
-            {/* Tournaments Dropdown - Click to toggle */}
+            {/* Tournaments Dropdown - Click to toggle, grouped by sport */}
             {menuTournaments.length > 0 && (
               <div className="relative">
                 <Button 
@@ -88,20 +102,28 @@ const Header = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute top-full right-0 mt-1 min-w-[200px] bg-popover border border-border rounded-md shadow-lg z-50 py-1"
+                        className="absolute top-full right-0 mt-1 min-w-[220px] max-h-[70vh] overflow-y-auto bg-popover border border-border rounded-md shadow-lg z-50 py-1"
                       >
-                        {menuTournaments.map((tournament) => (
-                          <Link 
-                            key={tournament.id} 
-                            to={`/tournament/${tournament.slug}`}
-                            onClick={() => setIsTournamentOpen(false)}
-                            className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                          >
-                            {tournament.logo_url && (
-                              <img src={tournament.logo_url} alt="" className="w-5 h-5 object-contain" />
-                            )}
-                            {tournament.name}
-                          </Link>
+                        {Object.entries(tournamentsBySport).map(([sport, sportTournaments], sportIndex) => (
+                          <div key={sport}>
+                            {sportIndex > 0 && <div className="border-t border-border/50 my-1" />}
+                            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                              {sport}
+                            </div>
+                            {sportTournaments.map((tournament) => (
+                              <Link 
+                                key={tournament.id} 
+                                to={`/tournament/${tournament.slug}`}
+                                onClick={() => setIsTournamentOpen(false)}
+                                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                              >
+                                {tournament.logo_url && (
+                                  <img src={tournament.logo_url} alt="" className="w-5 h-5 object-contain" />
+                                )}
+                                {tournament.name}
+                              </Link>
+                            ))}
+                          </div>
                         ))}
                       </motion.div>
                     </>
@@ -162,7 +184,7 @@ const Header = () => {
                 </Link>
               ))}
               
-              {/* Mobile Tournaments - Click to toggle */}
+              {/* Mobile Tournaments - Click to toggle, grouped by sport */}
               {menuTournaments.length > 0 && (
                 <div>
                   <Button 
@@ -184,19 +206,27 @@ const Header = () => {
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                       >
-                        {menuTournaments.map((tournament) => (
-                          <Link
-                            key={tournament.id}
-                            to={`/tournament/${tournament.slug}`}
-                            onClick={() => setIsMenuOpen(false)}
-                          >
-                            <Button variant="ghost" className="w-full justify-start pl-8 gap-2">
-                              {tournament.logo_url && (
-                                <img src={tournament.logo_url} alt="" className="w-4 h-4 object-contain" />
-                              )}
-                              {tournament.name}
-                            </Button>
-                          </Link>
+                        {Object.entries(tournamentsBySport).map(([sport, sportTournaments], sportIndex) => (
+                          <div key={sport}>
+                            {sportIndex > 0 && <div className="border-t border-border/30 my-1 ml-6" />}
+                            <div className="pl-8 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              {sport}
+                            </div>
+                            {sportTournaments.map((tournament) => (
+                              <Link
+                                key={tournament.id}
+                                to={`/tournament/${tournament.slug}`}
+                                onClick={() => setIsMenuOpen(false)}
+                              >
+                                <Button variant="ghost" className="w-full justify-start pl-10 gap-2">
+                                  {tournament.logo_url && (
+                                    <img src={tournament.logo_url} alt="" className="w-4 h-4 object-contain" />
+                                  )}
+                                  {tournament.name}
+                                </Button>
+                              </Link>
+                            ))}
+                          </div>
                         ))}
                       </motion.div>
                     )}
