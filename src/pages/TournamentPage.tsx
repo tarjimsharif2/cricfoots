@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Tournament, Match } from '@/hooks/useSportsData';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { Trophy, Calendar, Loader2 } from 'lucide-react';
+import { useRealtimeLiveMatches } from '@/hooks/useRealtimeMatch';
+import { Trophy, Calendar, Loader2, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const TournamentPage = () => {
@@ -23,6 +24,9 @@ const TournamentPage = () => {
   const [loading, setLoading] = useState(true);
   
   const { data: siteSettings } = useSiteSettings();
+  
+  // Subscribe to real-time match updates
+  useRealtimeLiveMatches();
 
   // Scroll to top when tournament page loads
   useEffect(() => {
