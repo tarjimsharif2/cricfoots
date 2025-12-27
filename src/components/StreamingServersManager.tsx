@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   useAllStreamingServers, 
   useCreateStreamingServer, 
@@ -14,8 +16,14 @@ import {
   useDeleteStreamingServer,
   StreamingServer 
 } from "@/hooks/useStreamingServers";
+import {
+  useSavedStreamingServers,
+  useCreateSavedStreamingServer,
+  useDeleteSavedStreamingServer,
+  SavedStreamingServer
+} from "@/hooks/useSavedStreamingServers";
 import { Match } from "@/hooks/useSportsData";
-import { Plus, Edit2, Trash2, Tv, Loader2, ExternalLink, Play } from "lucide-react";
+import { Plus, Edit2, Trash2, Tv, Loader2, ExternalLink, Play, Save, Search, BookmarkPlus, Library, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StreamingServersManagerProps {
@@ -30,8 +38,16 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
   const updateServer = useUpdateStreamingServer();
   const deleteServer = useDeleteStreamingServer();
 
+  // Saved servers hooks
+  const [savedSearchQuery, setSavedSearchQuery] = useState('');
+  const { data: savedServers, isLoading: savedLoading } = useSavedStreamingServers(savedSearchQuery);
+  const createSavedServer = useCreateSavedStreamingServer();
+  const deleteSavedServer = useDeleteSavedStreamingServer();
+
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [savedDialogOpen, setSavedDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<StreamingServer | null>(null);
+  const [activeTab, setActiveTab] = useState<'servers' | 'saved'>('servers');
   const [serverForm, setServerForm] = useState({
     server_name: '',
     server_url: '',
@@ -151,6 +167,69 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     }
   };
 
+  // Save current server to library
+  const handleSaveToLibrary = async (server: StreamingServer) => {
+    try {
+      await createSavedServer.mutateAsync({
+        server_name: server.server_name,
+        server_url: server.server_url,
+        server_type: server.server_type,
+        referer_value: server.referer_value,
+        origin_value: server.origin_value,
+        cookie_value: server.cookie_value,
+        user_agent: server.user_agent,
+        drm_license_url: server.drm_license_url,
+        drm_scheme: server.drm_scheme,
+        player_type: server.player_type,
+        ad_block_enabled: server.ad_block_enabled,
+        clearkey_key_id: server.clearkey_key_id,
+        clearkey_key: server.clearkey_key,
+        tags: [],
+      });
+      toast({ title: "Server saved to library" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Use saved server for current match
+  const handleUseSavedServer = async (saved: SavedStreamingServer) => {
+    try {
+      await createServer.mutateAsync({
+        match_id: match.id,
+        server_name: saved.server_name,
+        server_url: saved.server_url,
+        server_type: saved.server_type,
+        display_order: servers?.length || 0,
+        is_active: true,
+        referer_value: saved.referer_value,
+        origin_value: saved.origin_value,
+        cookie_value: saved.cookie_value,
+        user_agent: saved.user_agent,
+        drm_license_url: saved.drm_license_url,
+        drm_scheme: saved.drm_scheme,
+        player_type: saved.player_type,
+        ad_block_enabled: saved.ad_block_enabled,
+        clearkey_key_id: saved.clearkey_key_id,
+        clearkey_key: saved.clearkey_key,
+      });
+      toast({ title: "Server added to match" });
+      setActiveTab('servers');
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Delete saved server from library
+  const handleDeleteSavedServer = async (id: string) => {
+    try {
+      await deleteSavedServer.mutateAsync(id);
+      toast({ title: "Server removed from library" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'm3u8': return 'bg-green-500/20 text-green-400 border-green-500/30';
@@ -166,90 +245,196 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Tv className="w-5 h-5 text-primary" />
-            Streaming Servers
+            <Tv className="w-5 h-5 text-primary flex-shrink-0" />
+            <span className="truncate">Streaming Servers</span>
           </h3>
-          <p className="text-sm text-muted-foreground">{matchTitle}</p>
+          <p className="text-sm text-muted-foreground truncate">{matchTitle}</p>
         </div>
-        <Button variant="gradient" size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-1" />
-          Add Server
-        </Button>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
-      ) : servers?.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-            <Tv className="w-12 h-12 text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">No streaming servers configured</p>
-            <p className="text-sm text-muted-foreground/70">Add M3U8 or iframe links for this match</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {servers?.map((server) => (
-            <Card key={server.id} className={`${!server.is_active ? 'opacity-60' : ''}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Play className="w-4 h-4 text-primary" />
-                      <span className="font-medium">{server.server_name}</span>
-                      <Badge variant="outline" className={getTypeColor(server.server_type)}>
-                        {server.server_type.toUpperCase()}
-                      </Badge>
-                      {!server.is_active && (
-                        <Badge variant="secondary">Inactive</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground truncate">{server.server_url}</p>
-                    <p className="text-xs text-muted-foreground">Order: {server.display_order}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => window.open(server.server_url, '_blank')}
-                      title="Preview URL"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(server)}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(server.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'servers' | 'saved')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="servers" className="text-xs sm:text-sm">
+            <Tv className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+            <span className="truncate">Match Servers</span>
+          </TabsTrigger>
+          <TabsTrigger value="saved" className="text-xs sm:text-sm">
+            <Library className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+            <span className="truncate">Saved Library</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="servers" className="space-y-4 mt-4">
+          <div className="flex justify-end">
+            <Button variant="gradient" size="sm" onClick={() => setDialogOpen(true)} className="w-full sm:w-auto">
+              <Plus className="w-4 h-4 mr-1" />
+              Add Server
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : servers?.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                <Tv className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground">No streaming servers configured</p>
+                <p className="text-sm text-muted-foreground/70">Add M3U8 or iframe links for this match</p>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          ) : (
+            <div className="space-y-3">
+              {servers?.map((server) => (
+                <Card key={server.id} className={`${!server.is_active ? 'opacity-60' : ''}`}>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <Play className="w-4 h-4 text-primary flex-shrink-0" />
+                          <span className="font-medium truncate">{server.server_name}</span>
+                          <Badge variant="outline" className={`${getTypeColor(server.server_type)} text-xs`}>
+                            {server.server_type.toUpperCase()}
+                          </Badge>
+                          {!server.is_active && (
+                            <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">{server.server_url}</p>
+                        <p className="text-xs text-muted-foreground">Order: {server.display_order}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSaveToLibrary(server)}
+                          className="flex-1 sm:flex-none"
+                          disabled={createSavedServer.isPending}
+                        >
+                          <BookmarkPlus className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Save</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => window.open(server.server_url, '_blank')}
+                          title="Preview URL"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(server)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(server.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="saved" className="space-y-4 mt-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search saved servers..."
+              value={savedSearchQuery}
+              onChange={(e) => setSavedSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {savedLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : savedServers?.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                <Library className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground">No saved servers</p>
+                <p className="text-sm text-muted-foreground/70">
+                  Save servers from matches to reuse them later
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <ScrollArea className="h-[300px]">
+              <div className="space-y-3 pr-4">
+                {savedServers?.map((saved) => (
+                  <Card key={saved.id}>
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-medium truncate">{saved.server_name}</span>
+                            <Badge variant="outline" className={`${getTypeColor(saved.server_type)} text-xs`}>
+                              {saved.server_type.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground truncate">{saved.server_url}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            variant="gradient"
+                            size="sm"
+                            onClick={() => handleUseSavedServer(saved)}
+                            className="flex-1 sm:flex-none"
+                            disabled={createServer.isPending}
+                          >
+                            <Copy className="w-4 h-4 mr-1" />
+                            <span>Use</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => window.open(saved.server_url, '_blank')}
+                            title="Preview URL"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteSavedServer(saved.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Add/Edit Server Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
         setDialogOpen(open);
         if (!open) resetForm();
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingServer ? 'Edit Server' : 'Add Streaming Server'}</DialogTitle>
             <DialogDescription>
@@ -304,32 +489,29 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Display Order</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={serverForm.display_order}
-                onChange={(e) => setServerForm({ ...serverForm, display_order: parseInt(e.target.value) || 0 })}
-              />
-              <p className="text-xs text-muted-foreground">Lower numbers appear first</p>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-              <div className="space-y-0.5">
-                <Label>Active</Label>
-                <p className="text-xs text-muted-foreground">Show this server to users</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Display Order</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={serverForm.display_order}
+                  onChange={(e) => setServerForm({ ...serverForm, display_order: parseInt(e.target.value) || 0 })}
+                />
               </div>
-              <Switch
-                checked={serverForm.is_active}
-                onCheckedChange={(checked) => setServerForm({ ...serverForm, is_active: checked })}
-              />
+              <div className="flex items-center gap-2 pt-6">
+                <Switch
+                  checked={serverForm.is_active}
+                  onCheckedChange={(checked) => setServerForm({ ...serverForm, is_active: checked })}
+                />
+                <Label className="text-sm">Active</Label>
+              </div>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
               <div className="space-y-0.5">
                 <Label>Ad Blocker</Label>
-                <p className="text-xs text-muted-foreground">Block pop-up ads and overlays in this player</p>
+                <p className="text-xs text-muted-foreground">Block pop-up ads and overlays</p>
               </div>
               <Switch
                 checked={serverForm.ad_block_enabled}
@@ -344,26 +526,28 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                   <Label className="text-sm font-medium">Stream Headers (Optional)</Label>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Referer Value</Label>
-                  <Input
-                    placeholder="https://example.com"
-                    value={serverForm.referer_value}
-                    onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Referer Value</Label>
+                    <Input
+                      placeholder="https://example.com"
+                      value={serverForm.referer_value}
+                      onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Origin Value</Label>
+                    <Input
+                      placeholder="https://example.com"
+                      value={serverForm.origin_value}
+                      onChange={(e) => setServerForm({ ...serverForm, origin_value: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Origin Value</Label>
-                  <Input
-                    placeholder="https://example.com"
-                    value={serverForm.origin_value}
-                    onChange={(e) => setServerForm({ ...serverForm, origin_value: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Cookie Value</Label>
+                  <Label className="text-xs">Cookie Value</Label>
                   <Input
                     placeholder="session=abc123; token=xyz"
                     value={serverForm.cookie_value}
@@ -372,23 +556,20 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                 </div>
 
                 <div className="space-y-2">
-                  <Label>User Agent</Label>
+                  <Label className="text-xs">User Agent</Label>
                   <Input
                     placeholder="Mozilla/5.0..."
                     value={serverForm.user_agent}
                     onChange={(e) => setServerForm({ ...serverForm, user_agent: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground">Leave empty to use default browser agent</p>
                 </div>
 
                 {/* DRM Settings */}
                 <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium">DRM Protection (Optional)</Label>
-                  </div>
+                  <Label className="text-sm font-medium">DRM Protection (Optional)</Label>
 
                   <div className="space-y-2">
-                    <Label>DRM Scheme</Label>
+                    <Label className="text-xs">DRM Scheme</Label>
                     <Select 
                       value={serverForm.drm_scheme} 
                       onValueChange={(v: 'none' | 'widevine' | 'playready' | 'clearkey') => setServerForm({ ...serverForm, drm_scheme: v })}
@@ -398,24 +579,21 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No DRM</SelectItem>
-                        <SelectItem value="widevine">Widevine (Chrome, Firefox, Android)</SelectItem>
-                        <SelectItem value="playready">PlayReady (Edge, IE, Xbox)</SelectItem>
-                        <SelectItem value="clearkey">ClearKey (Basic)</SelectItem>
+                        <SelectItem value="widevine">Widevine</SelectItem>
+                        <SelectItem value="playready">PlayReady</SelectItem>
+                        <SelectItem value="clearkey">ClearKey</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   {serverForm.drm_scheme && serverForm.drm_scheme !== 'none' && (
                     <div className="space-y-2">
-                      <Label>DRM License URL *</Label>
+                      <Label className="text-xs">DRM License URL *</Label>
                       <Input
                         placeholder="https://license.example.com/widevine"
                         value={serverForm.drm_license_url}
                         onChange={(e) => setServerForm({ ...serverForm, drm_license_url: e.target.value })}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        License server URL for {serverForm.drm_scheme.charAt(0).toUpperCase() + serverForm.drm_scheme.slice(1)} DRM
-                      </p>
                     </div>
                   )}
                 </div>
@@ -425,29 +603,29 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
             {/* MPD/DASH Stream Settings - Only show for mpd type */}
             {serverForm.server_type === 'mpd' && (
               <div className="space-y-4 pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">ClearKey DRM (Optional)</Label>
-                </div>
+                <Label className="text-sm font-medium">ClearKey DRM (Optional)</Label>
                 <p className="text-xs text-muted-foreground">
                   For streams without key, leave Key ID and Key empty
                 </p>
 
-                <div className="space-y-2">
-                  <Label>Key ID</Label>
-                  <Input
-                    placeholder="Enter Key ID"
-                    value={serverForm.clearkey_key_id}
-                    onChange={(e) => setServerForm({ ...serverForm, clearkey_key_id: e.target.value })}
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Key ID</Label>
+                    <Input
+                      placeholder="Enter Key ID"
+                      value={serverForm.clearkey_key_id}
+                      onChange={(e) => setServerForm({ ...serverForm, clearkey_key_id: e.target.value })}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label>Key</Label>
-                  <Input
-                    placeholder="Enter Key"
-                    value={serverForm.clearkey_key}
-                    onChange={(e) => setServerForm({ ...serverForm, clearkey_key: e.target.value })}
-                  />
+                  <div className="space-y-2">
+                    <Label className="text-xs">Key</Label>
+                    <Input
+                      placeholder="Enter Key"
+                      value={serverForm.clearkey_key}
+                      onChange={(e) => setServerForm({ ...serverForm, clearkey_key: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -455,35 +633,34 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
             {/* Iframe Referrer - Only show for iframe type */}
             {serverForm.server_type === 'iframe' && (
               <div className="space-y-4 pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Iframe Settings (Optional)</Label>
-                </div>
+                <Label className="text-sm font-medium">Iframe Settings (Optional)</Label>
 
                 <div className="space-y-2">
-                  <Label>Referrer Policy URL</Label>
+                  <Label className="text-xs">Referrer Policy URL</Label>
                   <Input
                     placeholder="https://example.com"
                     value={serverForm.referer_value}
                     onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Set the referrer for the iframe (uses referrerpolicy attribute)
+                    Set the referrer for the iframe
                   </p>
                 </div>
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setDialogOpen(false);
               resetForm();
-            }}>
+            }} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button 
               variant="gradient" 
               onClick={handleSave}
               disabled={createServer.isPending || updateServer.isPending}
+              className="w-full sm:w-auto"
             >
               {(createServer.isPending || updateServer.isPending) && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
