@@ -14,9 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useStreamingServers, StreamingServer } from '@/hooks/useStreamingServers';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { useRealtimeMatch } from '@/hooks/useRealtimeMatch';
 import { supabase } from '@/integrations/supabase/client';
 import { Match } from '@/hooks/useSportsData';
-import { MapPin, Clock, Calendar, Tv, Server, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Calendar, Tv, Server, Loader2, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const MatchPage = () => {
@@ -29,6 +30,9 @@ const MatchPage = () => {
   
   const { data: siteSettings } = useSiteSettings();
   const { data: servers, isLoading: serversLoading } = useStreamingServers(match?.id || '');
+  
+  // Real-time updates for match and innings
+  const { realtimeMatch } = useRealtimeMatch(match?.id);
 
   // Scroll to top when match page loads
   useEffect(() => {
@@ -69,6 +73,13 @@ const MatchPage = () => {
 
     fetchMatch();
   }, [slug]);
+
+  // Apply real-time updates to match state
+  useEffect(() => {
+    if (realtimeMatch && match) {
+      setMatch(prev => prev ? { ...prev, ...realtimeMatch } as Match : prev);
+    }
+  }, [realtimeMatch]);
 
   useEffect(() => {
     if (match?.match_start_time) {

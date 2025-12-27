@@ -6,12 +6,16 @@ import AdSlot from "@/components/AdSlot";
 import LiveTournaments from "@/components/LiveTournaments";
 import { useMatches } from "@/hooks/useSportsData";
 import { useMatchStatusUpdater } from "@/hooks/useMatchStatusUpdater";
+import { useRealtimeLiveMatches } from "@/hooks/useRealtimeMatch";
 
 const Index = () => {
   const { data: matches } = useMatches();
   
   // Auto-update match status based on time
   useMatchStatusUpdater(matches);
+  
+  // Subscribe to real-time match updates
+  useRealtimeLiveMatches();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
