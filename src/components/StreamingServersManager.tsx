@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -19,17 +19,54 @@ import {
 import {
   useSavedStreamingServers,
   useCreateSavedStreamingServer,
+  useUpdateSavedStreamingServer,
   useDeleteSavedStreamingServer,
   SavedStreamingServer
 } from "@/hooks/useSavedStreamingServers";
 import { Match } from "@/hooks/useSportsData";
-import { Plus, Edit2, Trash2, Tv, Loader2, ExternalLink, Play, Save, Search, BookmarkPlus, Library, Copy } from "lucide-react";
+import { Plus, Edit2, Trash2, Tv, Loader2, ExternalLink, Play, Search, BookmarkPlus, Library, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StreamingServersManagerProps {
   match: Match;
   onClose: () => void;
 }
+
+type ServerFormType = {
+  server_name: string;
+  server_url: string;
+  server_type: 'iframe' | 'm3u8' | 'embed' | 'mpd';
+  display_order: number;
+  is_active: boolean;
+  referer_value: string;
+  origin_value: string;
+  cookie_value: string;
+  user_agent: string;
+  drm_license_url: string;
+  drm_scheme: 'none' | 'widevine' | 'playready' | 'clearkey';
+  player_type: 'hls' | 'clappr';
+  ad_block_enabled: boolean;
+  clearkey_key_id: string;
+  clearkey_key: string;
+};
+
+const defaultServerForm: ServerFormType = {
+  server_name: '',
+  server_url: '',
+  server_type: 'iframe',
+  display_order: 0,
+  is_active: true,
+  referer_value: '',
+  origin_value: '',
+  cookie_value: '',
+  user_agent: '',
+  drm_license_url: '',
+  drm_scheme: 'none',
+  player_type: 'clappr',
+  ad_block_enabled: false,
+  clearkey_key_id: '',
+  clearkey_key: '',
+};
 
 const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProps) => {
   const { toast } = useToast();
@@ -42,49 +79,24 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
   const [savedSearchQuery, setSavedSearchQuery] = useState('');
   const { data: savedServers, isLoading: savedLoading } = useSavedStreamingServers(savedSearchQuery);
   const createSavedServer = useCreateSavedStreamingServer();
+  const updateSavedServer = useUpdateSavedStreamingServer();
   const deleteSavedServer = useDeleteSavedStreamingServer();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedDialogOpen, setSavedDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<StreamingServer | null>(null);
+  const [editingSavedServer, setEditingSavedServer] = useState<SavedStreamingServer | null>(null);
   const [activeTab, setActiveTab] = useState<'servers' | 'saved'>('servers');
-  const [serverForm, setServerForm] = useState({
-    server_name: '',
-    server_url: '',
-    server_type: 'iframe' as 'iframe' | 'm3u8' | 'embed' | 'mpd',
-    display_order: 0,
-    is_active: true,
-    referer_value: '',
-    origin_value: '',
-    cookie_value: '',
-    user_agent: '',
-    drm_license_url: '',
-    drm_scheme: 'none' as 'none' | 'widevine' | 'playready' | 'clearkey',
-    player_type: 'clappr' as 'hls' | 'clappr',
-    ad_block_enabled: false,
-    clearkey_key_id: '',
-    clearkey_key: '',
-  });
+  const [serverForm, setServerForm] = useState<ServerFormType>({ ...defaultServerForm });
 
   const resetForm = () => {
     setEditingServer(null);
-    setServerForm({
-      server_name: '',
-      server_url: '',
-      server_type: 'iframe',
-      display_order: 0,
-      is_active: true,
-      referer_value: '',
-      origin_value: '',
-      cookie_value: '',
-      user_agent: '',
-      drm_license_url: '',
-      drm_scheme: 'none',
-      player_type: 'clappr',
-      ad_block_enabled: false,
-      clearkey_key_id: '',
-      clearkey_key: '',
-    });
+    setServerForm({ ...defaultServerForm });
+  };
+
+  const resetSavedForm = () => {
+    setEditingSavedServer(null);
+    setServerForm({ ...defaultServerForm });
   };
 
   const handleEdit = (server: StreamingServer) => {
@@ -109,19 +121,39 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     setDialogOpen(true);
   };
 
+  const handleEditSaved = (saved: SavedStreamingServer) => {
+    setEditingSavedServer(saved);
+    setServerForm({
+      server_name: saved.server_name,
+      server_url: saved.server_url,
+      server_type: saved.server_type,
+      display_order: 0,
+      is_active: true,
+      referer_value: saved.referer_value || '',
+      origin_value: saved.origin_value || '',
+      cookie_value: saved.cookie_value || '',
+      user_agent: saved.user_agent || '',
+      drm_license_url: saved.drm_license_url || '',
+      drm_scheme: saved.drm_scheme || 'none',
+      player_type: saved.player_type || 'clappr',
+      ad_block_enabled: saved.ad_block_enabled || false,
+      clearkey_key_id: saved.clearkey_key_id || '',
+      clearkey_key: saved.clearkey_key || '',
+    });
+    setSavedDialogOpen(true);
+  };
+
   const handleSave = async () => {
     if (!serverForm.server_name || !serverForm.server_url) {
       toast({ title: "Error", description: "Server name and URL are required", variant: "destructive" });
       return;
     }
 
-    // Validate URL protocol
     if (!serverForm.server_url.startsWith('http://') && !serverForm.server_url.startsWith('https://')) {
       toast({ title: "Error", description: "URL must start with http:// or https://", variant: "destructive" });
       return;
     }
 
-    // Prepare data with null for empty strings
     const serverData = {
       server_name: serverForm.server_name,
       server_url: serverForm.server_url,
@@ -158,6 +190,49 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     }
   };
 
+  const handleSaveSavedServer = async () => {
+    if (!serverForm.server_name || !serverForm.server_url) {
+      toast({ title: "Error", description: "Server name and URL are required", variant: "destructive" });
+      return;
+    }
+
+    if (!serverForm.server_url.startsWith('http://') && !serverForm.server_url.startsWith('https://')) {
+      toast({ title: "Error", description: "URL must start with http:// or https://", variant: "destructive" });
+      return;
+    }
+
+    const savedData = {
+      server_name: serverForm.server_name,
+      server_url: serverForm.server_url,
+      server_type: serverForm.server_type,
+      referer_value: serverForm.referer_value || null,
+      origin_value: serverForm.origin_value || null,
+      cookie_value: serverForm.cookie_value || null,
+      user_agent: serverForm.user_agent || null,
+      drm_license_url: serverForm.drm_license_url || null,
+      drm_scheme: serverForm.drm_scheme === 'none' ? null : serverForm.drm_scheme,
+      player_type: serverForm.server_type === 'm3u8' ? serverForm.player_type : null,
+      ad_block_enabled: serverForm.ad_block_enabled,
+      clearkey_key_id: serverForm.server_type === 'mpd' ? (serverForm.clearkey_key_id || null) : null,
+      clearkey_key: serverForm.server_type === 'mpd' ? (serverForm.clearkey_key || null) : null,
+      tags: editingSavedServer?.tags || [],
+    };
+
+    try {
+      if (editingSavedServer) {
+        await updateSavedServer.mutateAsync({ id: editingSavedServer.id, ...savedData });
+        toast({ title: "Saved server updated successfully" });
+      } else {
+        await createSavedServer.mutateAsync(savedData as any);
+        toast({ title: "Server saved to library" });
+      }
+      setSavedDialogOpen(false);
+      resetSavedForm();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteServer.mutateAsync(id);
@@ -167,7 +242,6 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     }
   };
 
-  // Save current server to library
   const handleSaveToLibrary = async (server: StreamingServer) => {
     try {
       await createSavedServer.mutateAsync({
@@ -192,7 +266,6 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     }
   };
 
-  // Use saved server for current match
   const handleUseSavedServer = async (saved: SavedStreamingServer) => {
     try {
       await createServer.mutateAsync({
@@ -220,7 +293,6 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     }
   };
 
-  // Delete saved server from library
   const handleDeleteSavedServer = async (id: string) => {
     try {
       await deleteSavedServer.mutateAsync(id);
@@ -240,8 +312,170 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
     }
   };
 
-  // Get team names from match
   const matchTitle = `${match.team_a?.name || 'Team A'} vs ${match.team_b?.name || 'Team B'}`;
+
+  const renderServerForm = () => (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Server Name *</Label>
+        <Input
+          placeholder="e.g., Server 1, HD Stream, Backup"
+          value={serverForm.server_name}
+          onChange={(e) => setServerForm({ ...serverForm, server_name: e.target.value })}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Server Type *</Label>
+        <Select 
+          value={serverForm.server_type} 
+          onValueChange={(v: 'iframe' | 'm3u8' | 'embed' | 'mpd') => setServerForm({ ...serverForm, server_type: v })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="m3u8">M3U8 (HLS Stream)</SelectItem>
+            <SelectItem value="mpd">MPD (DASH Stream)</SelectItem>
+            <SelectItem value="iframe">iFrame Embed</SelectItem>
+            <SelectItem value="embed">Custom Embed</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Server URL *</Label>
+        <Input
+          placeholder={serverForm.server_type === 'm3u8' 
+            ? 'https://example.com/stream.m3u8' 
+            : 'https://example.com/embed/player'}
+          value={serverForm.server_url}
+          onChange={(e) => setServerForm({ ...serverForm, server_url: e.target.value })}
+        />
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+        <div className="space-y-0.5">
+          <Label>Ad Blocker</Label>
+          <p className="text-xs text-muted-foreground">Block pop-up ads and overlays</p>
+        </div>
+        <Switch
+          checked={serverForm.ad_block_enabled}
+          onCheckedChange={(checked) => setServerForm({ ...serverForm, ad_block_enabled: checked })}
+        />
+      </div>
+
+      {serverForm.server_type === 'm3u8' && (
+        <div className="space-y-4 pt-4 border-t">
+          <Label className="text-sm font-medium">Stream Headers (Optional)</Label>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Referer Value</Label>
+              <Input
+                placeholder="https://example.com"
+                value={serverForm.referer_value}
+                onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Origin Value</Label>
+              <Input
+                placeholder="https://example.com"
+                value={serverForm.origin_value}
+                onChange={(e) => setServerForm({ ...serverForm, origin_value: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Cookie Value</Label>
+              <Input
+                placeholder="session=abc123; token=xyz"
+                value={serverForm.cookie_value}
+                onChange={(e) => setServerForm({ ...serverForm, cookie_value: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">User Agent</Label>
+              <Input
+                placeholder="Mozilla/5.0..."
+                value={serverForm.user_agent}
+                onChange={(e) => setServerForm({ ...serverForm, user_agent: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t">
+            <Label className="text-sm font-medium">DRM Protection (Optional)</Label>
+            <div className="space-y-2">
+              <Label className="text-xs">DRM Scheme</Label>
+              <Select 
+                value={serverForm.drm_scheme} 
+                onValueChange={(v: 'none' | 'widevine' | 'playready' | 'clearkey') => setServerForm({ ...serverForm, drm_scheme: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No DRM" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No DRM</SelectItem>
+                  <SelectItem value="widevine">Widevine</SelectItem>
+                  <SelectItem value="playready">PlayReady</SelectItem>
+                  <SelectItem value="clearkey">ClearKey</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {serverForm.drm_scheme && serverForm.drm_scheme !== 'none' && (
+              <div className="space-y-2">
+                <Label className="text-xs">DRM License URL *</Label>
+                <Input
+                  placeholder="https://license.example.com/widevine"
+                  value={serverForm.drm_license_url}
+                  onChange={(e) => setServerForm({ ...serverForm, drm_license_url: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {serverForm.server_type === 'mpd' && (
+        <div className="space-y-4 pt-4 border-t">
+          <Label className="text-sm font-medium">ClearKey DRM (Optional)</Label>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Key ID</Label>
+              <Input
+                placeholder="Enter Key ID"
+                value={serverForm.clearkey_key_id}
+                onChange={(e) => setServerForm({ ...serverForm, clearkey_key_id: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Key</Label>
+              <Input
+                placeholder="Enter Key"
+                value={serverForm.clearkey_key}
+                onChange={(e) => setServerForm({ ...serverForm, clearkey_key: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {serverForm.server_type === 'iframe' && (
+        <div className="space-y-4 pt-4 border-t">
+          <Label className="text-sm font-medium">Iframe Settings (Optional)</Label>
+          <div className="space-y-2">
+            <Label className="text-xs">Referrer Policy URL</Label>
+            <Input
+              placeholder="https://example.com"
+              value={serverForm.referer_value}
+              onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -351,14 +585,28 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
         </TabsContent>
 
         <TabsContent value="saved" className="space-y-4 mt-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search saved servers..."
-              value={savedSearchQuery}
-              onChange={(e) => setSavedSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search saved servers..."
+                value={savedSearchQuery}
+                onChange={(e) => setSavedSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button 
+              variant="gradient" 
+              size="sm" 
+              onClick={() => {
+                resetSavedForm();
+                setSavedDialogOpen(true);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add New
+            </Button>
           </div>
 
           {savedLoading ? (
@@ -371,7 +619,7 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                 <Library className="w-12 h-12 text-muted-foreground/50 mb-3" />
                 <p className="text-muted-foreground">No saved servers</p>
                 <p className="text-sm text-muted-foreground/70">
-                  Save servers from matches to reuse them later
+                  Click "Add New" to create a reusable server template
                 </p>
               </CardContent>
             </Card>
@@ -413,6 +661,13 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleEditSaved(saved)}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleDeleteSavedServer(saved.id)}
                             className="text-destructive hover:text-destructive"
                           >
@@ -429,7 +684,7 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
         </TabsContent>
       </Tabs>
 
-      {/* Add/Edit Server Dialog */}
+      {/* Add/Edit Match Server Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
         setDialogOpen(open);
         if (!open) resetForm();
@@ -441,214 +696,29 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
               Add an M3U8 stream URL or iframe embed link
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          
+          {renderServerForm()}
+          
+          {/* Match server specific fields */}
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
             <div className="space-y-2">
-              <Label>Server Name *</Label>
+              <Label>Display Order</Label>
               <Input
-                placeholder="e.g., Server 1, HD Stream, Backup"
-                value={serverForm.server_name}
-                onChange={(e) => setServerForm({ ...serverForm, server_name: e.target.value })}
+                type="number"
+                placeholder="0"
+                value={serverForm.display_order}
+                onChange={(e) => setServerForm({ ...serverForm, display_order: parseInt(e.target.value) || 0 })}
               />
             </div>
-
-            <div className="space-y-2">
-              <Label>Server Type *</Label>
-              <Select 
-                value={serverForm.server_type} 
-                onValueChange={(v: 'iframe' | 'm3u8' | 'embed' | 'mpd') => setServerForm({ ...serverForm, server_type: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="m3u8">M3U8 (HLS Stream)</SelectItem>
-                  <SelectItem value="mpd">MPD (DASH Stream)</SelectItem>
-                  <SelectItem value="iframe">iFrame Embed</SelectItem>
-                  <SelectItem value="embed">Custom Embed</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {serverForm.server_type === 'm3u8' 
-                  ? 'Direct .m3u8 stream URL for HLS player (Clappr)' 
-                  : serverForm.server_type === 'mpd'
-                  ? 'Direct .mpd stream URL for DASH player (Shaka)'
-                  : serverForm.server_type === 'iframe'
-                  ? 'Full iframe URL to embed'
-                  : 'Custom embed code URL'}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Server URL *</Label>
-              <Input
-                placeholder={serverForm.server_type === 'm3u8' 
-                  ? 'https://example.com/stream.m3u8' 
-                  : 'https://example.com/embed/player'}
-                value={serverForm.server_url}
-                onChange={(e) => setServerForm({ ...serverForm, server_url: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Display Order</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={serverForm.display_order}
-                  onChange={(e) => setServerForm({ ...serverForm, display_order: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-6">
-                <Switch
-                  checked={serverForm.is_active}
-                  onCheckedChange={(checked) => setServerForm({ ...serverForm, is_active: checked })}
-                />
-                <Label className="text-sm">Active</Label>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-              <div className="space-y-0.5">
-                <Label>Ad Blocker</Label>
-                <p className="text-xs text-muted-foreground">Block pop-up ads and overlays</p>
-              </div>
+            <div className="flex items-center gap-2 pt-6">
               <Switch
-                checked={serverForm.ad_block_enabled}
-                onCheckedChange={(checked) => setServerForm({ ...serverForm, ad_block_enabled: checked })}
+                checked={serverForm.is_active}
+                onCheckedChange={(checked) => setServerForm({ ...serverForm, is_active: checked })}
               />
+              <Label className="text-sm">Active</Label>
             </div>
-
-            {/* M3U8 Stream Settings - Only show for m3u8 type */}
-            {serverForm.server_type === 'm3u8' && (
-              <div className="space-y-4 pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Stream Headers (Optional)</Label>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Referer Value</Label>
-                    <Input
-                      placeholder="https://example.com"
-                      value={serverForm.referer_value}
-                      onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Origin Value</Label>
-                    <Input
-                      placeholder="https://example.com"
-                      value={serverForm.origin_value}
-                      onChange={(e) => setServerForm({ ...serverForm, origin_value: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Cookie Value</Label>
-                  <Input
-                    placeholder="session=abc123; token=xyz"
-                    value={serverForm.cookie_value}
-                    onChange={(e) => setServerForm({ ...serverForm, cookie_value: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">User Agent</Label>
-                  <Input
-                    placeholder="Mozilla/5.0..."
-                    value={serverForm.user_agent}
-                    onChange={(e) => setServerForm({ ...serverForm, user_agent: e.target.value })}
-                  />
-                </div>
-
-                {/* DRM Settings */}
-                <div className="space-y-4 pt-4 border-t">
-                  <Label className="text-sm font-medium">DRM Protection (Optional)</Label>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">DRM Scheme</Label>
-                    <Select 
-                      value={serverForm.drm_scheme} 
-                      onValueChange={(v: 'none' | 'widevine' | 'playready' | 'clearkey') => setServerForm({ ...serverForm, drm_scheme: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="No DRM" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No DRM</SelectItem>
-                        <SelectItem value="widevine">Widevine</SelectItem>
-                        <SelectItem value="playready">PlayReady</SelectItem>
-                        <SelectItem value="clearkey">ClearKey</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {serverForm.drm_scheme && serverForm.drm_scheme !== 'none' && (
-                    <div className="space-y-2">
-                      <Label className="text-xs">DRM License URL *</Label>
-                      <Input
-                        placeholder="https://license.example.com/widevine"
-                        value={serverForm.drm_license_url}
-                        onChange={(e) => setServerForm({ ...serverForm, drm_license_url: e.target.value })}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* MPD/DASH Stream Settings - Only show for mpd type */}
-            {serverForm.server_type === 'mpd' && (
-              <div className="space-y-4 pt-4 border-t">
-                <Label className="text-sm font-medium">ClearKey DRM (Optional)</Label>
-                <p className="text-xs text-muted-foreground">
-                  For streams without key, leave Key ID and Key empty
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Key ID</Label>
-                    <Input
-                      placeholder="Enter Key ID"
-                      value={serverForm.clearkey_key_id}
-                      onChange={(e) => setServerForm({ ...serverForm, clearkey_key_id: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Key</Label>
-                    <Input
-                      placeholder="Enter Key"
-                      value={serverForm.clearkey_key}
-                      onChange={(e) => setServerForm({ ...serverForm, clearkey_key: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Iframe Referrer - Only show for iframe type */}
-            {serverForm.server_type === 'iframe' && (
-              <div className="space-y-4 pt-4 border-t">
-                <Label className="text-sm font-medium">Iframe Settings (Optional)</Label>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Referrer Policy URL</Label>
-                  <Input
-                    placeholder="https://example.com"
-                    value={serverForm.referer_value}
-                    onChange={(e) => setServerForm({ ...serverForm, referer_value: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Set the referrer for the iframe
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
+
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setDialogOpen(false);
@@ -666,6 +736,45 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               )}
               {editingServer ? 'Update' : 'Add Server'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Saved Server Dialog */}
+      <Dialog open={savedDialogOpen} onOpenChange={(open) => {
+        setSavedDialogOpen(open);
+        if (!open) resetSavedForm();
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingSavedServer ? 'Edit Saved Server' : 'Add to Library'}</DialogTitle>
+            <DialogDescription>
+              {editingSavedServer 
+                ? 'Update this saved server template' 
+                : 'Create a reusable server template'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {renderServerForm()}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => {
+              setSavedDialogOpen(false);
+              resetSavedForm();
+            }} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button 
+              variant="gradient" 
+              onClick={handleSaveSavedServer}
+              disabled={createSavedServer.isPending || updateSavedServer.isPending}
+              className="w-full sm:w-auto"
+            >
+              {(createSavedServer.isPending || updateSavedServer.isPending) && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              {editingSavedServer ? 'Update' : 'Save to Library'}
             </Button>
           </DialogFooter>
         </DialogContent>

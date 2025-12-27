@@ -825,75 +825,77 @@ const Admin = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="mb-8 flex items-center justify-between"
+            className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div>
-              <h1 className="font-display text-3xl md:text-4xl tracking-wide text-gradient mb-2">
+              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl tracking-wide text-gradient mb-1 sm:mb-2">
                 Admin Panel
               </h1>
-              <p className="text-muted-foreground">
-                Manage matches, teams, tournaments, sports & banners
+              <p className="text-sm sm:text-base text-muted-foreground">
+                Manage matches, teams, tournaments & more
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleClearCache}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Clear Cache
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={handleClearCache} className="flex-1 sm:flex-none">
+                <RefreshCw className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Clear Cache</span>
               </Button>
-              <Button variant="outline" onClick={handleSignOut}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
+              <Button variant="outline" size="sm" onClick={handleSignOut} className="flex-1 sm:flex-none">
+                <LogOut className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sign Out</span>
               </Button>
             </div>
           </motion.div>
 
-          <Tabs defaultValue="matches" className="space-y-6">
-            <TabsList className="bg-muted/50 p-1 flex-wrap h-auto">
-              <TabsTrigger value="matches" className="gap-2">
-                <Calendar className="w-4 h-4" />
-                Matches
-              </TabsTrigger>
-              <TabsTrigger value="live-scores" className="gap-2">
-                <Play className="w-4 h-4" />
-                Live Scores
-              </TabsTrigger>
-              <TabsTrigger value="streaming" className="gap-2">
-                <Tv className="w-4 h-4" />
-                Streaming
-              </TabsTrigger>
-              <TabsTrigger value="teams" className="gap-2">
-                <Users className="w-4 h-4" />
-                Teams
-              </TabsTrigger>
-              <TabsTrigger value="tournaments" className="gap-2">
-                <Trophy className="w-4 h-4" />
-                Tournaments
-              </TabsTrigger>
-              <TabsTrigger value="points-table" className="gap-2">
-                <Table className="w-4 h-4" />
-                Points Table
-              </TabsTrigger>
-              <TabsTrigger value="sports" className="gap-2">
-                <Gamepad2 className="w-4 h-4" />
-                Sports
-              </TabsTrigger>
-              <TabsTrigger value="banners" className="gap-2">
-                <Image className="w-4 h-4" />
-                Banners
-              </TabsTrigger>
-              <TabsTrigger value="pages" className="gap-2">
-                <FileText className="w-4 h-4" />
-                Pages
-              </TabsTrigger>
-              <TabsTrigger value="ads" className="gap-2">
-                <Megaphone className="w-4 h-4" />
-                Ads
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="gap-2">
-                <Settings className="w-4 h-4" />
-                Settings
-              </TabsTrigger>
-            </TabsList>
+          <Tabs defaultValue="matches" className="space-y-4 sm:space-y-6">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <TabsList className="bg-muted/50 p-1 flex flex-nowrap sm:flex-wrap h-auto min-w-max sm:min-w-0 gap-1">
+                <TabsTrigger value="matches" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Matches</span>
+                </TabsTrigger>
+                <TabsTrigger value="live-scores" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Play className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Live</span>
+                </TabsTrigger>
+                <TabsTrigger value="streaming" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Tv className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Stream</span>
+                </TabsTrigger>
+                <TabsTrigger value="teams" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Teams</span>
+                </TabsTrigger>
+                <TabsTrigger value="tournaments" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Trophy className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Tourneys</span>
+                </TabsTrigger>
+                <TabsTrigger value="points-table" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Table className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Points</span>
+                </TabsTrigger>
+                <TabsTrigger value="sports" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Gamepad2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Sports</span>
+                </TabsTrigger>
+                <TabsTrigger value="banners" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Image className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Banners</span>
+                </TabsTrigger>
+                <TabsTrigger value="pages" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Pages</span>
+                </TabsTrigger>
+                <TabsTrigger value="ads" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Megaphone className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Ads</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Settings</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Matches Tab */}
             <TabsContent value="matches" className="space-y-6">
@@ -1570,21 +1572,21 @@ const Admin = () => {
             </TabsContent>
 
             {/* Streaming Servers Tab */}
-            <TabsContent value="streaming" className="space-y-6">
-              <div className="flex items-center justify-between">
+            <TabsContent value="streaming" className="space-y-4 sm:space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-xl font-semibold">Streaming Servers</h2>
-                  <p className="text-sm text-muted-foreground">Manage M3U8 and iframe links for each match</p>
+                  <h2 className="text-lg sm:text-xl font-semibold">Streaming Servers</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Manage M3U8 and iframe links for each match</p>
                 </div>
               </div>
 
               {/* Streaming Search & Filter */}
-              <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col gap-3">
                 <Input
                   placeholder="Search matches by team name..."
                   value={streamingSearchQuery}
                   onChange={(e) => setStreamingSearchQuery(e.target.value)}
-                  className="max-w-md"
+                  className="w-full"
                 />
                 <div className="flex flex-wrap gap-2">
                   {(['all', 'live', 'upcoming', 'completed'] as const).map((status) => (
@@ -1593,13 +1595,13 @@ const Admin = () => {
                       variant={streamingStatusFilter === status ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setStreamingStatusFilter(status)}
-                      className="capitalize"
+                      className="capitalize text-xs sm:text-sm"
                     >
                       {status}
                     </Button>
                   ))}
                   <Select value={streamingSportFilter} onValueChange={setStreamingSportFilter}>
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-[120px] sm:w-[140px] text-xs sm:text-sm">
                       <SelectValue placeholder="All Sports" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1654,32 +1656,33 @@ const Admin = () => {
                       transition={{ delay: index * 0.03 }}
                     >
                       <Card className="hover:border-primary/50 transition-colors">
-                        <CardContent className="p-4">
-                          <div className="flex flex-col md:flex-row md:items-center gap-4">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center border border-primary/20">
-                                <Tv className="w-5 h-5 text-primary" />
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center border border-primary/20 flex-shrink-0">
+                                <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                               </div>
-                              <div>
-                                <p className="font-semibold">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm sm:text-base truncate">
                                   {match.team_a?.name || 'TBA'} vs {match.team_b?.name || 'TBA'}
                                 </p>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                                   {match.match_date} • {match.match_time}
                                 </p>
                               </div>
+                              <Badge variant={match.status} className="text-xs flex-shrink-0">{match.status}</Badge>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={match.status}>{match.status}</Badge>
+                            <div className="flex flex-wrap items-center gap-2">
                               <Button 
-                                variant="outline" 
+                                variant="gradient" 
                                 size="sm"
                                 onClick={() => {
                                   setSelectedMatchForStreaming(match);
                                   setStreamingDialogOpen(true);
                                 }}
+                                className="flex-1 sm:flex-none text-xs sm:text-sm"
                               >
-                                <Tv className="w-4 h-4 mr-1" />
+                                <Tv className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                 Servers
                               </Button>
                               {match.sport?.name?.toLowerCase() === 'cricket' && (
@@ -1690,8 +1693,9 @@ const Admin = () => {
                                     setSelectedMatchForInnings(match);
                                     setInningsDialogOpen(true);
                                   }}
+                                  className="flex-1 sm:flex-none text-xs sm:text-sm"
                                 >
-                                  <Play className="w-4 h-4 mr-1" />
+                                  <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                   Innings
                                 </Button>
                               )}
@@ -1702,8 +1706,9 @@ const Admin = () => {
                                   setSelectedMatchForPlayingXI(match);
                                   setPlayingXIDialogOpen(true);
                                 }}
+                                className="flex-1 sm:flex-none text-xs sm:text-sm"
                               >
-                                <Users className="w-4 h-4 mr-1" />
+                                <Users className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                 XI
                               </Button>
                             </div>
