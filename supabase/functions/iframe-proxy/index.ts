@@ -113,6 +113,23 @@ serve(async (req) => {
     const userAgent = reqUrl.searchParams.get('userAgent');
     const cookie = reqUrl.searchParams.get('cookie');
     const adBlock = reqUrl.searchParams.get('adBlock') === 'true';
+    
+    // Parse custom ad-block rules if provided
+    let customSelectors: string[] = [];
+    let blockPopups = true;
+    let blockNewTabs = true;
+    
+    const adBlockRulesParam = reqUrl.searchParams.get('adBlockRules');
+    if (adBlockRulesParam) {
+      try {
+        const rules = JSON.parse(decodeURIComponent(adBlockRulesParam));
+        if (rules.cssSelectors) customSelectors = rules.cssSelectors;
+        if (typeof rules.blockPopups === 'boolean') blockPopups = rules.blockPopups;
+        if (typeof rules.blockNewTabs === 'boolean') blockNewTabs = rules.blockNewTabs;
+      } catch (e) {
+        console.warn('Failed to parse adBlockRules:', e);
+      }
+    }
 
     if (!url) {
       return new Response(JSON.stringify({ error: 'URL is required' }), {
@@ -188,55 +205,79 @@ serve(async (req) => {
       
       // Inject ad-blocking CSS and scripts if enabled
       if (adBlock) {
+        // Use custom selectors if provided, otherwise use defaults
+        const defaultSelectors = [
+          '.ad', '.ads', '.advert', '.advertisement', '.ad-container', '.ad-wrapper',
+          '.banner-ad', '.top-ad', '.bottom-ad', '.sidebar-ad',
+          '.popup', '.popunder', '.overlay-ad', '.interstitial',
+          '.sticky-ad', '.fixed-ad', '.floating-ad',
+          '.modal-backdrop', '.modal-overlay'
+        ];
+        
+        const selectorsToUse = customSelectors.length > 0 ? customSelectors : defaultSelectors;
+        const cssSelectorsRule = selectorsToUse.map(s => s.trim()).join(', ');
+        
         const adBlockStyles = `
           <style id="adblock-styles">
-            /* Hide common ad containers */
-            .ad, .ads, .advert, .advertisement, .ad-container, .ad-wrapper,
+            /* Custom ad-block selectors */
+            ${cssSelectorsRule} { display: none !important; visibility: hidden !important; }
+            
+            /* Additional wildcard patterns */
             [class*="ad-"], [class*="ads-"], [class*="advert"], [id*="ad-"], [id*="ads-"],
-            .banner-ad, .top-ad, .bottom-ad, .sidebar-ad,
-            .popup, .popunder, .overlay-ad, .interstitial,
             [class*="popup"], [class*="overlay"],
             iframe[src*="ads"], iframe[src*="doubleclick"], iframe[src*="googlesyndication"],
             iframe[src*="ad."], iframe[src*="adserver"],
             div[class*="sponsor"], div[id*="sponsor"],
-            .sticky-ad, .fixed-ad, .floating-ad,
             [data-ad], [data-ad-unit], [data-advertisement],
             .close-button, .ad-close, [class*="close-btn"],
-            /* Common popup and ad overlay selectors */
-            .modal-backdrop, .modal-overlay,
             div[style*="z-index: 9999"], div[style*="z-index:9999"],
             div[style*="z-index: 99999"], div[style*="z-index:99999"],
-            div[style*="position: fixed"][style*="z-index"],
-            /* Hide specific ad networks */
             [class*="google-ad"], [class*="adsense"],
             [class*="taboola"], [class*="outbrain"],
-            .vjs-ad-playing .vjs-ad-container { display: none !important; }
+            .vjs-ad-playing .vjs-ad-container { display: none !important; visibility: hidden !important; }
+            
+            /* Ensure video player fills the container */
+            html, body { margin: 0 !important; padding: 0 !important; overflow: hidden !important; width: 100% !important; height: 100% !important; }
+            video, .video-js, .jw-wrapper, #player, .plyr, .flowplayer { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; }
           </style>
           <script>
             (function() {
+              ${blockPopups ? `
               // Block window.open for popups
               const originalOpen = window.open;
               window.open = function() { 
                 console.log('Popup blocked by ad-block');
                 return null; 
               };
+              ` : ''}
+              
+              ${blockNewTabs ? `
+              // Block target="_blank" links
+              document.addEventListener('click', function(e) {
+                const link = e.target.closest('a[target="_blank"]');
+                if (link && !link.href.includes(window.location.hostname)) {
+                  e.preventDefault();
+                  console.log('New tab blocked by ad-block');
+                }
+              }, true);
+              ` : ''}
               
               // Block common ad-related functions
               window.adsbygoogle = window.adsbygoogle || [];
               window.adsbygoogle.loaded = true;
               
+              // Custom selectors from admin
+              const customSelectors = ${JSON.stringify(selectorsToUse)};
+              
               // Remove elements after load
               document.addEventListener('DOMContentLoaded', function() {
-                const adSelectors = [
-                  '.ad', '.ads', '.advert', '[class*="ad-"]', '[id*="ad-"]',
-                  '.popup', '.overlay-ad', '[class*="popup"]', '.modal-backdrop'
-                ];
-                adSelectors.forEach(selector => {
-                  document.querySelectorAll(selector).forEach(el => {
-                    if (el.offsetWidth > 200 || el.offsetHeight > 200) {
+                customSelectors.forEach(selector => {
+                  try {
+                    document.querySelectorAll(selector).forEach(el => {
                       el.style.display = 'none';
-                    }
-                  });
+                      el.style.visibility = 'hidden';
+                    });
+                  } catch (e) {}
                 });
               });
               
@@ -251,6 +292,14 @@ serve(async (req) => {
                           className.includes('popup') || className.includes('overlay')) {
                         node.style.display = 'none';
                       }
+                      // Also check custom selectors
+                      customSelectors.forEach(selector => {
+                        try {
+                          if (node.matches && node.matches(selector)) {
+                            node.style.display = 'none';
+                          }
+                        } catch (e) {}
+                      });
                     }
                   });
                 });

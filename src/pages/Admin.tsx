@@ -44,6 +44,7 @@ import { Table, FileText, Megaphone } from "lucide-react";
 import { useGoogleIndexing } from "@/hooks/useGoogleIndexing";
 import DynamicPagesManager from "@/components/DynamicPagesManager";
 import AdsSettingsManager from "@/components/AdsSettingsManager";
+import AdBlockSettingsManager from "@/components/AdBlockSettingsManager";
 
 const Admin = () => {
   const { user, loading, signOut } = useAuth();
@@ -1895,6 +1896,11 @@ const Admin = () => {
                   )}
                 </div>
               )}
+              
+              {/* Ad-Block Settings */}
+              <div className="mt-8">
+                <AdBlockSettingsManager />
+              </div>
             </TabsContent>
 
             {/* Streaming Servers Dialog */}
