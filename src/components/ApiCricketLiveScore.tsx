@@ -284,6 +284,29 @@ const ApiCricketLiveScore = ({
                                   </TableBody>
                                 </Table>
                               </div>
+                              
+                              {/* Did Not Bat - inline after batting table */}
+                              {uniqueDidNotBat.length > 0 && (
+                                <div className="mt-2 p-2 rounded-lg border bg-muted/20">
+                                  <p className="text-xs">
+                                    <span className="text-muted-foreground font-medium">Did Not Bat: </span>
+                                    <span className="text-muted-foreground">{uniqueDidNotBat.map(d => d.player).join(', ')}</span>
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {/* Fall of Wickets - derive from dismissed batsmen */}
+                              {dismissedBatsmen.length > 0 && (
+                                <div className="mt-2 p-2 rounded-lg border bg-muted/20">
+                                  <p className="text-xs">
+                                    <span className="text-muted-foreground font-medium">Fall of Wickets: </span>
+                                    <span className="text-muted-foreground">
+                                      {dismissedBatsmen.map((b, idx) => `${idx + 1}-? (${b.player})`).join(', ')}
+                                    </span>
+                                  </p>
+                                </div>
+                              )}
+                              </>
                             );
                           })()
                         ) : (
