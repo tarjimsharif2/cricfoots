@@ -6,6 +6,43 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Retry fetch with exponential backoff
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit = {}, 
+  maxRetries: number = 3,
+  timeoutMs: number = 15000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      console.log(`Attempt ${attempt + 1} failed: ${lastError?.message || 'Unknown error'}`);
+      
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw new Error(`Failed after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -79,13 +116,25 @@ serve(async (req) => {
 
       console.log(`Syncing match: ${match.team_a?.name} vs ${match.team_b?.name}`);
 
-      // Fetch current matches from CricAPI
-      const response = await fetch(
-        `https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}&offset=0`
-      );
+      // Fetch current matches from CricAPI with retry
+      let response: Response;
+      try {
+        response = await fetchWithRetry(
+          `https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}&offset=0`
+        );
+      } catch (fetchError) {
+        console.error('Failed to fetch from CricAPI after retries:', fetchError);
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: 'CricAPI connection failed. Please try again in a few moments.' 
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       if (!response.ok) {
-        throw new Error('Failed to fetch from CricAPI');
+        throw new Error(`CricAPI returned ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -265,12 +314,24 @@ serve(async (req) => {
 
     // Get current matches list
     if (action === 'getCurrentMatches') {
-      const response = await fetch(
-        `https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}&offset=0`
-      );
+      let response: Response;
+      try {
+        response = await fetchWithRetry(
+          `https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}&offset=0`
+        );
+      } catch (fetchError) {
+        console.error('Failed to fetch from CricAPI after retries:', fetchError);
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: 'CricAPI connection failed. Please try again in a few moments.' 
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       if (!response.ok) {
-        throw new Error('Failed to fetch from CricAPI');
+        throw new Error(`CricAPI returned ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
