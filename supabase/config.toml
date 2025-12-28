@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.extract-m3u8]
 verify_jwt = false
+
+[functions.auto-sync-scores]
+verify_jwt = false
