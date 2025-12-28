@@ -222,6 +222,7 @@ const Admin = () => {
     // API Cricket settings (api-cricket.com)
     api_cricket_key: '',
     api_cricket_enabled: false,
+    api_sync_interval_seconds: 120,
     // Ads.txt
     ads_txt_content: '',
     // Custom code injection
@@ -260,6 +261,7 @@ const Admin = () => {
         cricket_api_enabled: siteSettings.cricket_api_enabled !== false,
         api_cricket_key: (siteSettings as any).api_cricket_key || '',
         api_cricket_enabled: (siteSettings as any).api_cricket_enabled || false,
+        api_sync_interval_seconds: (siteSettings as any).api_sync_interval_seconds || 120,
         ads_txt_content: (siteSettings as any).ads_txt_content || '',
         custom_header_code: siteSettings.custom_header_code || '',
         custom_footer_code: siteSettings.custom_footer_code || '',
@@ -1028,6 +1030,7 @@ const Admin = () => {
         // API Cricket settings (api-cricket.com)
         api_cricket_key: siteSettingsForm.api_cricket_key || null,
         api_cricket_enabled: siteSettingsForm.api_cricket_enabled,
+        api_sync_interval_seconds: siteSettingsForm.api_sync_interval_seconds || 120,
         // Ads.txt
         ads_txt_content: siteSettingsForm.ads_txt_content || null,
         // Custom code injection
@@ -2733,9 +2736,24 @@ const Admin = () => {
                     </p>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>Sync Interval (seconds)</Label>
+                    <Input 
+                      type="number"
+                      min="30"
+                      max="600"
+                      placeholder="120" 
+                      value={siteSettingsForm.api_sync_interval_seconds} 
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, api_sync_interval_seconds: Math.max(30, Math.min(600, parseInt(e.target.value) || 120)) })} 
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      How often to sync scores from API (minimum 30 seconds, maximum 600 seconds). Currently: {siteSettingsForm.api_sync_interval_seconds} seconds ({(siteSettingsForm.api_sync_interval_seconds / 60).toFixed(1)} minutes)
+                    </p>
+                  </div>
+
                   <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
                     <p className="text-xs text-muted-foreground">
-                      <strong>Note:</strong> Enable live scores per-match using the "Show Live Score" toggle in each match's edit dialog.
+                      <strong>Note:</strong> Enable live scores per-match using the "Enable API Score Sync" toggle in each match's edit dialog.
                     </p>
                   </div>
 

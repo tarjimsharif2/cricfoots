@@ -47,10 +47,10 @@ Deno.serve(async (req) => {
 
     console.log('[sync-api-scores] Starting scheduled API score sync...');
 
-    // Get the API key from site_settings
+    // Get the API key and sync interval from site_settings
     const { data: settings, error: settingsError } = await supabase
       .from('site_settings')
-      .select('api_cricket_key, api_cricket_enabled')
+      .select('api_cricket_key, api_cricket_enabled, api_sync_interval_seconds')
       .limit(1)
       .maybeSingle();
 
@@ -71,6 +71,9 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = settings.api_cricket_key;
+    const syncIntervalSeconds = settings.api_sync_interval_seconds || 120;
+    
+    console.log(`[sync-api-scores] Sync interval configured: ${syncIntervalSeconds} seconds`);
 
     // Get matches that need syncing:
     // 1. Status is 'live' - always sync
@@ -88,6 +91,7 @@ Deno.serve(async (req) => {
         match_time,
         match_start_time,
         api_score_enabled,
+        last_api_sync,
         team_a:teams!matches_team_a_id_fkey(name, short_name),
         team_b:teams!matches_team_b_id_fkey(name, short_name)
       `)
@@ -111,9 +115,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Filter matches that should be synced
+    // Filter matches that should be synced based on status and interval
     const matchesToSync = matches.filter(match => {
-      // Always sync live matches
+      // Check if enough time has passed since last sync
+      if (match.last_api_sync) {
+        const lastSyncTime = new Date(match.last_api_sync).getTime();
+        const timeSinceLastSync = now.getTime() - lastSyncTime;
+        if (timeSinceLastSync < syncIntervalSeconds * 1000) {
+          console.log(`[sync-api-scores] Skipping match ${match.id} - synced ${Math.round(timeSinceLastSync / 1000)}s ago (interval: ${syncIntervalSeconds}s)`);
+          return false;
+        }
+      }
+      
+      // Always sync live matches (if interval passed)
       if (match.status === 'live') return true;
       
       // For upcoming matches, check if within 5 minutes of start
