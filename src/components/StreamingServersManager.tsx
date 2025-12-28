@@ -626,20 +626,6 @@ const StreamingServersManager = ({ match, onClose }: StreamingServersManagerProp
                 <Label className="text-sm">Active</Label>
               </div>
             </div>
-            
-            {/* Ad-Block Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Ad-Block</Label>
-                <p className="text-xs text-muted-foreground">
-                  Block popups and hide ad elements (iframe only)
-                </p>
-              </div>
-              <Switch
-                checked={serverForm.ad_block_enabled}
-                onCheckedChange={(checked) => setServerForm({ ...serverForm, ad_block_enabled: checked })}
-              />
-            </div>
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">

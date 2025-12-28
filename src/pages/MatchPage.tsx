@@ -183,7 +183,6 @@ const MatchPage = () => {
                       cookie: activeServer.cookie_value,
                       userAgent: activeServer.user_agent,
                     }}
-                    adBlockEnabled={activeServer.ad_block_enabled || false}
                   />
                 ) : (
                   <div className="aspect-video bg-muted flex items-center justify-center">

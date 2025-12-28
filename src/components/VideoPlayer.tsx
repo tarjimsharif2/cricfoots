@@ -10,12 +10,6 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-interface AdBlockRules {
-  cssSelectors: string[];
-  blockPopups: boolean;
-  blockNewTabs: boolean;
-}
-
 interface StreamHeaders {
   referer?: string | null;
   origin?: string | null;
@@ -27,7 +21,6 @@ interface VideoPlayerProps {
   url: string;
   type: 'iframe' | 'm3u8' | 'embed' | 'iframe_to_m3u8';
   headers?: StreamHeaders;
-  adBlockEnabled?: boolean;
 }
 
 // Validate that URL uses safe protocols (http:// or https://)
@@ -446,33 +439,10 @@ const IframeToM3U8Player = ({ url, headers }: { url: string; headers?: StreamHea
   return null;
 };
 
-const VideoPlayer = ({ url, type, headers, adBlockEnabled = false }: VideoPlayerProps) => {
+const VideoPlayer = ({ url, type, headers }: VideoPlayerProps) => {
   const [useDirectEmbed, setUseDirectEmbed] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
-  const [adBlockRules, setAdBlockRules] = useState<AdBlockRules | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Fetch ad-block rules from site settings if enabled
-  useEffect(() => {
-    const fetchRules = async () => {
-      try {
-        const { data } = await supabase
-          .from('site_settings_public')
-          .select('ad_block_rules')
-          .single();
-        
-        if (data?.ad_block_rules) {
-          setAdBlockRules(data.ad_block_rules as unknown as AdBlockRules);
-        }
-      } catch (error) {
-        console.warn('Could not fetch ad-block rules:', error);
-      }
-    };
-    
-    if (adBlockEnabled) {
-      fetchRules();
-    }
-  }, [adBlockEnabled]);
 
   // Validate URL before rendering to prevent XSS attacks
   if (!isValidUrl(url)) {
@@ -504,16 +474,7 @@ const VideoPlayer = ({ url, type, headers, adBlockEnabled = false }: VideoPlayer
     }
     
     if (needsProxy) {
-      const proxyUrl = buildIframeProxyUrl(url, headers);
-      if (adBlockEnabled) {
-        const urlObj = new URL(proxyUrl);
-        urlObj.searchParams.set('adBlock', 'true');
-        if (adBlockRules) {
-          urlObj.searchParams.set('adBlockRules', encodeURIComponent(JSON.stringify(adBlockRules)));
-        }
-        return urlObj.toString();
-      }
-      return proxyUrl;
+      return buildIframeProxyUrl(url, headers);
     }
     return url;
   };
