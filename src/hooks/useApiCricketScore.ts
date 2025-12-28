@@ -32,6 +32,8 @@ export interface ApiCricketScoreData {
   awayTeamLogo?: string;
   homeScore: string;
   awayScore: string;
+  homeOvers?: string | null;
+  awayOvers?: string | null;
   homeRunRate?: string | null;
   awayRunRate?: string | null;
   status: string;
@@ -147,6 +149,8 @@ export const useApiCricketScore = ({
         awayTeamLogo: match.awayTeamLogo,
         homeScore: match.homeScore || '-',
         awayScore: match.awayScore || '-',
+        homeOvers: match.homeOvers,
+        awayOvers: match.awayOvers,
         homeRunRate: match.homeRunRate,
         awayRunRate: match.awayRunRate,
         status: match.status,

@@ -326,6 +326,8 @@ Deno.serve(async (req) => {
               awayTeamLogo: matchingEvent.event_away_team_logo,
               homeScore: matchingEvent.event_home_final_result || '-',
               awayScore: matchingEvent.event_away_final_result || '-',
+              homeOvers: matchingEvent.event_home_overs || null,
+              awayOvers: matchingEvent.event_away_overs || null,
               homeRunRate: matchingEvent.event_home_rr,
               awayRunRate: matchingEvent.event_away_rr,
               status: matchingEvent.event_status,

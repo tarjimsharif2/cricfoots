@@ -62,8 +62,9 @@ const ApiCricketLiveScore = ({
     return oversMatch ? oversMatch[1] : null;
   };
 
-  const homeOvers = scoreData?.homeScore ? parseScoreOvers(scoreData.homeScore) : null;
-  const awayOvers = scoreData?.awayScore ? parseScoreOvers(scoreData.awayScore) : null;
+  // Get overs - first from API field, then try parsing from score
+  const homeOvers = scoreData?.homeOvers || (scoreData?.homeScore ? parseScoreOvers(scoreData.homeScore) : null);
+  const awayOvers = scoreData?.awayOvers || (scoreData?.awayScore ? parseScoreOvers(scoreData.awayScore) : null);
 
   // Clean score to just show runs/wickets
   const cleanScore = (score: string) => {
