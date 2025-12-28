@@ -352,42 +352,6 @@ const ApiCricketLiveScore = ({
                         )}
                       </div>
 
-                      {/* Did Not Bat Section */}
-                      {team.didNotBat && team.didNotBat.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <UserX className="w-4 h-4 text-muted-foreground" />
-                            <span className="font-semibold text-sm text-muted-foreground">Did Not Bat</span>
-                          </div>
-                          <div className="p-3 rounded-lg border bg-muted/20">
-                            <p className="text-xs text-muted-foreground">
-                              {team.didNotBat.map(d => d.player).join(', ')}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Fall of Wickets Section */}
-                      {team.fallOfWickets && team.fallOfWickets.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 text-orange-500" />
-                            <span className="font-semibold text-sm">Fall of Wickets</span>
-                          </div>
-                          <div className="p-3 rounded-lg border bg-muted/20">
-                            <div className="flex flex-wrap gap-2">
-                              {team.fallOfWickets.map((fow, fowIdx) => (
-                                <Badge key={fowIdx} variant="outline" className="text-xs">
-                                  {fow.wicketNumber}-{fow.score}
-                                  {fow.player && ` (${fow.player}`}
-                                  {fow.over && `, ${fow.over} ov`}
-                                  {fow.player && ')'}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </TabsContent>
                   ))}
                 </Tabs>
