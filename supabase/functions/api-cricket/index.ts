@@ -82,39 +82,14 @@ Deno.serve(async (req) => {
 
     console.log(`API Cricket request - Action: ${action}, Teams: ${teamAName} vs ${teamBName}`);
 
-    // Helper to find matching event
-    const findMatchingEvent = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      const url = `https://apiv2.api-cricket.com/cricket/?method=get_events&APIkey=${apiKey}&date_start=${today}&date_stop=${today}`;
-      
-      console.log(`Fetching events from api-cricket.com for ${today}`);
-      
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    const normalizeTeamName = (name: string) => 
+      name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
 
-      if (!response.ok) {
-        console.error(`API Cricket error: ${response.status} ${response.statusText}`);
-        return null;
-      }
+    const teamANormalized = normalizeTeamName(teamAName);
+    const teamBNormalized = normalizeTeamName(teamBName);
 
-      const data = await response.json();
-
-      if (!data.success || data.success !== 1) {
-        console.error('API Cricket returned unsuccessful response:', data);
-        return null;
-      }
-
-      const events = data.result || [];
-      const normalizeTeamName = (name: string) => 
-        name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-
-      const teamANormalized = normalizeTeamName(teamAName);
-      const teamBNormalized = normalizeTeamName(teamBName);
-
+    // Helper to find matching event from API response
+    const findMatchInEvents = (events: any[]) => {
       return events.find((event: any) => {
         const homeNormalized = normalizeTeamName(event.event_home_team);
         const awayNormalized = normalizeTeamName(event.event_away_team);
@@ -128,9 +103,63 @@ Deno.serve(async (req) => {
       });
     };
 
+    // Helper to fetch events for a date range
+    const fetchEventsForDateRange = async (startDate: string, endDate: string) => {
+      const url = `https://apiv2.api-cricket.com/cricket/?method=get_events&APIkey=${apiKey}&date_start=${startDate}&date_stop=${endDate}`;
+      
+      console.log(`Fetching events from api-cricket.com for ${startDate} to ${endDate}`);
+      
+      const response = await fetchWithRetry(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`API Cricket error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+
+      if (!data.success || data.success !== 1) {
+        console.error('API Cricket returned unsuccessful response:', data);
+        return [];
+      }
+
+      return data.result || [];
+    };
+
+    // Helper to find matching event - searches today first, then past 7 days if not found
+    const findMatchingEvent = async (includePastDays: boolean = false) => {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // First, try today's events
+      let events = await fetchEventsForDateRange(today, today);
+      let matchingEvent = findMatchInEvents(events);
+      
+      if (matchingEvent) {
+        return matchingEvent;
+      }
+      
+      // If not found and we should search past days (for completed matches)
+      if (includePastDays) {
+        const pastDate = new Date();
+        pastDate.setDate(pastDate.getDate() - 7);
+        const pastDateStr = pastDate.toISOString().split('T')[0];
+        
+        console.log(`Match not found today, searching past 7 days from ${pastDateStr}`);
+        events = await fetchEventsForDateRange(pastDateStr, today);
+        matchingEvent = findMatchInEvents(events);
+      }
+      
+      return matchingEvent || null;
+    };
+
     if (action === 'syncMatch' && matchId) {
-      // Sync match scores from API to database
-      const matchingEvent = await findMatchingEvent();
+      // Sync match scores from API to database - search past 7 days for completed matches
+      const matchingEvent = await findMatchingEvent(true);
       
       if (!matchingEvent) {
         return new Response(
@@ -186,7 +215,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'getLiveScore') {
-      const matchingEvent = await findMatchingEvent();
+      const matchingEvent = await findMatchingEvent(false);
 
       if (matchingEvent) {
         console.log(`Found matching event: ${matchingEvent.event_home_team} vs ${matchingEvent.event_away_team}`);
