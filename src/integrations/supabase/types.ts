@@ -480,6 +480,7 @@ export type Database = {
       }
       site_settings: {
         Row: {
+          ad_block_rules: Json | null
           ads_enabled: boolean | null
           ads_txt_content: string | null
           canonical_url: string | null
@@ -521,6 +522,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ad_block_rules?: Json | null
           ads_enabled?: boolean | null
           ads_txt_content?: string | null
           canonical_url?: string | null
@@ -562,6 +564,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ad_block_rules?: Json | null
           ads_enabled?: boolean | null
           ads_txt_content?: string | null
           canonical_url?: string | null
@@ -606,6 +609,7 @@ export type Database = {
       }
       site_settings_public: {
         Row: {
+          ad_block_rules: Json | null
           ads_enabled: boolean | null
           ads_txt_content: string | null
           canonical_url: string | null
@@ -639,6 +643,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ad_block_rules?: Json | null
           ads_enabled?: boolean | null
           ads_txt_content?: string | null
           canonical_url?: string | null
@@ -672,6 +677,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ad_block_rules?: Json | null
           ads_enabled?: boolean | null
           ads_txt_content?: string | null
           canonical_url?: string | null

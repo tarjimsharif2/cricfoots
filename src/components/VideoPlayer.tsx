@@ -8,6 +8,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+
+interface AdBlockRules {
+  cssSelectors: string[];
+  blockPopups: boolean;
+  blockNewTabs: boolean;
+}
 
 interface StreamHeaders {
   referer?: string | null;
@@ -442,15 +449,29 @@ const IframeToM3U8Player = ({ url, headers }: { url: string; headers?: StreamHea
 const VideoPlayer = ({ url, type, headers, adBlockEnabled = false }: VideoPlayerProps) => {
   const [useDirectEmbed, setUseDirectEmbed] = useState(false);
   const [adBlockActive, setAdBlockActive] = useState(adBlockEnabled);
+  const [adBlockRules, setAdBlockRules] = useState<AdBlockRules | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Apply ad-blocking overlay when enabled
+  // Fetch ad-block rules from site settings
   useEffect(() => {
-    if (!adBlockActive || !iframeRef.current) return;
-
-    // We can't directly manipulate iframe content due to CORS, 
-    // but we can add an overlay that blocks clicks on typical ad positions
-    // and inject CSS to hide common ad elements through the proxy
+    const fetchRules = async () => {
+      try {
+        const { data } = await supabase
+          .from('site_settings_public')
+          .select('ad_block_rules')
+          .single();
+        
+        if (data?.ad_block_rules) {
+          setAdBlockRules(data.ad_block_rules as unknown as AdBlockRules);
+        }
+      } catch (error) {
+        console.warn('Could not fetch ad-block rules:', error);
+      }
+    };
+    
+    if (adBlockActive) {
+      fetchRules();
+    }
   }, [adBlockActive]);
 
   // Validate URL before rendering to prevent XSS attacks
@@ -482,6 +503,10 @@ const VideoPlayer = ({ url, type, headers, adBlockEnabled = false }: VideoPlayer
       if (adBlockActive) {
         const urlObj = new URL(proxyUrl);
         urlObj.searchParams.set('adBlock', 'true');
+        // Pass custom rules if available
+        if (adBlockRules) {
+          urlObj.searchParams.set('adBlockRules', encodeURIComponent(JSON.stringify(adBlockRules)));
+        }
         return urlObj.toString();
       }
       return proxyUrl;
@@ -496,10 +521,19 @@ const VideoPlayer = ({ url, type, headers, adBlockEnabled = false }: VideoPlayer
       <iframe
         ref={iframeRef}
         src={iframeSrc}
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full border-0"
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          border: 'none',
+          margin: 0,
+          padding: 0,
+          overflow: 'hidden'
+        }}
         allowFullScreen
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         frameBorder="0"
+        scrolling="no"
         referrerPolicy="unsafe-url"
       />
       
