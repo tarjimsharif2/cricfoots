@@ -1011,9 +1011,12 @@ const Admin = () => {
         twitter_handle: siteSettingsForm.twitter_handle || null,
         facebook_app_id: siteSettingsForm.facebook_app_id || null,
         telegram_link: siteSettingsForm.telegram_link || null,
-        // Cricket API settings
+        // Cricket API settings (legacy)
         cricket_api_key: siteSettingsForm.cricket_api_key || null,
         cricket_api_enabled: siteSettingsForm.cricket_api_enabled,
+        // API Cricket settings (api-cricket.com)
+        api_cricket_key: siteSettingsForm.api_cricket_key || null,
+        api_cricket_enabled: siteSettingsForm.api_cricket_enabled,
         // Ads.txt
         ads_txt_content: siteSettingsForm.ads_txt_content || null,
         // Custom code injection
