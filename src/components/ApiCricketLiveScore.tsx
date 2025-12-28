@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { useApiCricketScore, BatsmanData, BowlerData } from '@/hooks/useApiCricketScore';
 import { RefreshCw, Radio, Clock, AlertCircle, Trophy, User, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -96,8 +96,7 @@ const ApiCricketLiveScore = ({
     const hasDetailedData = hasBattingData || hasBowlingData;
 
     return (
-      <ScrollArea className="max-h-[60vh]">
-        <div className="space-y-4 pr-2">
+      <div className="space-y-4">
           {/* Venue & Toss Info */}
           <div className="space-y-2">
             {scoreData.venue && (
@@ -322,7 +321,6 @@ const ApiCricketLiveScore = ({
             </div>
           )}
         </div>
-      </ScrollArea>
     );
   };
 
