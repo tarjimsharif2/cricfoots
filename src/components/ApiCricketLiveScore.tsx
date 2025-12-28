@@ -1,12 +1,14 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useApiCricketScore, BatsmanData, BowlerData } from '@/hooks/useApiCricketScore';
-import { RefreshCw, Radio, Clock, AlertCircle, Trophy, User, Target } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { RefreshCw, Radio, Clock, AlertCircle, Trophy, User, Target, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ApiCricketLiveScoreProps {
   teamAName: string;
@@ -27,6 +29,7 @@ const ApiCricketLiveScore = ({
   matchId,
   matchStatus,
 }: ApiCricketLiveScoreProps) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const { scoreData, isLoading, error, refetch, isEnabled } = useApiCricketScore({
     teamAName,
     teamBName,
@@ -463,8 +466,94 @@ const ApiCricketLiveScore = ({
             </div>
           ) : scoreData ? (
             <div className="space-y-4">
-              {/* Full Scoreboard - Inline */}
-              {renderFullScoreboard()}
+              {/* Compact Score Summary */}
+              {(() => {
+                const teamAMatchesHome = getTeamAMatchesHome();
+                const homeLogo = teamAMatchesHome 
+                  ? (teamALogo || scoreData.homeTeamLogo) 
+                  : (teamBLogo || scoreData.homeTeamLogo);
+                const awayLogo = teamAMatchesHome 
+                  ? (teamBLogo || scoreData.awayTeamLogo) 
+                  : (teamALogo || scoreData.awayTeamLogo);
+
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Home Team */}
+                    <div className="flex flex-col items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/30">
+                      {homeLogo && (
+                        <img src={homeLogo} alt={scoreData.homeTeam} className="w-10 h-10 object-contain" />
+                      )}
+                      <span className="text-sm font-medium text-center truncate w-full">{scoreData.homeTeam}</span>
+                      <div className="text-center">
+                        <div className="flex items-baseline justify-center gap-1">
+                          <span className="text-2xl font-bold text-primary">{cleanScore(scoreData.homeScore)}</span>
+                          {rawHomeOvers && <span className="text-xs text-muted-foreground">({rawHomeOvers} ov)</span>}
+                        </div>
+                        {scoreData.homeRunRate && <span className="text-xs text-muted-foreground">RR: {scoreData.homeRunRate}</span>}
+                      </div>
+                    </div>
+                    {/* Away Team */}
+                    <div className="flex flex-col items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/30">
+                      {awayLogo && (
+                        <img src={awayLogo} alt={scoreData.awayTeam} className="w-10 h-10 object-contain" />
+                      )}
+                      <span className="text-sm font-medium text-center truncate w-full">{scoreData.awayTeam}</span>
+                      <div className="text-center">
+                        <div className="flex items-baseline justify-center gap-1">
+                          <span className="text-2xl font-bold text-primary">{cleanScore(scoreData.awayScore)}</span>
+                          {rawAwayOvers && <span className="text-xs text-muted-foreground">({rawAwayOvers} ov)</span>}
+                        </div>
+                        {scoreData.awayRunRate && <span className="text-xs text-muted-foreground">RR: {scoreData.awayRunRate}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Match Status */}
+              {scoreData.statusInfo && (
+                <div className="text-center p-2 bg-primary/10 rounded-lg">
+                  <p className="text-sm font-medium">{scoreData.statusInfo}</p>
+                </div>
+              )}
+              
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                {scoreData.status && <Badge variant="outline" className="text-xs">{scoreData.status}</Badge>}
+                {scoreData.eventType && <Badge variant="secondary" className="text-xs">{scoreData.eventType}</Badge>}
+                {scoreData.eventLive && <Badge variant="destructive" className="text-xs animate-pulse">LIVE</Badge>}
+              </div>
+
+              {/* Collapsible Full Scoreboard */}
+              <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-sm justify-between"
+                    size="sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Trophy className="w-4 h-4" />
+                      {isExpanded ? 'Hide Full Scoreboard' : 'View Full Scoreboard'}
+                    </span>
+                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="mt-4 border-t border-border/30 pt-4"
+                      >
+                        {renderFullScoreboard()}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </CollapsibleContent>
+              </Collapsible>
 
               {/* Last Updated */}
               {scoreData.lastUpdated && (
