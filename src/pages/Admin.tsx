@@ -1608,6 +1608,21 @@ const Admin = () => {
                         />
                       </div>
 
+                      {/* Auto-Sync Toggle */}
+                      <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm bg-muted/20">
+                        <div className="space-y-0.5">
+                          <Label className="text-base font-medium flex items-center gap-2">
+                            <RefreshCw className="w-4 h-4 text-primary" />
+                            Auto-Sync Scores
+                          </Label>
+                          <p className="text-sm text-muted-foreground">Automatically sync scores every 2 minutes from admin panel</p>
+                        </div>
+                        <Switch
+                          checked={matchForm.auto_sync_enabled}
+                          onCheckedChange={(checked) => setMatchForm({ ...matchForm, auto_sync_enabled: checked })}
+                        />
+                      </div>
+
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setMatchDialogOpen(false)}>Cancel</Button>
