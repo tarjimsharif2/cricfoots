@@ -159,7 +159,7 @@ serve(async (req) => {
     if (cookie) requestHeaders['Cookie'] = cookie;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // Reduced timeout for faster failure
 
     const response = await fetch(url, {
       method: 'GET',
@@ -328,7 +328,7 @@ serve(async (req) => {
         headers: {
           ...corsHeaders,
           'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'public, max-age=60', // Cache for 60 seconds for faster reload
           'X-Frame-Options': 'ALLOWALL',
         },
       });

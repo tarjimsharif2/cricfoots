@@ -493,11 +493,16 @@ const VideoPlayer = ({ url, type, headers, adBlockEnabled = false }: VideoPlayer
     return <IframeToM3U8Player url={url} headers={headers} />;
   }
 
-  // For iframe and embed types
+  // For iframe and embed types - only use proxy if headers are needed AND not using direct embed
   const needsProxy = hasCustomHeaders(headers) && !useDirectEmbed;
   
-  // Build iframe URL with ad-block parameter if enabled
+  // Build iframe URL - use direct URL for fastest loading when possible
   const buildIframeSrc = () => {
+    // Skip proxy entirely if no custom headers - direct is faster
+    if (!hasCustomHeaders(headers)) {
+      return url;
+    }
+    
     if (needsProxy) {
       const proxyUrl = buildIframeProxyUrl(url, headers);
       if (adBlockEnabled) {
