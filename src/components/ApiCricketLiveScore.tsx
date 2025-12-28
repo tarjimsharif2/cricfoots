@@ -312,14 +312,6 @@ const ApiCricketLiveScore = ({
                 : 'Detailed scorecard will be available during the match'}
             </div>
           )}
-
-          {/* Last Updated */}
-          {scoreData.lastUpdated && (
-            <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1">
-              <Clock className="w-3 h-3" />
-              Last updated: {scoreData.lastUpdated.toLocaleTimeString()}
-            </div>
-          )}
         </div>
     );
   };
