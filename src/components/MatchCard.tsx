@@ -185,10 +185,26 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
     return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
   };
 
+  // Parse score to extract runs/wickets and overs
+  const parseScore = (score: string | null) => {
+    if (!score) return null;
+    // Match patterns like "179/4 (20 ov)" or "179/4 (20.3 ov)" or just "179/4"
+    const oversMatch = score.match(/\((\d+\.?\d*)\s*ov\)/i);
+    const cleanScore = score.replace(/\s*\(\d+\.?\d*\s*ov\)/i, '').trim();
+    return {
+      score: cleanScore,
+      overs: oversMatch ? oversMatch[1] : null
+    };
+  };
+
   const teamA = match.team_a;
   const teamB = match.team_b;
   const tournament = match.tournament;
   const sport = match.sport;
+
+  // Parse scores with overs
+  const scoreA = parseScore(match.score_a);
+  const scoreB = parseScore(match.score_b);
 
   if (!teamA || !teamB) {
     return null;
@@ -313,9 +329,12 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
                 )}
               </div>
               <span className="font-medium text-foreground text-xs md:text-sm leading-tight line-clamp-2">{teamA.name}</span>
-              {match.score_a && (
+              {scoreA && (
                 <div className="flex flex-col items-center">
-                  <span className="text-lg md:text-xl font-bold text-primary">{match.score_a}</span>
+                  <span className="text-lg md:text-xl font-bold text-primary">{scoreA.score}</span>
+                  {scoreA.overs && (
+                    <span className="text-xs text-muted-foreground">({scoreA.overs} ov)</span>
+                  )}
                 </div>
               )}
             </div>
@@ -353,9 +372,12 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
                 )}
               </div>
               <span className="font-medium text-foreground text-xs md:text-sm leading-tight line-clamp-2">{teamB.name}</span>
-              {match.score_b && (
+              {scoreB && (
                 <div className="flex flex-col items-center">
-                  <span className="text-lg md:text-xl font-bold text-muted-foreground">{match.score_b}</span>
+                  <span className="text-lg md:text-xl font-bold text-primary">{scoreB.score}</span>
+                  {scoreB.overs && (
+                    <span className="text-xs text-muted-foreground">({scoreB.overs} ov)</span>
+                  )}
                 </div>
               )}
             </div>
