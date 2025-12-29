@@ -363,31 +363,41 @@ Deno.serve(async (req) => {
       }
 
       // Map API home/away scores to correct team_a/team_b based on team name matching
-      const apiHomeNormalized = normalizeTeamName(detailedEvent.event_home_team || '');
-      const apiAwayNormalized = normalizeTeamName(detailedEvent.event_away_team || '');
+      // Use first word matching for more accurate results
+      const getFirstWord = (name: string) => name?.toLowerCase().trim().split(' ')[0] || '';
       
-      // Check if API's home team matches our team_a or team_b
-      const homeMatchesTeamA = apiHomeNormalized.includes(teamANormalized) || teamANormalized.includes(apiHomeNormalized);
-      const homeMatchesTeamB = apiHomeNormalized.includes(teamBNormalized) || teamBNormalized.includes(apiHomeNormalized);
+      const teamAFirstWord = getFirstWord(teamAName);
+      const teamBFirstWord = getFirstWord(teamBName);
+      const apiHomeFirstWord = getFirstWord(detailedEvent.event_home_team || '');
+      const apiAwayFirstWord = getFirstWord(detailedEvent.event_away_team || '');
+      
+      console.log(`[sync-api-scores] Team matching: teamA="${teamAName}" (${teamAFirstWord}), teamB="${teamBName}" (${teamBFirstWord})`);
+      console.log(`[sync-api-scores] API teams: home="${detailedEvent.event_home_team}" (${apiHomeFirstWord}), away="${detailedEvent.event_away_team}" (${apiAwayFirstWord})`);
       
       let scoreForTeamA: string | null;
       let scoreForTeamB: string | null;
       
-      if (homeMatchesTeamA) {
-        // API home = our team_a, API away = our team_b
+      // Match teamA to either API home or away
+      if (teamAFirstWord === apiHomeFirstWord) {
+        // Team A matches API's home team
         scoreForTeamA = homeScore;
         scoreForTeamB = awayScore;
-        console.log(`[sync-api-scores] Mapping: API home (${detailedEvent.event_home_team}) = team_a (${teamAName})`);
-      } else if (homeMatchesTeamB) {
-        // API home = our team_b, API away = our team_a
+        console.log(`[sync-api-scores] Result: teamA matches API home → score_a=${homeScore}, score_b=${awayScore}`);
+      } else if (teamAFirstWord === apiAwayFirstWord) {
+        // Team A matches API's away team
         scoreForTeamA = awayScore;
         scoreForTeamB = homeScore;
-        console.log(`[sync-api-scores] Mapping: API home (${detailedEvent.event_home_team}) = team_b (${teamBName}), swapping scores`);
+        console.log(`[sync-api-scores] Result: teamA matches API away → score_a=${awayScore}, score_b=${homeScore}`);
+      } else if (teamBFirstWord === apiHomeFirstWord) {
+        // Team B matches API's home team (so Team A = API away)
+        scoreForTeamA = awayScore;
+        scoreForTeamB = homeScore;
+        console.log(`[sync-api-scores] Result: teamB matches API home → score_a=${awayScore}, score_b=${homeScore}`);
       } else {
         // Fallback: just use the order as-is
         scoreForTeamA = homeScore;
         scoreForTeamB = awayScore;
-        console.log(`[sync-api-scores] Fallback mapping: home->score_a, away->score_b`);
+        console.log(`[sync-api-scores] Fallback: no first-word match → score_a=${homeScore}, score_b=${awayScore}`);
       }
 
       // Also update the main matches table
