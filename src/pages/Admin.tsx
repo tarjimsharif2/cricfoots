@@ -133,7 +133,8 @@ const Admin = () => {
     match_number: 1,
     match_date: '',
     match_time: '',
-    status: 'upcoming' as 'upcoming' | 'live' | 'completed',
+    status: 'upcoming' as 'upcoming' | 'live' | 'completed' | 'abandoned' | 'postponed',
+    is_active: true,
     venue: '',
     score_a: '',
     score_b: '',
@@ -391,6 +392,7 @@ const Admin = () => {
         match_date: matchForm.match_date,
         match_time: matchForm.match_time,
         status: matchForm.status,
+        is_active: matchForm.is_active,
         venue: matchForm.venue || null,
         score_a: matchForm.score_a || null,
         score_b: matchForm.score_b || null,
@@ -459,6 +461,7 @@ const Admin = () => {
       match_date: match.match_date,
       match_time: match.match_time,
       status: match.status,
+      is_active: match.is_active !== false,
       venue: match.venue || '',
       score_a: match.score_a || '',
       score_b: match.score_b || '',
@@ -559,6 +562,7 @@ const Admin = () => {
       match_date: match.match_date,
       match_time: match.match_time,
       status: 'upcoming',
+      is_active: true,
       venue: match.venue || '',
       score_a: '',
       score_b: '',
@@ -602,6 +606,7 @@ const Admin = () => {
       match_date: '',
       match_time: '',
       status: 'upcoming',
+      is_active: true,
       venue: '',
       score_a: '',
       score_b: '',
@@ -1225,7 +1230,7 @@ const Admin = () => {
                         </div>
                         <div className="space-y-2">
                           <Label>Status</Label>
-                          <Select value={matchForm.status} onValueChange={(v: 'upcoming' | 'live' | 'completed') => setMatchForm({ ...matchForm, status: v })}>
+                          <Select value={matchForm.status} onValueChange={(v: 'upcoming' | 'live' | 'completed' | 'abandoned' | 'postponed') => setMatchForm({ ...matchForm, status: v })}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -1233,8 +1238,18 @@ const Admin = () => {
                               <SelectItem value="upcoming">Upcoming</SelectItem>
                               <SelectItem value="live">Live</SelectItem>
                               <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="abandoned">Abandoned</SelectItem>
+                              <SelectItem value="postponed">Postponed</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="is_active"
+                            checked={matchForm.is_active}
+                            onCheckedChange={(checked) => setMatchForm({ ...matchForm, is_active: checked })}
+                          />
+                          <Label htmlFor="is_active">Show on Homepage</Label>
                         </div>
                       </div>
                       

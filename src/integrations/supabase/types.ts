@@ -333,6 +333,7 @@ export type Database = {
           cricbuzz_match_id: string | null
           day_start_time: string | null
           id: string
+          is_active: boolean | null
           is_priority: boolean | null
           is_stumps: boolean | null
           last_api_sync: string | null
@@ -372,6 +373,7 @@ export type Database = {
           cricbuzz_match_id?: string | null
           day_start_time?: string | null
           id?: string
+          is_active?: boolean | null
           is_priority?: boolean | null
           is_stumps?: boolean | null
           last_api_sync?: string | null
@@ -411,6 +413,7 @@ export type Database = {
           cricbuzz_match_id?: string | null
           day_start_time?: string | null
           id?: string
+          is_active?: boolean | null
           is_priority?: boolean | null
           is_stumps?: boolean | null
           last_api_sync?: string | null

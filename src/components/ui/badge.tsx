@@ -15,6 +15,8 @@ const badgeVariants = cva(
         upcoming: "border-transparent bg-primary/20 text-primary",
         live: "border-transparent bg-destructive/20 text-destructive animate-pulse",
         completed: "border-transparent bg-green-500/20 text-green-400",
+        abandoned: "border-transparent bg-orange-500/20 text-orange-400",
+        postponed: "border-transparent bg-yellow-500/20 text-yellow-400",
         sport: "border-primary/30 bg-primary/10 text-primary",
       },
     },

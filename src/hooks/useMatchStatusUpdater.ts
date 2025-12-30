@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Match } from '@/hooks/useSportsData';
 
 export const useMatchStatusUpdater = (matches: Match[] | undefined) => {
-  const updateMatchStatus = useCallback(async (matchId: string, newStatus: 'live' | 'completed') => {
+  const updateMatchStatus = useCallback(async (matchId: string, newStatus: 'live' | 'completed' | 'abandoned' | 'postponed') => {
     try {
       const { error } = await supabase
         .from('matches')
