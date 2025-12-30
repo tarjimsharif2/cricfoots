@@ -349,6 +349,110 @@ Deno.serve(async (req) => {
       console.log(`[sync-api-scores] Parsed ${batsmen.length} batsmen, ${bowlers.length} bowlers from scorecard`);
       console.log(`[sync-api-scores] Innings found: ${[...inningsTeamMap.entries()].map(([k, v]) => `${k}="${v}"`).join(', ')}`);
 
+      // Fetch Playing XI from API if not already saved
+      // Check if playing XI already exists for this match
+      const { data: existingPlayingXI, error: playingXICheckError } = await supabase
+        .from('match_playing_xi')
+        .select('id')
+        .eq('match_id', match.id)
+        .limit(1);
+      
+      const hasPlayingXI = existingPlayingXI && existingPlayingXI.length > 0;
+      
+      // If match is live and no playing XI exists, try to fetch and save it
+      if (match.status === 'live' && !hasPlayingXI && detailedEvent.lineup) {
+        console.log(`[sync-api-scores] Fetching Playing XI for match ${match.id}...`);
+        
+        try {
+          const lineup = detailedEvent.lineup;
+          const playersToInsert: any[] = [];
+          
+          // Get team IDs from the match
+          const { data: matchData } = await supabase
+            .from('matches')
+            .select('team_a_id, team_b_id')
+            .eq('id', match.id)
+            .single();
+          
+          if (matchData) {
+            // Process home team lineup
+            if (lineup.home && lineup.home.starting_lineups) {
+              const homeLineup = lineup.home.starting_lineups;
+              let battingOrder = 1;
+              
+              for (const player of homeLineup) {
+                // Determine which team this is
+                const homeTeamName = detailedEvent.event_home_team || '';
+                let teamId = matchData.team_a_id;
+                
+                if (teamsMatch(homeTeamName, teamBName) || teamsMatch(homeTeamName, teamBShort)) {
+                  teamId = matchData.team_b_id;
+                }
+                
+                playersToInsert.push({
+                  match_id: match.id,
+                  team_id: teamId,
+                  player_name: player.lineup_player || player.player_name || 'Unknown',
+                  player_role: player.player_type || player.lineup_position || null,
+                  is_captain: player.lineup_captain === '1' || player.is_captain === true,
+                  is_vice_captain: player.lineup_vice_captain === '1' || player.is_vice_captain === true,
+                  is_wicket_keeper: (player.player_type || '').toLowerCase().includes('keeper') || 
+                                   (player.lineup_position || '').toLowerCase().includes('keeper'),
+                  batting_order: battingOrder++,
+                });
+              }
+            }
+            
+            // Process away team lineup
+            if (lineup.away && lineup.away.starting_lineups) {
+              const awayLineup = lineup.away.starting_lineups;
+              let battingOrder = 1;
+              
+              for (const player of awayLineup) {
+                // Determine which team this is
+                const awayTeamName = detailedEvent.event_away_team || '';
+                let teamId = matchData.team_b_id;
+                
+                if (teamsMatch(awayTeamName, teamAName) || teamsMatch(awayTeamName, teamAShort)) {
+                  teamId = matchData.team_a_id;
+                }
+                
+                playersToInsert.push({
+                  match_id: match.id,
+                  team_id: teamId,
+                  player_name: player.lineup_player || player.player_name || 'Unknown',
+                  player_role: player.player_type || player.lineup_position || null,
+                  is_captain: player.lineup_captain === '1' || player.is_captain === true,
+                  is_vice_captain: player.lineup_vice_captain === '1' || player.is_vice_captain === true,
+                  is_wicket_keeper: (player.player_type || '').toLowerCase().includes('keeper') || 
+                                   (player.lineup_position || '').toLowerCase().includes('keeper'),
+                  batting_order: battingOrder++,
+                });
+              }
+            }
+            
+            // If we have players to insert, save them
+            if (playersToInsert.length > 0) {
+              console.log(`[sync-api-scores] Saving ${playersToInsert.length} players to playing XI...`);
+              
+              const { error: insertError } = await supabase
+                .from('match_playing_xi')
+                .insert(playersToInsert);
+              
+              if (insertError) {
+                console.error(`[sync-api-scores] Error inserting playing XI:`, insertError);
+              } else {
+                console.log(`[sync-api-scores] Successfully saved playing XI for match ${match.id}`);
+              }
+            }
+          }
+        } catch (lineupError) {
+          console.log(`[sync-api-scores] Could not process lineup:`, lineupError);
+        }
+      } else if (hasPlayingXI) {
+        console.log(`[sync-api-scores] Playing XI already exists for match ${match.id}, skipping...`);
+      }
+
       // Calculate scores from batsmen and overs from bowlers per innings
       interface InningsStats {
         inningsName: string;
