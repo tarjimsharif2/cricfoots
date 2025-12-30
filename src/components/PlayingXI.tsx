@@ -2,8 +2,28 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users } from 'lucide-react';
+import { Users, Shield, Star, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+// Cricket role icons - using emojis for cricket bat/ball
+const BatIcon = () => (
+  <span className="text-xs" title="Batsman">🏏</span>
+);
+
+const BallIcon = () => (
+  <span className="text-xs" title="Bowler">⚾</span>
+);
+
+const AllRounderIcon = () => (
+  <div className="flex items-center gap-0.5" title="All-Rounder">
+    <span className="text-xs">🏏</span>
+    <span className="text-xs">⚾</span>
+  </div>
+);
+
+const WicketKeeperIcon = () => (
+  <span className="text-xs" title="Wicket Keeper">🧤</span>
+);
 
 interface Player {
   id: string;
@@ -46,6 +66,47 @@ export const usePlayingXI = (matchId: string | undefined) => {
   });
 };
 
+const getRoleIcon = (role: string | null, isWicketKeeper: boolean) => {
+  if (isWicketKeeper) return <WicketKeeperIcon />;
+  
+  const roleLower = (role || '').toLowerCase();
+  
+  if (roleLower.includes('all') || roleLower.includes('rounder')) {
+    return <AllRounderIcon />;
+  }
+  if (roleLower.includes('bowl') || roleLower.includes('fast') || roleLower.includes('spin') || roleLower.includes('medium')) {
+    return <BallIcon />;
+  }
+  if (roleLower.includes('bat') || roleLower.includes('open')) {
+    return <BatIcon />;
+  }
+  if (roleLower.includes('keep') || roleLower.includes('wk')) {
+    return <WicketKeeperIcon />;
+  }
+  
+  // Default to batsman icon if no specific role
+  return <BatIcon />;
+};
+
+const getRoleBadgeColor = (role: string | null): string => {
+  const roleLower = (role || '').toLowerCase();
+  
+  if (roleLower.includes('all') || roleLower.includes('rounder')) {
+    return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+  }
+  if (roleLower.includes('bowl') || roleLower.includes('fast') || roleLower.includes('spin') || roleLower.includes('medium')) {
+    return 'bg-red-500/20 text-red-300 border-red-500/30';
+  }
+  if (roleLower.includes('bat') || roleLower.includes('open')) {
+    return 'bg-green-500/20 text-green-300 border-green-500/30';
+  }
+  if (roleLower.includes('keep') || roleLower.includes('wk')) {
+    return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+  }
+  
+  return 'bg-muted/50 text-muted-foreground border-border/50';
+};
+
 const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo, teamBLogo }: PlayingXIProps) => {
   const { data: players, isLoading } = usePlayingXI(matchId);
 
@@ -61,39 +122,104 @@ const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo,
     return null;
   }
 
-  const renderPlayer = (player: Player) => (
-    <div key={player.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-      <div className="flex items-center gap-2">
+  const renderPlayer = (player: Player, index: number) => (
+    <motion.div 
+      key={player.id} 
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-gradient-to-r from-muted/40 to-muted/20 hover:from-muted/60 hover:to-muted/40 transition-all duration-200 border border-border/30 hover:border-border/50"
+    >
+      <div className="flex items-center gap-3">
+        {/* Order number */}
+        <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
+          {index + 1}
+        </span>
+        
+        {/* Role icon */}
+        <div className="w-6 flex items-center justify-center">
+          {getRoleIcon(player.player_role, player.is_wicket_keeper)}
+        </div>
+        
+        {/* Player name */}
         <span className="text-sm font-medium">{player.player_name}</span>
-        {player.is_captain && (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">C</Badge>
-        )}
-        {player.is_vice_captain && (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">VC</Badge>
-        )}
-        {player.is_wicket_keeper && (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">WK</Badge>
-        )}
+        
+        {/* Captain/VC/WK badges */}
+        <div className="flex items-center gap-1">
+          {player.is_captain && (
+            <Badge className="text-[9px] px-1.5 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30 flex items-center gap-0.5">
+              <Star className="w-2.5 h-2.5" />
+              C
+            </Badge>
+          )}
+          {player.is_vice_captain && (
+            <Badge className="text-[9px] px-1.5 py-0 bg-blue-500/20 text-blue-400 border-blue-500/30 flex items-center gap-0.5">
+              <Zap className="w-2.5 h-2.5" />
+              VC
+            </Badge>
+          )}
+          {player.is_wicket_keeper && (
+            <Badge className="text-[9px] px-1.5 py-0 bg-emerald-500/20 text-emerald-400 border-emerald-500/30 flex items-center gap-0.5">
+              <Shield className="w-2.5 h-2.5" />
+              WK
+            </Badge>
+          )}
+        </div>
       </div>
+      
+      {/* Player role badge */}
       {player.player_role && (
-        <span className="text-xs text-muted-foreground">{player.player_role}</span>
+        <Badge 
+          variant="outline" 
+          className={`text-[10px] px-2 py-0.5 font-medium ${getRoleBadgeColor(player.player_role)}`}
+        >
+          {player.player_role}
+        </Badge>
       )}
-    </div>
+    </motion.div>
   );
 
   const renderTeamSection = (teamName: string, teamLogo: string | null | undefined, players: Player[]) => (
-    <div className="flex-1">
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/30">
-        {teamLogo && (
-          <img src={teamLogo} alt={teamName} className="w-6 h-6 object-contain" />
+    <motion.div 
+      className="flex-1"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Team Header */}
+      <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border/40">
+        {teamLogo ? (
+          <img src={teamLogo} alt={teamName} className="w-8 h-8 object-contain rounded-md bg-muted/50 p-1" />
+        ) : (
+          <div className="w-8 h-8 rounded-md bg-primary/20 flex items-center justify-center">
+            <Users className="w-4 h-4 text-primary" />
+          </div>
         )}
-        <h4 className="font-semibold text-sm">{teamName}</h4>
-        <Badge variant="secondary" className="text-[10px]">{players.length} Players</Badge>
+        <div>
+          <h4 className="font-semibold text-base">{teamName}</h4>
+          <div className="flex items-center gap-2 mt-0.5">
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {players.length} Players
+            </Badge>
+          </div>
+        </div>
       </div>
-      <div className="space-y-1.5">
-        {players.map(renderPlayer)}
+      
+      {/* Players List */}
+      <div className="space-y-2">
+        {players.map((player, index) => renderPlayer(player, index))}
       </div>
-    </div>
+      
+      {/* Role Legend */}
+      <div className="mt-4 pt-3 border-t border-border/30">
+        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1"><BatIcon /> Batsman</div>
+          <div className="flex items-center gap-1"><BallIcon /> Bowler</div>
+          <div className="flex items-center gap-1"><AllRounderIcon /> All-Rounder</div>
+          <div className="flex items-center gap-1"><WicketKeeperIcon /> Wicket Keeper</div>
+        </div>
+      </div>
+    </motion.div>
   );
 
   return (
@@ -102,15 +228,22 @@ const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo,
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
     >
-      <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Users className="w-5 h-5 text-primary" />
-            Playing XI
+      <Card className="overflow-hidden border-border/50 bg-gradient-to-br from-card via-card to-card/80 backdrop-blur shadow-lg">
+        <CardHeader className="pb-4 bg-gradient-to-r from-primary/10 via-transparent to-primary/5">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <span>Playing XI</span>
+              <p className="text-xs font-normal text-muted-foreground mt-0.5">
+                Starting lineup for both teams
+              </p>
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
+        <CardContent className="pt-2">
+          <div className="grid md:grid-cols-2 gap-8">
             {teamAPlayers.length > 0 && renderTeamSection(teamAName, teamALogo, teamAPlayers)}
             {teamBPlayers.length > 0 && renderTeamSection(teamBName, teamBLogo, teamBPlayers)}
           </div>
