@@ -176,7 +176,7 @@ export const useApiCricketScore = ({
     }
   }, [fetchFromDatabase]);
 
-  // Set up realtime subscription for match updates
+  // Set up realtime subscription for match updates with fallback polling
   useEffect(() => {
     if (!enabled || !matchId) return;
 
@@ -195,11 +195,13 @@ export const useApiCricketScore = ({
           filter: `match_id=eq.${matchId}`,
         },
         (payload) => {
-          console.log('API scores updated:', payload);
+          console.log('API scores updated via realtime:', payload);
           fetchScore();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('match_api_scores subscription status:', status);
+      });
 
     // Also subscribe to main matches table updates
     const matchesChannel = supabase
@@ -213,14 +215,24 @@ export const useApiCricketScore = ({
           filter: `id=eq.${matchId}`,
         },
         (payload) => {
+          console.log('Match updated via realtime:', payload);
           fetchScore();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('matches subscription status:', status);
+      });
+
+    // Fallback polling every 60 seconds in case realtime misses updates
+    const pollInterval = setInterval(() => {
+      console.log('Polling for score updates...');
+      fetchScore();
+    }, 60000);
 
     return () => {
       supabase.removeChannel(apiScoresChannel);
       supabase.removeChannel(matchesChannel);
+      clearInterval(pollInterval);
     };
   }, [enabled, matchId, fetchScore]);
 
