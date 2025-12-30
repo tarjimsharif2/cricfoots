@@ -23,9 +23,10 @@ const MatchList = () => {
     const getStatusPriority = (status: string, isStumps?: boolean | null) => {
       if (status === 'live' && !isStumps) return 0; // Live matches first
       if (status === 'live' && isStumps) return 1;   // STUMPS matches after live
-      if (status === 'upcoming') return 2;
-      if (status === 'completed') return 3;
-      return 4;
+      if (status === 'postponed') return 2;          // Postponed before upcoming
+      if (status === 'upcoming') return 3;
+      if (status === 'completed' || status === 'abandoned') return 4;
+      return 5;
     };
 
     // Helper function to parse match date/time into a Date object
@@ -67,8 +68,11 @@ const MatchList = () => {
     };
 
     const filtered = matches.filter((match) => {
-      // Hide completed matches older than 2 days
-      if (match.status === 'completed') {
+      // Filter out inactive matches
+      if (match.is_active === false) return false;
+
+      // Hide completed/abandoned matches older than 2 days
+      if (match.status === 'completed' || match.status === 'abandoned') {
         try {
           const dateMatch = match.match_date.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
           if (dateMatch) {
@@ -97,10 +101,18 @@ const MatchList = () => {
       if (activeFilter === 'live') {
         return match.status === 'live';
       }
+      // Abandoned matches show in completed filter
+      if (activeFilter === 'completed') {
+        return match.status === 'completed' || match.status === 'abandoned';
+      }
+      // Postponed matches show in upcoming filter
+      if (activeFilter === 'upcoming') {
+        return match.status === 'upcoming' || match.status === 'postponed';
+      }
       return match.status === activeFilter;
     });
 
-    // Sort: Priority first, then Live, then upcoming, then completed - all sorted by start time
+    // Sort: Priority first, then Live, then postponed, then upcoming, then completed/abandoned - all sorted by start time
     return filtered.sort((a, b) => {
       // First, priority matches always come first
       if (a.is_priority && !b.is_priority) return -1;
@@ -114,9 +126,9 @@ const MatchList = () => {
       const dateA = parseMatchDateTime(a.match_date, a.match_time, a.match_start_time);
       const dateB = parseMatchDateTime(b.match_date, b.match_time, b.match_start_time);
       
-      // For live and upcoming matches, sort by start time (earliest first)
-      // For completed, show most recent first
-      if (a.status === 'live' || a.status === 'upcoming') {
+      // For live, postponed, and upcoming matches, sort by start time (earliest first)
+      // For completed/abandoned, show most recent first
+      if (a.status === 'live' || a.status === 'upcoming' || a.status === 'postponed') {
         return dateA.getTime() - dateB.getTime();
       }
       return dateB.getTime() - dateA.getTime();
@@ -133,8 +145,11 @@ const MatchList = () => {
     const sportSet = new Set<string>();
     
     matches.forEach((match) => {
-      // Skip completed matches older than 2 days
-      if (match.status === 'completed') {
+      // Filter out inactive matches
+      if (match.is_active === false) return;
+
+      // Skip completed/abandoned matches older than 2 days
+      if (match.status === 'completed' || match.status === 'abandoned') {
         try {
           const dateMatch = match.match_date.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
           if (dateMatch) {
@@ -170,8 +185,11 @@ const MatchList = () => {
     let all = 0, upcoming = 0, live = 0, completed = 0;
     
     matches.forEach((match) => {
-      // Skip completed matches older than 2 days
-      if (match.status === 'completed') {
+      // Filter out inactive matches
+      if (match.is_active === false) return;
+
+      // Skip completed/abandoned matches older than 2 days
+      if (match.status === 'completed' || match.status === 'abandoned') {
         try {
           const dateMatch = match.match_date.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
           if (dateMatch) {
@@ -189,9 +207,9 @@ const MatchList = () => {
       }
       
       all++;
-      if (match.status === 'upcoming') upcoming++;
+      if (match.status === 'upcoming' || match.status === 'postponed') upcoming++;
       else if (match.status === 'live') live++;
-      else if (match.status === 'completed') completed++;
+      else if (match.status === 'completed' || match.status === 'abandoned') completed++;
     });
     
     return { all, upcoming, live, completed };

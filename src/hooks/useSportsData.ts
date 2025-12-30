@@ -44,7 +44,7 @@ export interface Match {
   match_number: number;
   match_date: string;
   match_time: string;
-  status: 'upcoming' | 'live' | 'completed';
+  status: 'upcoming' | 'live' | 'completed' | 'abandoned' | 'postponed';
   venue: string | null;
   score_a: string | null;
   score_b: string | null;
@@ -69,6 +69,7 @@ export interface Match {
   match_result: MatchResult;
   api_score_enabled: boolean;
   cricbuzz_match_id: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   tournament?: Tournament;
