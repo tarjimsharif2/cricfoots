@@ -237,6 +237,21 @@ const MatchPage = () => {
             />
           )}
 
+          {/* Playing XI Section - Below Full Scoreboard */}
+          {teamA && teamB && (
+            <div className="mb-6">
+              <PlayingXI
+                matchId={match.id}
+                teamAId={teamA.id}
+                teamBId={teamB.id}
+                teamAName={teamA.name}
+                teamBName={teamB.name}
+                teamALogo={teamA.logo_url}
+                teamBLogo={teamB.logo_url}
+              />
+            </div>
+          )}
+
           {/* Score Card - Shows innings data (always shown for cricket) */}
           {sport?.name?.toLowerCase().includes('cricket') && teamA && teamB && (
             <ManualScoreCard 
@@ -340,20 +355,6 @@ const MatchPage = () => {
             </Card>
           </motion.div>
 
-          {/* Playing XI Section */}
-          {teamA && teamB && (
-            <div className="mt-6">
-              <PlayingXI
-                matchId={match.id}
-                teamAId={teamA.id}
-                teamBId={teamB.id}
-                teamAName={teamA.name}
-                teamBName={teamB.name}
-                teamALogo={teamA.logo_url}
-                teamBLogo={teamB.logo_url}
-              />
-            </div>
-          )}
 
           {/* Points Table Section */}
           {tournament?.id && (
