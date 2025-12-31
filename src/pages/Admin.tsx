@@ -1283,6 +1283,31 @@ const Admin = () => {
                           <p className="text-xs text-muted-foreground">
                             ✅ Recommended: Set this manually. Points table updates automatically on save.
                           </p>
+                          <Button 
+                            type="button"
+                            variant="outline" 
+                            size="sm" 
+                            className="mt-2 w-full"
+                            onClick={async () => {
+                              if (!editingMatch?.id) return;
+                              try {
+                                const { data, error } = await supabase.functions.invoke('sync-match-nrr', {
+                                  body: { matchId: editingMatch.id }
+                                });
+                                if (error) throw error;
+                                if (data?.success) {
+                                  toast({ title: "NRR synced", description: "Points table updated with match NRR contribution" });
+                                } else {
+                                  toast({ title: "Sync failed", description: data?.error || 'Unknown error', variant: "destructive" });
+                                }
+                              } catch (err: any) {
+                                toast({ title: "Error", description: err.message, variant: "destructive" });
+                              }
+                            }}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                            Sync NRR to Points Table
+                          </Button>
                         </div>
                       )}
                       

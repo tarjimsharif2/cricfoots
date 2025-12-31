@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.sync-api-scores]
 verify_jwt = false
+
+[functions.sync-points-table]
+verify_jwt = false
+
+[functions.sync-match-nrr]
+verify_jwt = false
