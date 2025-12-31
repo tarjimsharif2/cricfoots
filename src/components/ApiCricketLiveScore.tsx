@@ -322,12 +322,22 @@ const ApiCricketLiveScore = ({
                             const wickets = team.batsmen.filter(b => b.how_out && b.how_out !== 'not out').length;
                             const overs = (totalBalls / 6).toFixed(1);
                             
-                            // Get extras data from scoreData if available for this team/innings
-                            const extrasData = scoreData?.extras?.find(e => 
-                              e.innings === team.label || 
-                              (e.innings && team.name && e.innings.toLowerCase().includes(team.name.toLowerCase().split(' ')[0])) ||
-                              e.team?.toLowerCase().includes(team.name.toLowerCase().split(' ')[0])
-                            );
+                            // Get extras data from scoreData - match by innings name or team name
+                            const extrasData = scoreData?.extras?.find(e => {
+                              // Direct innings match (e.g., "Pretoria Capitals 1 INN")
+                              if (e.innings && team.batsmen[0]?.innings && e.innings === team.batsmen[0].innings) {
+                                return true;
+                              }
+                              // Match by team name in innings
+                              if (e.innings && e.innings.toLowerCase().includes(team.name.toLowerCase().split(' ')[0])) {
+                                return true;
+                              }
+                              // Match by team field
+                              if (e.team && teamsMatch(e.team, team.name)) {
+                                return true;
+                              }
+                              return false;
+                            });
                             const extras = extrasData || { wides: 0, noballs: 0, byes: 0, legbyes: 0, total: 0 };
                             const extrasTotal = extras.total || (extras.wides + extras.noballs + extras.byes + extras.legbyes);
 
