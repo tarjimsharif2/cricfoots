@@ -348,24 +348,67 @@ Deno.serve(async (req) => {
       }
 
       // Parse extras data - try multiple formats
+      // API format example: {"text":"(w 3, lb 3)","total":"147 ( 16.5 )","total_overs":"16.5"}
       if (detailedEvent.extra && typeof detailedEvent.extra === 'object') {
+        console.log(`[sync-api-scores] Raw extras data: ${JSON.stringify(detailedEvent.extra)}`);
+        
         Object.entries(detailedEvent.extra).forEach(([inningsKey, extrasData]: [string, any]) => {
           const inningsTeamName = inningsKey.replace(/ \d+ INN$/i, '').trim();
           
           // Handle array format
           if (Array.isArray(extrasData) && extrasData.length > 0) {
             const firstEntry = extrasData[0];
-            const wides = parseInt(firstEntry.wides || firstEntry.Wides || firstEntry.wd || 0) || 0;
-            const noballs = parseInt(firstEntry.noballs || firstEntry.NoBalls || firstEntry.nb || 0) || 0;
-            const byes = parseInt(firstEntry.byes || firstEntry.Byes || firstEntry.b || 0) || 0;
-            const legbyes = parseInt(firstEntry.legbyes || firstEntry.LegByes || firstEntry.lb || 0) || 0;
-            const penalty = parseInt(firstEntry.penalty || firstEntry.Penalty || firstEntry.p || 0) || 0;
+            console.log(`[sync-api-scores] Raw extras entry for "${inningsKey}": ${JSON.stringify(firstEntry)}`);
             
-            // Calculate total from individual extras if extras_total not provided
-            let total = parseInt(firstEntry.extras_total || firstEntry.total || firstEntry.Total || 0) || 0;
-            if (total === 0) {
-              total = wides + noballs + byes + legbyes + penalty;
+            // Parse extras from "text" field if available (format: "(w 3, lb 3, nb 1, b 2)")
+            let wides = 0, noballs = 0, byes = 0, legbyes = 0, penalty = 0;
+            
+            if (firstEntry.text && typeof firstEntry.text === 'string') {
+              const textLower = firstEntry.text.toLowerCase();
+              // Match patterns like "w 3", "lb 5", "nb 2", "b 1", "p 0"
+              const widesMatch = textLower.match(/\bw\s*(\d+)/);
+              const noballsMatch = textLower.match(/\bnb\s*(\d+)/);
+              const byesMatch = textLower.match(/\bb\s*(\d+)/);
+              const legbyesMatch = textLower.match(/\blb\s*(\d+)/);
+              const penaltyMatch = textLower.match(/\bp\s*(\d+)/);
+              
+              wides = widesMatch ? parseInt(widesMatch[1]) : 0;
+              noballs = noballsMatch ? parseInt(noballsMatch[1]) : 0;
+              byes = byesMatch ? parseInt(byesMatch[1]) : 0;
+              legbyes = legbyesMatch ? parseInt(legbyesMatch[1]) : 0;
+              penalty = penaltyMatch ? parseInt(penaltyMatch[1]) : 0;
+              
+              console.log(`[sync-api-scores] Parsed from text "${firstEntry.text}": w=${wides}, nb=${noballs}, b=${byes}, lb=${legbyes}`);
+            } else {
+              // Fallback to direct field access
+              wides = parseInt(firstEntry.wides || firstEntry.Wides || firstEntry.wd || firstEntry.W || 0) || 0;
+              noballs = parseInt(firstEntry.noballs || firstEntry.NoBalls || firstEntry.nb || firstEntry.NB || 0) || 0;
+              byes = parseInt(firstEntry.byes || firstEntry.Byes || firstEntry.b || firstEntry.B || 0) || 0;
+              legbyes = parseInt(firstEntry.legbyes || firstEntry.LegByes || firstEntry.lb || firstEntry.LB || 0) || 0;
+              penalty = parseInt(firstEntry.penalty || firstEntry.Penalty || firstEntry.p || firstEntry.P || 0) || 0;
             }
+            
+            // Parse total from "total" field - format may be "147 ( 16.5 )" or just a number
+            let totalRuns = 0;
+            let totalOvers = firstEntry.total_overs || null;
+            
+            if (firstEntry.total && typeof firstEntry.total === 'string') {
+              // Extract runs from format "147 ( 16.5 )" or "147"
+              const totalMatch = firstEntry.total.match(/^(\d+)/);
+              if (totalMatch) {
+                totalRuns = parseInt(totalMatch[1]) || 0;
+              }
+              // Also try to extract overs if present
+              const oversMatch = firstEntry.total.match(/\(\s*([\d.]+)\s*\)/);
+              if (oversMatch && !totalOvers) {
+                totalOvers = oversMatch[1];
+              }
+            } else {
+              totalRuns = parseInt(firstEntry.total || firstEntry.Total || 0) || 0;
+            }
+            
+            // Calculate extras total from individual values
+            const extrasSum = wides + noballs + byes + legbyes + penalty;
             
             extras.push({
               innings: inningsKey,
@@ -375,12 +418,12 @@ Deno.serve(async (req) => {
               byes,
               legbyes,
               penalty,
-              total,
-              total_overs: firstEntry.total_overs || firstEntry.overs || null,
-              total_runs: parseInt(firstEntry.total_runs || firstEntry.runs || 0) || 0,
+              total: extrasSum, // Use sum of individual extras, not innings total
+              total_overs: totalOvers,
+              total_runs: totalRuns, // This is the INNINGS total (runs scored)
             });
             
-            console.log(`[sync-api-scores] Extras for "${inningsKey}": w=${wides}, nb=${noballs}, b=${byes}, lb=${legbyes}, total=${total}`);
+            console.log(`[sync-api-scores] Extras for "${inningsKey}": w=${wides}, nb=${noballs}, b=${byes}, lb=${legbyes}, sum=${extrasSum}, innings_total=${totalRuns}`);
           }
           // Handle object format
           else if (typeof extrasData === 'object' && extrasData !== null) {
