@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Edit2, Trash2, Loader2, RefreshCw, Download, CloudDownload } from "lucide-react";
 import { Tournament, Team } from "@/hooks/useSportsData";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -39,6 +40,9 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [leagueSelectOpen, setLeagueSelectOpen] = useState(false);
+  const [availableLeagues, setAvailableLeagues] = useState<{ id: string; name: string; country: string }[]>([]);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
   const [editingEntry, setEditingEntry] = useState<PointsTableEntry | null>(null);
   const [form, setForm] = useState({
     team_id: '',
@@ -154,6 +158,39 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
     },
   });
 
+  // Sync points table from API
+  const syncFromApi = useMutation({
+    mutationFn: async (leagueId?: string) => {
+      const { data, error } = await supabase.functions.invoke('sync-points-table', {
+        body: { tournamentId: tournament.id, leagueId }
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (!data.success && data.availableLeagues) {
+        // Show league selection dialog
+        setAvailableLeagues(data.availableLeagues);
+        setLeagueSelectOpen(true);
+        toast({ title: "Select League", description: "Please select the correct league to sync from" });
+      } else if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['tournament_points_table', tournament.id] });
+        toast({ 
+          title: "Points table synced", 
+          description: `Updated: ${data.updated}, Inserted: ${data.inserted}` 
+        });
+        setLeagueSelectOpen(false);
+        setSelectedLeagueId('');
+      } else {
+        toast({ title: "Sync failed", description: data.error || 'Unknown error', variant: "destructive" });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const resetForm = () => {
     setEditingEntry(null);
     setForm({
@@ -228,7 +265,20 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="font-semibold">Points Table - {tournament.name}</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => syncFromApi.mutate(undefined)}
+            disabled={syncFromApi.isPending}
+          >
+            {syncFromApi.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-1" />
+            ) : (
+              <CloudDownload className="w-4 h-4 mr-1" />
+            )}
+            Sync from API
+          </Button>
           {entries && entries.length > 1 && (
             <Button 
               variant="outline" 
@@ -241,7 +291,7 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
               ) : (
                 <RefreshCw className="w-4 h-4 mr-1" />
               )}
-              Recalculate Positions
+              Recalculate
             </Button>
           )}
           <Button 
@@ -428,6 +478,43 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
             >
               {(createEntry.isPending || updateEntry.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               {editingEntry ? 'Update' : 'Add'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* League Selection Dialog */}
+      <Dialog open={leagueSelectOpen} onOpenChange={setLeagueSelectOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select League</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Could not automatically match the tournament. Please select the correct league:
+            </p>
+            <Select value={selectedLeagueId} onValueChange={setSelectedLeagueId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a league..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {availableLeagues.map((league) => (
+                  <SelectItem key={league.id} value={league.id}>
+                    {league.name} {league.country && `(${league.country})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeagueSelectOpen(false)}>Cancel</Button>
+            <Button 
+              variant="gradient" 
+              onClick={() => syncFromApi.mutate(selectedLeagueId)}
+              disabled={!selectedLeagueId || syncFromApi.isPending}
+            >
+              {syncFromApi.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Sync
             </Button>
           </DialogFooter>
         </DialogContent>
