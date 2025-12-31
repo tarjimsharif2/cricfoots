@@ -375,6 +375,14 @@ const ApiCricketLiveScore = ({
                                         <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.sr}</TableCell>
                                       </TableRow>
                                     ))}
+                                    {/* Extras Row */}
+                                    <TableRow className="bg-muted/30 border-t">
+                                      <TableCell className="py-2 px-2">
+                                        <span className="text-xs font-medium">Extras</span>
+                                      </TableCell>
+                                      <TableCell className="text-right font-semibold text-xs py-2 px-1">{extrasTotal}</TableCell>
+                                      <TableCell className="text-right text-muted-foreground text-xs py-2 px-1" colSpan={4}></TableCell>
+                                    </TableRow>
                                   </TableBody>
                                 </Table>
                               </div>
