@@ -112,21 +112,37 @@ const ApiCricketLiveScore = ({
       // Team name is extracted from the innings key (e.g., "Sydney Thunder 1 INN" -> "Sydney Thunder")
       const teamName = inningsName.replace(/ \d+ INN$/i, '').trim();
       
-      // Calculate total runs from batsmen
-      let totalRuns = 0;
-      let wickets = 0;
+      // Find extras data for this innings - contains API total and extras breakdown
+      const inningsExtras = scoreData?.extras?.find(e => 
+        e.innings === inningsName || 
+        (e.team && teamName.toLowerCase().includes((e.team as string).toLowerCase().split(' ')[0]))
+      ) as any;
       
+      // Calculate wickets from batsmen data
+      let wickets = 0;
       inningsBatsmen.forEach(b => {
-        totalRuns += parseInt(b.runs) || 0;
         if (b.how_out && b.how_out.toLowerCase() !== 'not out') {
           wickets++;
         }
       });
       
-      // Add extras if available
-      const inningsExtras = scoreData?.extras?.find(e => e.innings === inningsName);
-      if (inningsExtras) {
-        totalRuns += inningsExtras.total || 0;
+      // Use API's total_runs if available (most accurate), otherwise calculate from batsmen + extras
+      let totalRuns: number;
+      if (inningsExtras?.total_runs && inningsExtras.total_runs > 0) {
+        // API provides the correct innings total
+        totalRuns = inningsExtras.total_runs;
+      } else {
+        // Fallback: calculate from batsmen runs + extras
+        let batsmenRuns = 0;
+        inningsBatsmen.forEach(b => {
+          batsmenRuns += parseInt(b.runs) || 0;
+        });
+        
+        const extrasTotal = inningsExtras?.total || 
+          ((inningsExtras?.wides || 0) + (inningsExtras?.noballs || 0) + 
+           (inningsExtras?.byes || 0) + (inningsExtras?.legbyes || 0));
+        
+        totalRuns = batsmenRuns + extrasTotal;
       }
       
       // Calculate overs from BOWLERS data for this innings
@@ -244,13 +260,24 @@ const ApiCricketLiveScore = ({
                     const inningsBatsmen = scoreData.batsmen?.filter(b => b.innings === inning) || [];
                     const inningsBowlers = scoreData.bowlers?.filter(b => b.innings === inning) || [];
                     
-                    // Calculate runs from batsmen + extras
-                    let totalRuns = inningsBatsmen.reduce((sum, b) => sum + (parseInt(b.runs) || 0), 0);
+                    // Find extras for this innings - contains API total and extras breakdown
+                    const inningsExtras = scoreData.extras?.find(e => 
+                      e.innings === inning || 
+                      (e.team && teamName.toLowerCase().includes(e.team.toLowerCase().split(' ')[0]))
+                    ) as any;
+                    
                     const wickets = inningsBatsmen.filter(b => b.how_out && b.how_out.toLowerCase() !== 'not out').length;
                     
-                    const inningsExtras = scoreData.extras?.find(e => e.innings === inning);
-                    if (inningsExtras) {
-                      totalRuns += inningsExtras.total || 0;
+                    // Use API's total_runs if available (most accurate), otherwise calculate from batsmen + extras
+                    let totalRuns: number;
+                    if (inningsExtras?.total_runs && inningsExtras.total_runs > 0) {
+                      totalRuns = inningsExtras.total_runs;
+                    } else {
+                      const batsmenRuns = inningsBatsmen.reduce((sum, b) => sum + (parseInt(b.runs) || 0), 0);
+                      const extrasTotal = inningsExtras?.total || 
+                        ((inningsExtras?.wides || 0) + (inningsExtras?.noballs || 0) + 
+                         (inningsExtras?.byes || 0) + (inningsExtras?.legbyes || 0));
+                      totalRuns = batsmenRuns + extrasTotal;
                     }
                     
                     // Calculate overs from bowlers
