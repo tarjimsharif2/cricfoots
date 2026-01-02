@@ -28,16 +28,24 @@ export const useMatchStatusUpdater = (matches: Match[] | undefined) => {
         if (!match.match_start_time) return;
 
         const startTime = new Date(match.match_start_time);
-        const durationMs = (match.match_duration_minutes || 180) * 60 * 1000;
-        const endTime = new Date(startTime.getTime() + durationMs);
+        
+        // Use match_end_time if explicitly set, otherwise calculate from duration
+        let endTime: Date;
+        if (match.match_end_time) {
+          endTime = new Date(match.match_end_time);
+        } else {
+          const durationMs = (match.match_duration_minutes || 180) * 60 * 1000;
+          endTime = new Date(startTime.getTime() + durationMs);
+        }
 
         // If match should be live (started but not ended)
         if (match.status === 'upcoming' && now >= startTime && now < endTime) {
           updateMatchStatus(match.id, 'live');
         }
         
-        // If match should be completed (past end time)
-        if ((match.status === 'upcoming' || match.status === 'live') && now >= endTime) {
+        // If match should be completed (past end time) - only auto-complete if NOT live
+        // Live matches should only be completed manually or via API sync
+        if (match.status === 'upcoming' && now >= endTime) {
           updateMatchStatus(match.id, 'completed');
         }
       });
