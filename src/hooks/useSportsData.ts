@@ -51,6 +51,7 @@ export interface Match {
   match_link: string | null;
   match_duration_minutes: number | null;
   match_start_time: string | null;
+  match_end_time: string | null;
   is_priority: boolean;
   match_label: string | null;
   sport_id: string | null;
