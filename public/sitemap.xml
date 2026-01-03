@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This is a placeholder sitemap that redirects to the dynamic sitemap function -->
+<!-- Configure your hosting to rewrite /sitemap.xml to the actual sitemap function -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://doqteforumjdugifxryl.supabase.co/functions/v1/sitemap</loc>
+    <priority>1.0</priority>
+  </url>
+</urlset>
