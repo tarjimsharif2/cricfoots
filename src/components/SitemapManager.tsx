@@ -360,15 +360,79 @@ const SitemapManager = () => {
         </CardContent>
       </Card>
 
-      {/* Sitemap URLs Card */}
+      {/* Domain Sitemap URLs (Pretty URLs) */}
+      <Card className="border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            Domain Sitemap URLs (Submit to Search Engines)
+          </CardTitle>
+          <CardDescription>
+            These URLs are configured to work on your domain via Vercel rewrites
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {canonicalUrl ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  { label: 'Main Sitemap', path: '/sitemap.xml' },
+                  { label: 'Sitemap Index', path: '/sitemap_index.xml' },
+                  { label: 'Matches Sitemap', path: '/sitemap-matches.xml' },
+                  { label: 'Tournaments Sitemap', path: '/sitemap-tournaments.xml' },
+                  { label: 'Pages Sitemap', path: '/sitemap-pages.xml' },
+                ].map((item) => (
+                  <div key={item.path} className="flex items-center gap-2 p-2 rounded-lg border bg-card">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium">{item.label}</p>
+                      <p className="text-xs text-muted-foreground truncate font-mono">
+                        {canonicalUrl.replace(/\/$/, '')}{item.path}
+                      </p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-7 px-2 shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${canonicalUrl.replace(/\/$/, '')}${item.path}`);
+                        toast({ title: "Copied!", description: `${item.label} URL copied` });
+                      }}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild className="h-7 px-2 shrink-0">
+                      <a href={`${canonicalUrl.replace(/\/$/, '')}${item.path}`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  <strong>✓ Ready:</strong> Submit <code className="px-1 py-0.5 bg-green-500/20 rounded">{canonicalUrl.replace(/\/$/, '')}/sitemap.xml</code> to Google Search Console
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                <strong>Note:</strong> Set your Canonical URL in Settings to see your domain sitemap URLs
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Function Sitemap URLs Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
-            Sitemap URLs
+            Backend Function URLs (Direct Access)
           </CardTitle>
           <CardDescription>
-            Use these URLs for Google Search Console and other search engines
+            Direct access to sitemap functions - useful for testing or non-Vercel hosting
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -415,28 +479,6 @@ const SitemapManager = () => {
               Sitemap index splits URLs into separate files for better performance with 1000+ URLs
             </p>
           </div>
-
-          <div className="space-y-2">
-            <Label>Search Console URL (for submission)</Label>
-            <div className="flex gap-2">
-              <Input 
-                value={canonicalUrl ? `${canonicalUrl.replace(/\/$/, '')}/sitemap.xml` : sitemapUrl} 
-                readOnly 
-                className="font-mono text-xs"
-              />
-              <Button variant="outline" size="icon" onClick={copySearchConsoleUrl}>
-                <Copy className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          {!canonicalUrl && (
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                <strong>Note:</strong> Set your Canonical URL in Settings for proper sitemap URL generation
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 
