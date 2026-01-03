@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { RefreshCw, ExternalLink, Copy, Loader2, FileText, Globe, CheckCircle2 } from "lucide-react";
+import { RefreshCw, ExternalLink, Copy, Loader2, FileText, Globe, CheckCircle2, Bell, Send, Layers } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 interface SitemapStats {
   totalUrls: number;
@@ -15,16 +16,27 @@ interface SitemapStats {
   pageUrls: number;
 }
 
+interface PingResult {
+  engine: string;
+  success: boolean;
+  status?: number;
+  error?: string;
+}
+
 const SitemapManager = () => {
   const { toast } = useToast();
   const [sitemapContent, setSitemapContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPinging, setIsPinging] = useState(false);
   const [stats, setStats] = useState<SitemapStats | null>(null);
   const [canonicalUrl, setCanonicalUrl] = useState<string>('');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [lastPinged, setLastPinged] = useState<Date | null>(null);
+  const [pingResults, setPingResults] = useState<PingResult[] | null>(null);
 
   const projectId = 'doqteforumjdugifxryl';
   const sitemapUrl = `https://${projectId}.supabase.co/functions/v1/sitemap`;
+  const sitemapIndexUrl = `https://${projectId}.supabase.co/functions/v1/sitemap?type=index`;
 
   useEffect(() => {
     // Fetch canonical URL from site settings
@@ -83,11 +95,49 @@ const SitemapManager = () => {
     }
   };
 
+  const pingSearchEngines = async () => {
+    setIsPinging(true);
+    setPingResults(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('sitemap-ping');
+      
+      if (error) throw error;
+      
+      setLastPinged(new Date());
+      setPingResults(data.results);
+      
+      const successCount = data.results?.filter((r: PingResult) => r.success).length || 0;
+      const totalCount = data.results?.length || 0;
+      
+      toast({
+        title: "Search engines pinged",
+        description: data.summary || `${successCount}/${totalCount} search engines notified`,
+      });
+    } catch (error) {
+      console.error('Error pinging search engines:', error);
+      toast({
+        title: "Error",
+        description: "Failed to ping search engines. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPinging(false);
+    }
+  };
+
   const copySitemapUrl = () => {
     navigator.clipboard.writeText(sitemapUrl);
     toast({
       title: "Copied!",
       description: "Sitemap URL copied to clipboard",
+    });
+  };
+
+  const copySitemapIndexUrl = () => {
+    navigator.clipboard.writeText(sitemapIndexUrl);
+    toast({
+      title: "Copied!",
+      description: "Sitemap index URL copied to clipboard",
     });
   };
 
@@ -116,6 +166,63 @@ const SitemapManager = () => {
 
   return (
     <div className="space-y-6">
+      {/* Ping Search Engines Card */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5 text-primary" />
+            Notify Search Engines
+          </CardTitle>
+          <CardDescription>
+            Ping Google, Bing, and Yandex when you publish new content
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <Button 
+              variant="gradient" 
+              onClick={pingSearchEngines}
+              disabled={isPinging}
+              className="w-full sm:w-auto"
+            >
+              {isPinging ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              Ping Search Engines
+            </Button>
+            
+            {lastPinged && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                Last pinged: {lastPinged.toLocaleString()}
+              </div>
+            )}
+          </div>
+
+          {pingResults && (
+            <div className="flex flex-wrap gap-2">
+              {pingResults.map((result) => (
+                <Badge 
+                  key={result.engine}
+                  variant={result.success ? "default" : "destructive"}
+                  className="text-xs"
+                >
+                  {result.engine}: {result.success ? `✓ ${result.status}` : `✗ ${result.error || 'Failed'}`}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+            <p className="text-xs text-muted-foreground">
+              <strong>Tip:</strong> Ping search engines after adding new matches, tournaments, or pages to speed up indexing.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Sitemap URLs Card */}
       <Card>
         <CardHeader>
@@ -129,7 +236,7 @@ const SitemapManager = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Direct Sitemap URL (Edge Function)</Label>
+            <Label>Combined Sitemap URL (Recommended for smaller sites)</Label>
             <div className="flex gap-2">
               <Input 
                 value={sitemapUrl} 
@@ -145,6 +252,31 @@ const SitemapManager = () => {
                 </a>
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              Sitemap Index URL (Recommended for large sites)
+            </Label>
+            <div className="flex gap-2">
+              <Input 
+                value={sitemapIndexUrl} 
+                readOnly 
+                className="font-mono text-xs"
+              />
+              <Button variant="outline" size="icon" onClick={copySitemapIndexUrl}>
+                <Copy className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="icon" asChild>
+                <a href={sitemapIndexUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sitemap index splits URLs into separate files (matches, tournaments, pages) for better performance with 1000+ URLs
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -171,6 +303,62 @@ const SitemapManager = () => {
               </p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Individual Sitemap Files Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-primary" />
+            Individual Sitemap Files
+          </CardTitle>
+          <CardDescription>
+            Access individual sitemap files for specific content types
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="p-3 rounded-lg border bg-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Matches</span>
+                <Button variant="ghost" size="sm" asChild className="h-7 px-2">
+                  <a href={`${sitemapUrl}?type=matches`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground truncate font-mono">
+                ?type=matches
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border bg-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Tournaments</span>
+                <Button variant="ghost" size="sm" asChild className="h-7 px-2">
+                  <a href={`${sitemapUrl}?type=tournaments`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground truncate font-mono">
+                ?type=tournaments
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border bg-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Pages</span>
+                <Button variant="ghost" size="sm" asChild className="h-7 px-2">
+                  <a href={`${sitemapUrl}?type=pages`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground truncate font-mono">
+                ?type=pages
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -314,6 +502,15 @@ const SitemapManager = () => {
             </div>
             <div className="flex items-start gap-3">
               <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">3</div>
+              <div>
+                <p className="font-medium text-sm">Ping Search Engines</p>
+                <p className="text-xs text-muted-foreground">
+                  Use the "Ping Search Engines" button above to notify crawlers after publishing new content
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">4</div>
               <div>
                 <p className="font-medium text-sm">Automatic Discovery</p>
                 <p className="text-xs text-muted-foreground">
