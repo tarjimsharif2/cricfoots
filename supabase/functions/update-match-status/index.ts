@@ -61,18 +61,19 @@ Deno.serve(async (req) => {
 
     // ============================================
     // 2. Auto-complete matches based on match_end_time or calculated duration
+    // This applies to BOTH 'live' AND 'upcoming' matches that have passed their end time
     // ============================================
-    const { data: liveMatches, error: liveFetchError } = await supabase
+    const { data: matchesToComplete, error: completeFetchError } = await supabase
       .from('matches')
       .select('id, match_end_time, match_start_time, match_duration_minutes, match_format, status')
-      .eq('status', 'live');
+      .in('status', ['live', 'upcoming']);
 
-    if (liveFetchError) {
-      console.error('Error fetching live matches:', liveFetchError);
-    } else if (liveMatches && liveMatches.length > 0) {
-      console.log(`Checking ${liveMatches.length} live matches for auto-complete...`);
+    if (completeFetchError) {
+      console.error('Error fetching matches for completion check:', completeFetchError);
+    } else if (matchesToComplete && matchesToComplete.length > 0) {
+      console.log(`Checking ${matchesToComplete.length} matches for auto-complete...`);
       
-      for (const match of liveMatches) {
+      for (const match of matchesToComplete) {
         let shouldComplete = false;
         let completionReason = '';
 
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
           const endTime = new Date(match.match_end_time);
           if (now >= endTime) {
             shouldComplete = true;
-            completionReason = 'past end time';
+            completionReason = `past end time (was ${match.status})`;
           }
         } 
         // Fallback: calculate end time from start time + duration
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
           
           if (now >= calculatedEndTime) {
             shouldComplete = true;
-            completionReason = `past calculated duration (${match.match_duration_minutes} mins)`;
+            completionReason = `past calculated duration ${match.match_duration_minutes} mins (was ${match.status})`;
           }
         }
 
