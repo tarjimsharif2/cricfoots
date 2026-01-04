@@ -223,11 +223,10 @@ export const useApiCricketScore = ({
         console.log('matches subscription status:', status);
       });
 
-    // Fallback polling every 60 seconds in case realtime misses updates
+    // Fallback polling every 30 seconds in case realtime misses updates
     const pollInterval = setInterval(() => {
-      console.log('Polling for score updates...');
       fetchScore();
-    }, 60000);
+    }, 30000);
 
     return () => {
       supabase.removeChannel(apiScoresChannel);
