@@ -203,9 +203,39 @@ const ApiCricketLiveScore = ({
     return { score: latestScore, overs: latestOvers, allScores };
   };
 
-  // Get scores for display - calculated from batsmen data, matched by team name
-  const teamACalc = getTeamScoreFromInnings(teamAName);
-  const teamBCalc = getTeamScoreFromInnings(teamBName);
+  // Get scores for display - prioritize API home/away scores over calculated innings
+  // This fixes the issue where teams with similar names (e.g., Melbourne Stars vs Melbourne Renegades)
+  // would both match the same innings data
+  const getDisplayScores = () => {
+    // Always use home/away scores from API when available - they are correctly matched
+    if (scoreData?.homeScore || scoreData?.awayScore) {
+      const homeOvers = parseScoreOvers(scoreData.homeScore || '') || scoreData.homeOvers;
+      const awayOvers = parseScoreOvers(scoreData.awayScore || '') || scoreData.awayOvers;
+      
+      return {
+        teamA: {
+          score: cleanScore(scoreData.homeScore || '-'),
+          overs: homeOvers,
+          allScores: scoreData.homeScore ? [scoreData.homeScore] : [],
+        },
+        teamB: {
+          score: cleanScore(scoreData.awayScore || '-'),
+          overs: awayOvers,
+          allScores: scoreData.awayScore ? [scoreData.awayScore] : [],
+        },
+      };
+    }
+    
+    // Fallback to calculated innings (for cases where home/away not set)
+    return {
+      teamA: getTeamScoreFromInnings(teamAName),
+      teamB: getTeamScoreFromInnings(teamBName),
+    };
+  };
+
+  const displayScores = getDisplayScores();
+  const teamACalc = displayScores.teamA;
+  const teamBCalc = displayScores.teamB;
 
   // Clean score to just show runs/wickets
   const cleanScore = (score: string) => {
