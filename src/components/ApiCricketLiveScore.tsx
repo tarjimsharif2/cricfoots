@@ -69,7 +69,7 @@ const ApiCricketLiveScore = ({
     return (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
   };
 
-  // Check if two team names match - STRICT matching to avoid similar names matching
+  // Check if two team names match - STRICT matching requiring BOTH first AND last words
   // e.g., "Melbourne Stars" should NOT match "Melbourne Renegades"
   const teamsMatch = (name1: string, name2: string): boolean => {
     const n1 = normalizeTeamName(name1);
@@ -83,28 +83,23 @@ const ApiCricketLiveScore = ({
     const words1 = n1.split(' ').filter(w => w.length > 0);
     const words2 = n2.split(' ').filter(w => w.length > 0);
     
-    // Get last words (team nickname like "Stars", "Renegades", "Titans", etc.)
+    // Get first and last words
+    const firstWord1 = words1[0];
     const lastWord1 = words1[words1.length - 1];
+    const firstWord2 = words2[0];
     const lastWord2 = words2[words2.length - 1];
     
-    // If both have 2+ words, the LAST word (team nickname) MUST match
-    // This prevents "Melbourne Stars" from matching "Melbourne Renegades"
+    // If both have 2+ words, BOTH first AND last words must match
     if (words1.length >= 2 && words2.length >= 2) {
-      // Last word must match exactly
-      if (lastWord1 !== lastWord2) {
-        return false;
-      }
-      // If last words match, it's a match
-      return true;
+      return firstWord1 === firstWord2 && lastWord1 === lastWord2;
     }
     
-    // If one is single word, it must match the last word of the other (team nickname)
-    // e.g., "Stars" should match "Melbourne Stars" but not "Melbourne Renegades"
+    // If one is single word, check if it matches either first or last word of the other
     if (words1.length === 1) {
-      return lastWord2 === words1[0] || n2.includes(n1);
+      return firstWord2 === words1[0] || lastWord2 === words1[0];
     }
     if (words2.length === 1) {
-      return lastWord1 === words2[0] || n1.includes(n2);
+      return firstWord1 === words2[0] || lastWord1 === words2[0];
     }
     
     return false;
