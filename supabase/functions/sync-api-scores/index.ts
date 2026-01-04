@@ -47,7 +47,8 @@ const getTeamKeywords = (name: string): string[] => {
   return words;
 };
 
-// Flexible team name matching
+// STRICT team name matching - requires BOTH first AND last words to match
+// This prevents "Melbourne Stars" from matching "Melbourne Renegades"
 const teamsMatch = (name1: string, name2: string): boolean => {
   const n1 = normalizeTeamName(name1);
   const n2 = normalizeTeamName(name2);
@@ -57,19 +58,26 @@ const teamsMatch = (name1: string, name2: string): boolean => {
   // Exact match
   if (n1 === n2) return true;
   
-  // One contains the other
-  if (n1.includes(n2) || n2.includes(n1)) return true;
+  const words1 = n1.split(' ').filter(w => w.length > 0);
+  const words2 = n2.split(' ').filter(w => w.length > 0);
   
-  // First word match (e.g., "Sydney" from "Sydney Thunder")
-  const words1 = getTeamKeywords(name1);
-  const words2 = getTeamKeywords(name2);
+  // Get first and last words
+  const firstWord1 = words1[0];
+  const lastWord1 = words1[words1.length - 1];
+  const firstWord2 = words2[0];
+  const lastWord2 = words2[words2.length - 1];
   
-  for (const w1 of words1) {
-    for (const w2 of words2) {
-      if (w1 === w2 || (w1.length >= 4 && w2.length >= 4 && (w1.includes(w2) || w2.includes(w1)))) {
-        return true;
-      }
-    }
+  // If both have 2+ words, BOTH first AND last words must match
+  if (words1.length >= 2 && words2.length >= 2) {
+    return firstWord1 === firstWord2 && lastWord1 === lastWord2;
+  }
+  
+  // If one is single word, check if it matches either first or last word of the other
+  if (words1.length === 1) {
+    return firstWord2 === words1[0] || lastWord2 === words1[0];
+  }
+  if (words2.length === 1) {
+    return firstWord1 === words2[0] || lastWord1 === words2[0];
   }
   
   return false;
