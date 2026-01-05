@@ -13,7 +13,7 @@ import ApiCricketLiveScore from '@/components/ApiCricketLiveScore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { useStreamingServers, PublicStreamingServer } from '@/hooks/useStreamingServers';
+import { useStreamingServers, StreamingServer } from '@/hooks/useStreamingServers';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useRealtimeMatch } from '@/hooks/useRealtimeMatch';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,7 +25,7 @@ const MatchPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeServer, setActiveServer] = useState<PublicStreamingServer | null>(null);
+  const [activeServer, setActiveServer] = useState<StreamingServer | null>(null);
   const [localTime, setLocalTime] = useState<string>('');
   const [timezone, setTimezone] = useState<string>('');
   
@@ -175,11 +175,15 @@ const MatchPage = () => {
               <CardContent className="p-0">
                 {activeServer ? (
                   <VideoPlayer 
-                    key={`${activeServer.id}-${activeServer.server_type}-${activeServer.player_type || 'auto'}`}
+                    key={`${activeServer.id}-${activeServer.server_type}`}
                     url={activeServer.server_url} 
                     type={activeServer.server_type}
-                    serverId={activeServer.id}
-                    playerType={activeServer.player_type}
+                    headers={{
+                      referer: activeServer.referer_value,
+                      origin: activeServer.origin_value,
+                      cookie: activeServer.cookie_value,
+                      userAgent: activeServer.user_agent,
+                    }}
                   />
                 ) : (
                   <div className="aspect-video bg-muted flex items-center justify-center">
