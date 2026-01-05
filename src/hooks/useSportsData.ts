@@ -378,11 +378,11 @@ export const useMatches = () => {
       if (error) throw error;
       return data as Match[];
     },
-    staleTime: 0, // Always refetch on invalidation - no caching
-    gcTime: 0, // Don't cache data at all (formerly cacheTime)
-    refetchInterval: 5000, // Auto refetch every 5 seconds for live scores
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchOnMount: 'always', // Always refetch when component mounts
+    staleTime: Infinity, // Data never becomes stale automatically - only realtime updates
+    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
+    refetchInterval: false, // NO auto polling - only realtime
+    refetchOnWindowFocus: false, // Don't refetch on focus - use realtime
+    refetchOnMount: true, // Fetch fresh data on mount
     refetchOnReconnect: true, // Refetch when network reconnects
   });
 };
