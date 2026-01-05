@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+// Full interface with all fields (for admin use)
 export interface StreamingServer {
   id: string;
   match_id: string;
@@ -23,19 +24,33 @@ export interface StreamingServer {
   updated_at: string;
 }
 
+// Public interface (safe fields only - no auth credentials)
+export interface PublicStreamingServer {
+  id: string;
+  match_id: string;
+  server_name: string;
+  server_url: string;
+  server_type: 'iframe' | 'm3u8' | 'embed' | 'iframe_to_m3u8';
+  display_order: number;
+  is_active: boolean;
+  player_type: 'clappr' | 'hlsjs' | 'native' | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Public hook - uses the secure view that doesn't expose credentials
 export const useStreamingServers = (matchId: string) => {
   return useQuery({
-    queryKey: ['streaming_servers', matchId],
+    queryKey: ['streaming_servers_public', matchId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('streaming_servers')
+        .from('streaming_servers_public')
         .select('*')
         .eq('match_id', matchId)
-        .eq('is_active', true)
         .order('display_order');
       
       if (error) throw error;
-      return data as StreamingServer[];
+      return data as PublicStreamingServer[];
     },
     enabled: !!matchId,
   });

@@ -10,8 +10,9 @@ export const useStreamingServerCounts = () => {
   return useQuery({
     queryKey: ['streaming-server-counts'],
     queryFn: async (): Promise<Record<string, number>> => {
+      // Use public view for counting (only shows active servers)
       const { data, error } = await supabase
-        .from('streaming_servers')
+        .from('streaming_servers_public')
         .select('match_id');
       
       if (error) throw error;

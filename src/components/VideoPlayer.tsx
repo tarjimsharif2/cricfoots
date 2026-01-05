@@ -20,11 +20,24 @@ interface StreamHeaders {
   userAgent?: string | null;
 }
 
-interface VideoPlayerProps {
+interface StreamUrlResponse {
+  url: string;
+  originalUrl?: string;
+  type: 'iframe' | 'm3u8' | 'embed' | 'iframe_to_m3u8';
+  playerType?: 'clappr' | 'hlsjs' | 'native' | null;
+  drmScheme?: 'widevine' | 'playready' | 'clearkey' | null;
+  drmLicenseUrl?: string | null;
+  clearkeyKeyId?: string | null;
+  clearkeyKey?: string | null;
+  hasHeaders?: boolean;
+}
+
+export interface VideoPlayerProps {
   url: string;
   type: 'iframe' | 'm3u8' | 'embed' | 'iframe_to_m3u8';
   headers?: StreamHeaders;
   playerType?: 'clappr' | 'hlsjs' | 'native' | null;
+  serverId?: string; // New: fetch secure stream URL from edge function
 }
 
 type PlayerType = 'clappr' | 'hlsjs' | 'native';
@@ -800,9 +813,12 @@ const M3U8PlayerWithSelector = ({ url, headers, forcedPlayerType }: { url: strin
   );
 };
 
-const VideoPlayer = ({ url, type, headers, playerType }: VideoPlayerProps) => {
+const VideoPlayer = ({ url, type, headers, playerType, serverId }: VideoPlayerProps) => {
   const [useDirectEmbed, setUseDirectEmbed] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [streamData, setStreamData] = useState<StreamUrlResponse | null>(null);
+  const [isLoadingStream, setIsLoadingStream] = useState(!!serverId);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerType>(playerType || 'clappr');
   const [showPlayerMenu, setShowPlayerMenu] = useState(false);
@@ -816,8 +832,65 @@ const VideoPlayer = ({ url, type, headers, playerType }: VideoPlayerProps) => {
   // If forced player type, use it directly
   const currentPlayer = playerType || selectedPlayer;
 
+  // Fetch stream URL from edge function if serverId is provided
+  useEffect(() => {
+    if (!serverId) {
+      setIsLoadingStream(false);
+      return;
+    }
+
+    const fetchStreamUrl = async () => {
+      setIsLoadingStream(true);
+      setStreamError(null);
+      
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const response = await fetch(`${supabaseUrl}/functions/v1/get-stream-url?serverId=${serverId}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch stream URL');
+        }
+        
+        const data: StreamUrlResponse = await response.json();
+        setStreamData(data);
+      } catch (error) {
+        console.error('Error fetching stream URL:', error);
+        setStreamError('Failed to load stream');
+      } finally {
+        setIsLoadingStream(false);
+      }
+    };
+
+    fetchStreamUrl();
+  }, [serverId]);
+
+  // Show loading state while fetching stream URL
+  if (isLoadingStream) {
+    return (
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  // Show error if stream fetch failed
+  if (streamError) {
+    return (
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex flex-col items-center justify-center gap-3">
+        <AlertCircle className="w-10 h-10 text-destructive" />
+        <p className="text-destructive text-center px-4">{streamError}</p>
+      </div>
+    );
+  }
+
+  // Use stream data if fetched, otherwise use props
+  const effectiveUrl = streamData?.url || url;
+  const effectiveType = streamData?.type || type;
+  const effectivePlayerType = streamData?.playerType || playerType;
+  const hasServerHeaders = streamData?.hasHeaders || false;
+
   // Validate URL before rendering to prevent XSS attacks
-  if (!isValidUrl(url)) {
+  if (!isValidUrl(effectiveUrl)) {
     return (
       <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
         <p className="text-destructive">Invalid streaming URL</p>
@@ -826,18 +899,22 @@ const VideoPlayer = ({ url, type, headers, playerType }: VideoPlayerProps) => {
   }
 
   // For M3U8 streams, use player with selector
-  if (type === 'm3u8') {
-    return <M3U8PlayerWithSelector url={url} headers={headers} forcedPlayerType={playerType} />;
+  // When serverId is provided, the URL already includes proxy with headers
+  if (effectiveType === 'm3u8') {
+    // If we got the URL from edge function, it already has headers embedded
+    const streamHeaders = serverId ? undefined : headers;
+    return <M3U8PlayerWithSelector url={effectiveUrl} headers={streamHeaders} forcedPlayerType={effectivePlayerType} />;
   }
 
   // For iframe_to_m3u8 type, extract and play M3U8 with selector
-  if (type === 'iframe_to_m3u8') {
+  if (effectiveType === 'iframe_to_m3u8') {
+    const streamHeaders = serverId ? undefined : headers;
     return (
       <div className="relative">
-        <IframeToM3U8Player url={url} headers={headers} selectedPlayer={currentPlayer} />
+        <IframeToM3U8Player url={effectiveUrl} headers={streamHeaders} selectedPlayer={currentPlayer} />
         
         {/* Player Selector - Only show if not forced */}
-        {!playerType && (
+        {!effectivePlayerType && (
           <div className="absolute top-4 right-4 z-30">
             <DropdownMenu open={showPlayerMenu} onOpenChange={setShowPlayerMenu}>
               <DropdownMenuTrigger asChild>
@@ -874,19 +951,25 @@ const VideoPlayer = ({ url, type, headers, playerType }: VideoPlayerProps) => {
   }
 
   // For iframe and embed types - only use proxy if headers are needed AND not using direct embed
-  const needsProxy = hasCustomHeaders(headers) && !useDirectEmbed;
+  // When serverId is provided, headers are already handled server-side
+  const needsProxy = !serverId && hasCustomHeaders(headers) && !useDirectEmbed;
   
   // Build iframe URL - use direct URL for fastest loading when possible
   const buildIframeSrc = () => {
+    // If using serverId, URL is already processed
+    if (serverId) {
+      return effectiveUrl;
+    }
+    
     // Skip proxy entirely if no custom headers - direct is faster
     if (!hasCustomHeaders(headers)) {
-      return url;
+      return effectiveUrl;
     }
     
     if (needsProxy) {
-      return buildIframeProxyUrl(url, headers);
+      return buildIframeProxyUrl(effectiveUrl, headers);
     }
-    return url;
+    return effectiveUrl;
   };
   
   const iframeSrc = buildIframeSrc();
@@ -920,8 +1003,8 @@ const VideoPlayer = ({ url, type, headers, playerType }: VideoPlayerProps) => {
         referrerPolicy="unsafe-url"
       />
       
-      {/* Direct embed toggle for iframe streams with headers */}
-      {hasCustomHeaders(headers) && (type === 'iframe' || type === 'embed') && (
+      {/* Direct embed toggle for iframe streams with headers - only when not using serverId */}
+      {!serverId && hasCustomHeaders(headers) && (effectiveType === 'iframe' || effectiveType === 'embed') && (
         <div className="absolute bottom-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => setUseDirectEmbed(!useDirectEmbed)}
