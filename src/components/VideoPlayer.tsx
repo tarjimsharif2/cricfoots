@@ -74,6 +74,189 @@ interface QualityLevel {
   label: string;
 }
 
+// Native HLS.js Player for better CORS support
+const HLSPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPiPActive, setIsPiPActive] = useState(false);
+
+  const isPiPSupported = 'pictureInPictureEnabled' in document;
+
+  const togglePiP = async () => {
+    try {
+      if (!videoRef.current) return;
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setIsPiPActive(false);
+      } else if (document.pictureInPictureEnabled) {
+        await videoRef.current.requestPictureInPicture();
+        setIsPiPActive(true);
+      }
+    } catch (err) {
+      console.error('PiP error:', err);
+      toast.error('Picture-in-Picture not available');
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initPlayer = async () => {
+      if (!videoRef.current) return;
+
+      try {
+        // Use proxy URL if headers are configured
+        const streamUrl = hasCustomHeaders(headers) 
+          ? buildM3U8ProxyUrl(url, headers) 
+          : url;
+
+        console.log('Playing M3U8 via HLS.js:', hasCustomHeaders(headers) ? 'via proxy' : 'direct');
+        console.log('Stream URL:', streamUrl);
+
+        const Hls = (await import('hls.js')).default;
+
+        if (Hls.isSupported()) {
+          // Destroy previous instance
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+          }
+
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            xhrSetup: (xhr: XMLHttpRequest, hlsUrl: string) => {
+              xhr.withCredentials = false;
+            },
+          });
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (mounted) {
+              setIsLoading(false);
+              videoRef.current?.play().catch(e => {
+                console.log('Autoplay prevented:', e);
+              });
+            }
+          });
+
+          hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+            console.error('HLS.js error:', data);
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  console.log('Network error, attempting recovery...');
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  console.log('Media error, attempting recovery...');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  if (mounted) {
+                    setError('Stream failed to load. Try another server.');
+                    setIsLoading(false);
+                  }
+                  break;
+              }
+            }
+          });
+
+          hls.loadSource(streamUrl);
+          hls.attachMedia(videoRef.current);
+          hlsRef.current = hls;
+
+        } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS support
+          videoRef.current.src = streamUrl;
+          videoRef.current.addEventListener('loadedmetadata', () => {
+            if (mounted) {
+              setIsLoading(false);
+              videoRef.current?.play().catch(() => {});
+            }
+          });
+          videoRef.current.addEventListener('error', () => {
+            if (mounted) {
+              setError('Stream failed to load');
+              setIsLoading(false);
+            }
+          });
+        } else {
+          setError('HLS playback not supported on this browser');
+          setIsLoading(false);
+        }
+
+      } catch (err) {
+        console.error('Failed to initialize HLS player:', err);
+        if (mounted) {
+          setError('Failed to initialize player');
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initPlayer();
+
+    // Timeout for loading
+    const timeoutId = setTimeout(() => {
+      if (mounted && isLoading) {
+        setIsLoading(false);
+      }
+    }, 10000);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [url, headers]);
+
+  if (error) {
+    return (
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex flex-col items-center justify-center gap-3">
+        <AlertCircle className="w-10 h-10 text-destructive" />
+        <p className="text-destructive text-center px-4">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden group">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-black">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        </div>
+      )}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-fill"
+        playsInline
+        controls
+        autoPlay
+        muted={false}
+      />
+      
+      {/* PiP Button */}
+      {isPiPSupported && (
+        <div className="absolute bottom-16 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className={`bg-black/70 hover:bg-black/90 text-white border-0 ${isPiPActive ? 'ring-2 ring-primary' : ''}`}
+            onClick={togglePiP}
+            title="Picture-in-Picture"
+          >
+            <PictureInPicture2 className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
@@ -162,7 +345,6 @@ const ClapprPlayer = ({ url, headers }: { url: string; headers?: StreamHeaders }
               enableWorker: true,
               lowLatencyMode: false,
               xhrSetup: function(xhr: XMLHttpRequest, url: string) {
-                // Allow CORS for all requests
                 xhr.withCredentials = false;
               },
             },
@@ -438,7 +620,7 @@ const IframeToM3U8Player = ({ url, headers }: { url: string; headers?: StreamHea
   }
 
   if (extractedUrl) {
-    return <ClapprPlayer url={extractedUrl} headers={headers} />;
+    return <HLSPlayer url={extractedUrl} headers={headers} />;
   }
 
   return null;
@@ -458,9 +640,9 @@ const VideoPlayer = ({ url, type, headers }: VideoPlayerProps) => {
     );
   }
 
-  // For M3U8 streams, use Clappr player (with proxy if headers are set)
+  // For M3U8 streams, use native HLS.js player for better CORS support
   if (type === 'm3u8') {
-    return <ClapprPlayer url={url} headers={headers} />;
+    return <HLSPlayer url={url} headers={headers} />;
   }
 
   // For iframe_to_m3u8 type, extract and play M3U8
