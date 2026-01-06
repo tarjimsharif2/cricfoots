@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { verifyAdminAuth, unauthorizedResponse, forbiddenResponse } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +9,26 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Check for cron secret (for scheduled calls) or admin auth (for manual calls)
+  const cronSecret = req.headers.get('x-cron-secret');
+  const expectedCronSecret = Deno.env.get('CRON_SECRET_TOKEN');
+  
+  // If cron secret provided and valid, allow access
+  if (cronSecret && cronSecret === expectedCronSecret) {
+    console.log('[auto-sync-scores] Authenticated via cron secret');
+  } else {
+    // Otherwise, verify admin authentication
+    const { user, error: authError } = await verifyAdminAuth(req);
+    if (authError) {
+      console.log('[auto-sync-scores] Auth failed:', authError);
+      if (authError === 'Admin access required') {
+        return forbiddenResponse(authError, corsHeaders);
+      }
+      return unauthorizedResponse(authError, corsHeaders);
+    }
+    console.log(`[auto-sync-scores] Authenticated admin: ${user.id}`);
   }
 
   try {

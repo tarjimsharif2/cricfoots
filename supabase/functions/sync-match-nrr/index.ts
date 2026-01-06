@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { verifyAdminAuth, unauthorizedResponse, forbiddenResponse } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,17 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Verify admin authentication
+  const { user, error: authError } = await verifyAdminAuth(req);
+  if (authError) {
+    console.log('[sync-match-nrr] Auth failed:', authError);
+    if (authError === 'Admin access required') {
+      return forbiddenResponse(authError, corsHeaders);
+    }
+    return unauthorizedResponse(authError, corsHeaders);
+  }
+  console.log(`[sync-match-nrr] Authenticated admin: ${user.id}`);
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
