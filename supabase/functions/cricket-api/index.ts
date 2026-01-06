@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAdminAuth, unauthorizedResponse, forbiddenResponse } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -48,6 +49,17 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Verify admin authentication
+  const { user, error: authError } = await verifyAdminAuth(req);
+  if (authError) {
+    console.log('[cricket-api] Auth failed:', authError);
+    if (authError === 'Admin access required') {
+      return forbiddenResponse(authError, corsHeaders);
+    }
+    return unauthorizedResponse(authError, corsHeaders);
+  }
+  console.log(`[cricket-api] Authenticated admin: ${user.id}`);
 
   try {
     const { action, matchId, teamAName, teamBName, teamAShort, teamBShort, cricbuzzMatchId } = await req.json();
