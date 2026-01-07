@@ -149,10 +149,11 @@ Deno.serve(async (req) => {
     // ============================================
     // 3. Auto-resume Test matches from STUMPS when day_start_time is reached
     // Uses day_start_time (daily play start) to determine when to resume
+    // Also calculates correct test_day based on match start date
     // ============================================
     const { data: testMatchesForDayUpdate, error: testDayFetchError } = await supabase
       .from('matches')
-      .select('id, match_format, test_day, is_stumps, next_day_start, day_start_time, match_start_time')
+      .select('id, match_format, test_day, is_stumps, next_day_start, day_start_time, match_start_time, stumps_time')
       .eq('match_format', 'test')
       .eq('status', 'live')
       .eq('is_stumps', true);
@@ -166,7 +167,7 @@ Deno.serve(async (req) => {
         let shouldResume = false;
         let resumeTime: Date | null = null;
 
-        // Priority 1: Use next_day_start if set
+        // Priority 1: Use next_day_start if set (already a full timestamp)
         if (match.next_day_start) {
           resumeTime = new Date(match.next_day_start);
           if (now >= resumeTime) {
@@ -174,37 +175,83 @@ Deno.serve(async (req) => {
             console.log(`Match ${match.id}: Using next_day_start ${resumeTime.toISOString()}`);
           }
         }
-        // Priority 2: Use day_start_time (HH:MM format) to calculate today's resume time
-        else if (match.day_start_time) {
-          // day_start_time is in HH:MM format, calculate today's resume datetime
-          const [hours, minutes] = match.day_start_time.split(':').map(Number);
-          const todayResumeTime = new Date();
-          todayResumeTime.setHours(hours, minutes, 0, 0);
+        // Priority 2: Use day_start_time with stumps_time to derive timezone
+        else if (match.day_start_time && match.stumps_time) {
+          // stumps_time is a full ISO timestamp with timezone, use it to determine the match timezone
+          const stumpsDate = new Date(match.stumps_time);
           
-          // If current time is past today's day_start_time, resume play
-          if (now >= todayResumeTime) {
+          // Get the next day after stumps
+          const nextDay = new Date(stumpsDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          
+          // Parse day_start_time (HH:MM:SS format) and apply to next day
+          const [hours, minutes] = match.day_start_time.split(':').map(Number);
+          
+          // Calculate resume time: next day at day_start_time
+          // Use the timezone offset from stumps_time for consistency
+          resumeTime = new Date(nextDay);
+          resumeTime.setUTCHours(hours, minutes, 0, 0);
+          
+          // Since stumps_time has the correct timezone, we can use it to calculate the resume time
+          // The day_start_time is in local time, so we need to adjust based on the server's interpretation
+          // If stumps was at e.g. 09:10 UTC (3:10 PM local), and day starts at 05:30 local (23:30 UTC prev day)
+          // We should resume at 23:30 UTC of the stumps day
+          
+          console.log(`Match ${match.id}: Calculating resume time from stumps ${stumpsDate.toISOString()}, day_start_time ${match.day_start_time}`);
+          
+          // Simple approach: if current UTC time's hour:minute >= day_start_time, resume
+          const nowHours = now.getUTCHours();
+          const nowMinutes = now.getUTCMinutes();
+          const currentTimeMinutes = nowHours * 60 + nowMinutes;
+          const dayStartMinutes = hours * 60 + minutes;
+          
+          // Check if it's been at least 12 hours since stumps (to ensure it's a new day)
+          const hoursSinceStumps = (now.getTime() - stumpsDate.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSinceStumps >= 12 && currentTimeMinutes >= dayStartMinutes) {
             shouldResume = true;
-            resumeTime = todayResumeTime;
-            console.log(`Match ${match.id}: Using day_start_time ${match.day_start_time} -> ${todayResumeTime.toISOString()}`);
+            console.log(`Match ${match.id}: ${hoursSinceStumps.toFixed(1)} hours since stumps, current time ${nowHours}:${nowMinutes} >= day_start_time ${hours}:${minutes}`);
+          } else {
+            console.log(`Match ${match.id}: Not ready to resume. Hours since stumps: ${hoursSinceStumps.toFixed(1)}, current UTC: ${nowHours}:${nowMinutes}, day_start: ${hours}:${minutes}`);
+          }
+        }
+        // Priority 3: Fallback - just check if 16+ hours passed since stumps
+        else if (match.stumps_time) {
+          const stumpsDate = new Date(match.stumps_time);
+          const hoursSinceStumps = (now.getTime() - stumpsDate.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSinceStumps >= 16) {
+            shouldResume = true;
+            console.log(`Match ${match.id}: Fallback - ${hoursSinceStumps.toFixed(1)} hours since stumps, resuming`);
           }
         }
 
         if (shouldResume) {
-          const newDay = (match.test_day || 1) + 1;
+          // Calculate correct test_day based on match start
+          let correctDay = (match.test_day || 1) + 1;
+          
+          // If match_start_time exists, calculate the actual day number
+          if (match.match_start_time) {
+            const startDate = new Date(match.match_start_time);
+            const daysDiff = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            correctDay = daysDiff + 1; // Day 1 is the start day
+            if (correctDay > 5) correctDay = 5; // Max 5 days for Test
+            if (correctDay < 1) correctDay = 1;
+          }
           
           const { error: updateError } = await supabase
             .from('matches')
             .update({
-              test_day: newDay,
+              test_day: correctDay,
               is_stumps: false,
               next_day_start: null, // Clear until next stumps is called
             })
             .eq('id', match.id);
 
           if (updateError) {
-            console.error(`Error updating Test match ${match.id} to Day ${newDay}:`, updateError);
+            console.error(`Error updating Test match ${match.id} to Day ${correctDay}:`, updateError);
           } else {
-            console.log(`Match ${match.id} advanced to Day ${newDay} and resumed from STUMPS at ${resumeTime?.toISOString()}`);
+            console.log(`Match ${match.id} advanced to Day ${correctDay} and resumed from STUMPS`);
             updatedCount++;
           }
         }
