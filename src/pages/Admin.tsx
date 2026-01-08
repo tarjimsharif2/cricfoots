@@ -233,6 +233,9 @@ const Admin = () => {
     api_cricket_key: '',
     api_cricket_enabled: false,
     api_sync_interval_seconds: 120,
+    // RapidAPI settings (Cricbuzz)
+    rapidapi_key: '',
+    rapidapi_enabled: false,
     // Ads.txt
     ads_txt_content: '',
     // Custom code injection
@@ -274,6 +277,8 @@ const Admin = () => {
         api_cricket_key: (siteSettings as any).api_cricket_key || '',
         api_cricket_enabled: (siteSettings as any).api_cricket_enabled || false,
         api_sync_interval_seconds: (siteSettings as any).api_sync_interval_seconds || 120,
+        rapidapi_key: (siteSettings as any).rapidapi_key || '',
+        rapidapi_enabled: (siteSettings as any).rapidapi_enabled || false,
         ads_txt_content: (siteSettings as any).ads_txt_content || '',
         custom_header_code: siteSettings.custom_header_code || '',
         custom_footer_code: siteSettings.custom_footer_code || '',
@@ -1134,6 +1139,9 @@ const Admin = () => {
         api_cricket_key: siteSettingsForm.api_cricket_key || null,
         api_cricket_enabled: siteSettingsForm.api_cricket_enabled,
         api_sync_interval_seconds: siteSettingsForm.api_sync_interval_seconds || 120,
+        // RapidAPI settings (Cricbuzz)
+        rapidapi_key: siteSettingsForm.rapidapi_key || null,
+        rapidapi_enabled: siteSettingsForm.rapidapi_enabled,
         // Ads.txt
         ads_txt_content: siteSettingsForm.ads_txt_content || null,
         // Custom code injection
@@ -2883,6 +2891,60 @@ const Admin = () => {
 
             {/* Live Score API Tab */}
             <TabsContent value="live-api" className="space-y-6">
+              {/* RapidAPI Settings - Cricbuzz */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" />
+                    RapidAPI (Cricbuzz) - Points Table
+                  </CardTitle>
+                  <CardDescription>Configure RapidAPI for syncing points table from Cricbuzz</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-0.5">
+                      <Label className="text-base font-medium">Enable RapidAPI</Label>
+                      <p className="text-sm text-muted-foreground">Enable points table sync from Cricbuzz via RapidAPI</p>
+                    </div>
+                    <Switch
+                      checked={siteSettingsForm.rapidapi_enabled}
+                      onCheckedChange={(checked) => setSiteSettingsForm({ ...siteSettingsForm, rapidapi_enabled: checked })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>RapidAPI Key</Label>
+                    <Input 
+                      type="password"
+                      placeholder="Enter your RapidAPI key" 
+                      value={siteSettingsForm.rapidapi_key} 
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, rapidapi_key: e.target.value })} 
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from{' '}
+                      <a href="https://rapidapi.com/cricbuzz-cricket/api/cricbuzz-cricket" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        RapidAPI - Cricbuzz Cricket
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Usage:</strong> Go to Tournament → Points Table → Click "Sync from API" → Enter Series ID from Cricbuzz URL
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button variant="gradient" onClick={handleSaveSiteSettings} disabled={updateSiteSettings.isPending}>
+                      {updateSiteSettings.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                      <Save className="w-4 h-4 mr-2" />
+                      Save RapidAPI Settings
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* API Cricket Settings */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

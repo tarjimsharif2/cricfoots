@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { tournamentId, leagueId } = body;
+    const { tournamentId, seriesId } = body;
 
     if (!tournamentId) {
       return new Response(
@@ -95,24 +95,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[sync-points-table] Syncing points table for tournament: ${tournamentId}`);
+    console.log(`[sync-points-table] Syncing points table for tournament: ${tournamentId}, seriesId: ${seriesId}`);
 
-    // Get the API key from site_settings
+    // Get the RapidAPI key from site_settings
     const { data: settings, error: settingsError } = await supabase
       .from('site_settings')
-      .select('api_cricket_key, api_cricket_enabled')
+      .select('rapidapi_key, rapidapi_enabled')
       .limit(1)
       .maybeSingle();
 
-    if (settingsError || !settings?.api_cricket_enabled || !settings?.api_cricket_key) {
-      console.error('[sync-points-table] API Cricket is disabled or not configured');
+    if (settingsError || !settings?.rapidapi_enabled || !settings?.rapidapi_key) {
+      console.error('[sync-points-table] RapidAPI is disabled or not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'API Cricket is disabled or not configured' }),
+        JSON.stringify({ success: false, error: 'RapidAPI is disabled or not configured. Please configure RapidAPI key in Settings.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const apiKey = settings.api_cricket_key;
+    const rapidApiKey = settings.rapidapi_key;
 
     // Get tournament details
     const { data: tournament, error: tournamentError } = await supabase
@@ -140,169 +140,56 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch standings from API - try to find by league name
-    // First, get leagues list
-    const leaguesUrl = `https://apiv2.api-cricket.com/cricket/?method=get_leagues&APIkey=${apiKey}`;
-    
-    console.log('[sync-points-table] Fetching leagues from API...');
-    
-    const leaguesResponse = await fetchWithRetry(leaguesUrl, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!leaguesResponse.ok) {
-      console.error('[sync-points-table] Failed to fetch leagues');
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to fetch leagues from API' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const leaguesData = await leaguesResponse.json();
-    
-    if (!leaguesData.success || leaguesData.success !== 1) {
-      console.error('[sync-points-table] API returned unsuccessful response');
-      return new Response(
-        JSON.stringify({ success: false, error: 'API returned unsuccessful response' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const leagues = leaguesData.result || [];
-    console.log(`[sync-points-table] Found ${leagues.length} leagues`);
-
-    // Find matching league by tournament name - more strict matching
-    let targetLeagueId = leagueId;
-    let matchedLeagueName = '';
-    
-    if (!targetLeagueId) {
-      const tournamentNameLower = normalizeTeamName(tournament.name);
-      const tournamentWords = tournamentNameLower.split(/\s+/).filter((w: string) => w.length >= 3);
-      
-      // Score-based matching - higher score = better match
-      let bestMatch: { league: any; score: number } | null = null;
-      
-      for (const league of leagues) {
-        const leagueNameLower = normalizeTeamName(league.league_name || '');
-        let score = 0;
-        
-        // Exact match gets highest score
-        if (leagueNameLower === tournamentNameLower) {
-          score = 100;
-        } 
-        // Check if league name contains tournament name or vice versa
-        else if (leagueNameLower.includes(tournamentNameLower) || tournamentNameLower.includes(leagueNameLower)) {
-          score = 80;
-        }
-        // Check word overlap - need at least 2 matching significant words
-        else {
-          const leagueWords = leagueNameLower.split(/\s+/).filter((w: string) => w.length >= 3);
-          const matchingWords = tournamentWords.filter((tw: string) => 
-            leagueWords.some((lw: string) => lw === tw || (lw.length >= 4 && tw.length >= 4 && (lw.includes(tw) || tw.includes(lw))))
-          );
-          if (matchingWords.length >= 2) {
-            score = 30 + matchingWords.length * 10;
-          }
-        }
-        
-        if (score > 0 && (!bestMatch || score > bestMatch.score)) {
-          bestMatch = { league, score };
-        }
-      }
-      
-      // Only auto-match if score is high enough
-      if (bestMatch && bestMatch.score >= 50) {
-        targetLeagueId = bestMatch.league.league_key;
-        matchedLeagueName = bestMatch.league.league_name;
-        console.log(`[sync-points-table] Found matching league: ${matchedLeagueName} (${targetLeagueId}) with score ${bestMatch.score}`);
-      }
-    }
-
-    // If no auto-match found, return league list for user selection
-    if (!targetLeagueId) {
-      // Filter to show relevant cricket leagues
-      const relevantLeagues = leagues
-        .filter((l: any) => {
-          const name = (l.league_name || '').toLowerCase();
-          // Filter out clearly irrelevant leagues
-          return name.includes('premier') || name.includes('league') || name.includes('cup') || 
-                 name.includes('t20') || name.includes('championship') || name.includes('series');
-        })
-        .slice(0, 50); // Limit to 50 leagues
-      
+    // If no seriesId provided, we need to ask user for it
+    if (!seriesId) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'No matching league found. Please select a league.',
-          availableLeagues: relevantLeagues.map((l: any) => ({
-            id: l.league_key,
-            name: l.league_name,
-            country: l.country_name || '',
-          }))
+          error: 'Series ID is required. Please enter the Cricbuzz Series ID.',
+          requiresSeriesId: true
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch standings for the league
-    const standingsUrl = `https://apiv2.api-cricket.com/cricket/?method=get_standings&league_id=${targetLeagueId}&APIkey=${apiKey}`;
+    // Fetch points table from Cricbuzz RapidAPI
+    const pointsTableUrl = `https://cricbuzz-cricket.p.rapidapi.com/stats/v1/series/${seriesId}/points-table`;
     
-    console.log(`[sync-points-table] Fetching standings for league: ${targetLeagueId}`);
+    console.log(`[sync-points-table] Fetching points table from: ${pointsTableUrl}`);
     
-    const standingsResponse = await fetchWithRetry(standingsUrl, {
+    const response = await fetchWithRetry(pointsTableUrl, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com',
+        'x-rapidapi-key': rapidApiKey,
+      },
     });
 
-    if (!standingsResponse.ok) {
-      console.error('[sync-points-table] Failed to fetch standings');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[sync-points-table] API error: ${response.status} - ${errorText}`);
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to fetch standings from API' }),
+        JSON.stringify({ success: false, error: `API error: ${response.status}. Please check Series ID and API key.` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const standingsData = await standingsResponse.json();
+    const data = await response.json();
+    console.log(`[sync-points-table] API response:`, JSON.stringify(data).substring(0, 500));
+
+    // Parse Cricbuzz response structure
+    // The response has pointsTable array with groupTable entries
+    const pointsTable = data.pointsTable || [];
     
-    if (!standingsData.success || standingsData.success !== 1) {
-      console.error(`[sync-points-table] API returned unsuccessful standings response for league ${targetLeagueId}`);
-      
-      // Return league selection so user can try a different league
-      const relevantLeagues = leagues
-        .filter((l: any) => {
-          const name = (l.league_name || '').toLowerCase();
-          return name.includes('premier') || name.includes('league') || name.includes('cup') || 
-                 name.includes('t20') || name.includes('championship') || name.includes('series');
-        })
-        .slice(0, 50);
-      
+    if (!pointsTable || pointsTable.length === 0) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Standings not available for "${matchedLeagueName || targetLeagueId}". Please select a different league.`,
-          availableLeagues: relevantLeagues.map((l: any) => ({
-            id: l.league_key,
-            name: l.league_name,
-            country: l.country_name || '',
-          }))
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const standings = standingsData.result?.total || standingsData.result || [];
-    console.log(`[sync-points-table] Found ${standings.length} teams in standings`);
-
-    if (!standings || standings.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'No standings data available for this league' }),
+        JSON.stringify({ success: false, error: 'No points table data available for this series' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Get current points table entries to preserve NRR
-    const { data: existingEntries, error: existingError } = await supabase
+    const { data: existingEntries } = await supabase
       .from('tournament_points_table')
       .select('*')
       .eq('tournament_id', tournamentId);
@@ -316,77 +203,83 @@ Deno.serve(async (req) => {
 
     let updatedCount = 0;
     let insertedCount = 0;
+    let skippedTeams: string[] = [];
 
-    // Process each team in standings
-    for (const standing of standings) {
-      const apiTeamName = standing.team_name || standing.standing_team || '';
+    // Process each group in points table
+    for (const group of pointsTable) {
+      const groupTable = group.pointsTableInfo || [];
       
-      if (!apiTeamName) continue;
-
-      // Find matching team in our database
-      const matchingTeam = teams.find(team => 
-        teamsMatch(team.name, apiTeamName) || teamsMatch(team.short_name, apiTeamName)
-      );
-
-      if (!matchingTeam) {
-        console.log(`[sync-points-table] No matching team found for: ${apiTeamName}`);
-        continue;
-      }
-
-      console.log(`[sync-points-table] Matched ${apiTeamName} -> ${matchingTeam.name}`);
-
-      // Parse standing data
-      const played = parseInt(standing.standing_P || standing.played || standing.matches || 0) || 0;
-      const won = parseInt(standing.standing_W || standing.won || standing.wins || 0) || 0;
-      const lost = parseInt(standing.standing_L || standing.lost || standing.losses || 0) || 0;
-      const tied = parseInt(standing.standing_T || standing.tied || standing.ties || 0) || 0;
-      const noResult = parseInt(standing.standing_NR || standing.no_result || standing.nr || 0) || 0;
-      const points = parseInt(standing.standing_PTS || standing.points || standing.pts || 0) || 0;
-      const position = parseInt(standing.standing_place || standing.position || standing.rank || 0) || 0;
-
-      // Preserve existing NRR - don't overwrite from API
-      const existingNrr = existingNrrMap.get(matchingTeam.id) || 0;
-
-      // Check if entry exists
-      const { data: existing } = await supabase
-        .from('tournament_points_table')
-        .select('id, net_run_rate')
-        .eq('tournament_id', tournamentId)
-        .eq('team_id', matchingTeam.id)
-        .maybeSingle();
-
-      const entryData = {
-        tournament_id: tournamentId,
-        team_id: matchingTeam.id,
-        position,
-        played,
-        won,
-        lost,
-        tied,
-        no_result: noResult,
-        points,
-        // Keep existing NRR, don't replace from API
-        net_run_rate: existing?.net_run_rate ?? existingNrr,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (existing) {
-        const { error } = await supabase
-          .from('tournament_points_table')
-          .update(entryData)
-          .eq('id', existing.id);
+      for (const standing of groupTable) {
+        const apiTeamName = standing.teamName || '';
         
-        if (!error) updatedCount++;
-      } else {
-        const { error } = await supabase
+        if (!apiTeamName) continue;
+
+        // Find matching team in our database
+        const matchingTeam = teams.find(team => 
+          teamsMatch(team.name, apiTeamName) || teamsMatch(team.short_name, apiTeamName)
+        );
+
+        if (!matchingTeam) {
+          console.log(`[sync-points-table] No matching team found for: ${apiTeamName}`);
+          skippedTeams.push(apiTeamName);
+          continue;
+        }
+
+        console.log(`[sync-points-table] Matched ${apiTeamName} -> ${matchingTeam.name}`);
+
+        // Parse Cricbuzz standing data
+        const played = parseInt(standing.matchesPlayed || 0) || 0;
+        const won = parseInt(standing.matchesWon || 0) || 0;
+        const lost = parseInt(standing.matchesLost || 0) || 0;
+        const tied = parseInt(standing.matchesTied || 0) || 0;
+        const noResult = parseInt(standing.noRes || standing.noResult || 0) || 0;
+        const points = parseInt(standing.points || 0) || 0;
+        const position = parseInt(standing.position || 0) || 0;
+
+        // Preserve existing NRR - don't overwrite from API
+        const existingNrr = existingNrrMap.get(matchingTeam.id) || 0;
+
+        // Check if entry exists
+        const { data: existing } = await supabase
           .from('tournament_points_table')
-          .insert(entryData);
-        
-        if (!error) insertedCount++;
+          .select('id, net_run_rate')
+          .eq('tournament_id', tournamentId)
+          .eq('team_id', matchingTeam.id)
+          .maybeSingle();
+
+        const entryData = {
+          tournament_id: tournamentId,
+          team_id: matchingTeam.id,
+          position,
+          played,
+          won,
+          lost,
+          tied,
+          no_result: noResult,
+          points,
+          // Keep existing NRR, don't replace from API
+          net_run_rate: existing?.net_run_rate ?? existingNrr,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (existing) {
+          const { error } = await supabase
+            .from('tournament_points_table')
+            .update(entryData)
+            .eq('id', existing.id);
+          
+          if (!error) updatedCount++;
+        } else {
+          const { error } = await supabase
+            .from('tournament_points_table')
+            .insert(entryData);
+          
+          if (!error) insertedCount++;
+        }
       }
     }
 
-    console.log(`[sync-points-table] Sync complete. Updated: ${updatedCount}, Inserted: ${insertedCount}`);
+    console.log(`[sync-points-table] Sync complete. Updated: ${updatedCount}, Inserted: ${insertedCount}, Skipped: ${skippedTeams.length}`);
 
     return new Response(
       JSON.stringify({
@@ -394,7 +287,8 @@ Deno.serve(async (req) => {
         message: `Points table synced successfully`,
         updated: updatedCount,
         inserted: insertedCount,
-        leagueId: targetLeagueId,
+        skippedTeams: skippedTeams.length > 0 ? skippedTeams : undefined,
+        seriesId,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

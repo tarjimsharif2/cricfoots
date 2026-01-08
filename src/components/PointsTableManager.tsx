@@ -40,11 +40,8 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [leagueSelectOpen, setLeagueSelectOpen] = useState(false);
-  const [leagueSearchQuery, setLeagueSearchQuery] = useState('');
-  const [leagueErrorMessage, setLeagueErrorMessage] = useState('');
-  const [availableLeagues, setAvailableLeagues] = useState<{ id: string; name: string; country: string }[]>([]);
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
+  const [seriesIdDialogOpen, setSeriesIdDialogOpen] = useState(false);
+  const [seriesIdInput, setSeriesIdInput] = useState('');
   const [editingEntry, setEditingEntry] = useState<PointsTableEntry | null>(null);
   const [form, setForm] = useState({
     team_id: '',
@@ -160,32 +157,32 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
     },
   });
 
-  // Sync points table from API
+  // Sync points table from RapidAPI (Cricbuzz)
   const syncFromApi = useMutation({
-    mutationFn: async (leagueId?: string) => {
+    mutationFn: async (seriesId: string) => {
       const { data, error } = await supabase.functions.invoke('sync-points-table', {
-        body: { tournamentId: tournament.id, leagueId }
+        body: { tournamentId: tournament.id, seriesId }
       });
       
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
-      if (!data.success && data.availableLeagues) {
-        // Show league selection dialog
-        setAvailableLeagues(data.availableLeagues);
-        setLeagueErrorMessage(data.error || 'Please select the correct league to sync from');
-        setLeagueSearchQuery('');
-        setLeagueSelectOpen(true);
+      if (data.requiresSeriesId) {
+        // Show series ID input dialog
+        setSeriesIdDialogOpen(true);
       } else if (data.success) {
         queryClient.invalidateQueries({ queryKey: ['tournament_points_table', tournament.id] });
+        let message = `Updated: ${data.updated}, Inserted: ${data.inserted}`;
+        if (data.skippedTeams && data.skippedTeams.length > 0) {
+          message += `. Skipped teams: ${data.skippedTeams.join(', ')}`;
+        }
         toast({ 
           title: "Points table synced", 
-          description: `Updated: ${data.updated}, Inserted: ${data.inserted}` 
+          description: message
         });
-        setLeagueSelectOpen(false);
-        setSelectedLeagueId('');
-        setLeagueErrorMessage('');
+        setSeriesIdDialogOpen(false);
+        setSeriesIdInput('');
       } else {
         toast({ title: "Sync failed", description: data.error || 'Unknown error', variant: "destructive" });
       }
@@ -252,6 +249,19 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
     }
   };
 
+  const handleSyncClick = () => {
+    // Open series ID dialog
+    setSeriesIdDialogOpen(true);
+  };
+
+  const handleSyncWithSeriesId = () => {
+    if (!seriesIdInput.trim()) {
+      toast({ title: "Please enter Series ID", variant: "destructive" });
+      return;
+    }
+    syncFromApi.mutate(seriesIdInput.trim());
+  };
+
   // Get teams that are not already in the points table
   const availableTeams = teams.filter(
     team => !entries?.some(e => e.team_id === team.id) || editingEntry?.team_id === team.id
@@ -273,7 +283,7 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => syncFromApi.mutate(undefined)}
+            onClick={handleSyncClick}
             disabled={syncFromApi.isPending}
           >
             {syncFromApi.isPending ? (
@@ -487,50 +497,41 @@ const PointsTableManager = ({ tournament, teams }: PointsTableManagerProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* League Selection Dialog */}
-      <Dialog open={leagueSelectOpen} onOpenChange={setLeagueSelectOpen}>
+      {/* Series ID Input Dialog */}
+      <Dialog open={seriesIdDialogOpen} onOpenChange={setSeriesIdDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Select League</DialogTitle>
+            <DialogTitle>Enter Cricbuzz Series ID</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {leagueErrorMessage || 'Please select the correct league:'}
+              Enter the Series ID from Cricbuzz URL. For example, if the URL is:<br/>
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">cricbuzz.com/cricket-series/3718/...</code><br/>
+              Then the Series ID is <strong>3718</strong>
             </p>
-            <Input
-              placeholder="Search leagues..."
-              value={leagueSearchQuery}
-              onChange={(e) => setLeagueSearchQuery(e.target.value)}
-              className="mb-2"
-            />
-            <Select value={selectedLeagueId} onValueChange={setSelectedLeagueId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a league..." />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {availableLeagues
-                  .filter((league) => 
-                    !leagueSearchQuery || 
-                    league.name.toLowerCase().includes(leagueSearchQuery.toLowerCase()) ||
-                    league.country.toLowerCase().includes(leagueSearchQuery.toLowerCase())
-                  )
-                  .map((league) => (
-                    <SelectItem key={league.id} value={league.id}>
-                      {league.name} {league.country && `(${league.country})`}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label>Series ID</Label>
+              <Input
+                placeholder="e.g., 3718"
+                value={seriesIdInput}
+                onChange={(e) => setSeriesIdInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSyncWithSeriesId();
+                  }
+                }}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLeagueSelectOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setSeriesIdDialogOpen(false)}>Cancel</Button>
             <Button 
               variant="gradient" 
-              onClick={() => syncFromApi.mutate(selectedLeagueId)}
-              disabled={!selectedLeagueId || syncFromApi.isPending}
+              onClick={handleSyncWithSeriesId}
+              disabled={!seriesIdInput.trim() || syncFromApi.isPending}
             >
               {syncFromApi.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Sync
+              Sync Points Table
             </Button>
           </DialogFooter>
         </DialogContent>
