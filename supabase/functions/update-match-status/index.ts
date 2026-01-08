@@ -95,11 +95,23 @@ Deno.serve(async (req) => {
     // ============================================
     // 2. Auto-complete matches based on match_end_time or calculated duration
     // This applies to BOTH 'live' AND 'upcoming' matches that have passed their end time
+    // Uses default durations based on match format if no explicit end time is set
     // ============================================
+    
+    // Default match durations in minutes by format
+    const defaultDurations: Record<string, number> = {
+      't20': 210,      // 3.5 hours
+      't10': 120,      // 2 hours
+      'odi': 480,      // 8 hours
+      'the_hundred': 180, // 3 hours
+      // Test matches are handled separately (not auto-completed by duration)
+    };
+    
     const { data: matchesToComplete, error: completeFetchError } = await supabase
       .from('matches')
       .select('id, match_end_time, match_start_time, match_duration_minutes, match_format, status')
-      .in('status', ['live', 'upcoming']);
+      .in('status', ['live', 'upcoming'])
+      .neq('match_format', 'test'); // Don't auto-complete Test matches by time
 
     if (completeFetchError) {
       console.error('Error fetching matches for completion check:', completeFetchError);
@@ -110,15 +122,15 @@ Deno.serve(async (req) => {
         let shouldComplete = false;
         let completionReason = '';
 
-        // Check if match_end_time is set and passed
+        // Priority 1: Check if match_end_time is set and passed
         if (match.match_end_time) {
           const endTime = new Date(match.match_end_time);
           if (now >= endTime) {
             shouldComplete = true;
-            completionReason = `past end time (was ${match.status})`;
+            completionReason = `past end time ${endTime.toISOString()} (was ${match.status})`;
           }
         } 
-        // Fallback: calculate end time from start time + duration
+        // Priority 2: Calculate end time from start time + explicit duration
         else if (match.match_start_time && match.match_duration_minutes) {
           const startTime = new Date(match.match_start_time);
           const durationMs = match.match_duration_minutes * 60 * 1000;
@@ -127,6 +139,20 @@ Deno.serve(async (req) => {
           if (now >= calculatedEndTime) {
             shouldComplete = true;
             completionReason = `past calculated duration ${match.match_duration_minutes} mins (was ${match.status})`;
+          }
+        }
+        // Priority 3: Use default duration based on match format
+        else if (match.match_start_time && match.match_format) {
+          const defaultDuration = defaultDurations[match.match_format?.toLowerCase()];
+          if (defaultDuration) {
+            const startTime = new Date(match.match_start_time);
+            const durationMs = defaultDuration * 60 * 1000;
+            const calculatedEndTime = new Date(startTime.getTime() + durationMs);
+            
+            if (now >= calculatedEndTime) {
+              shouldComplete = true;
+              completionReason = `past default ${match.match_format} duration ${defaultDuration} mins (was ${match.status})`;
+            }
           }
         }
 
@@ -139,7 +165,7 @@ Deno.serve(async (req) => {
           if (updateError) {
             console.error(`Error completing match ${match.id}:`, updateError);
           } else {
-            console.log(`Match ${match.id} auto-completed - ${completionReason}${match.match_format === 'test' ? ' (Test match)' : ''}`);
+            console.log(`Match ${match.id} auto-completed - ${completionReason}`);
             updatedCount++;
           }
         }
