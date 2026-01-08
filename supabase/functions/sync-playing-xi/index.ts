@@ -222,17 +222,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Now try to get squad from team endpoints
-    const team1Id = matchInfo.matchInfo?.team1?.id || matchInfo.matchInfo?.team1?.teamId;
-    const team2Id = matchInfo.matchInfo?.team2?.id || matchInfo.matchInfo?.team2?.teamId;
+    // Now try to get squad from team endpoints - use teamid not id
+    const team1Info = matchInfo.team1 || {};
+    const team2Info = matchInfo.team2 || {};
+    const team1ApiId = team1Info.teamid || team1Info.id || team1Info.teamId;
+    const team2ApiId = team2Info.teamid || team2Info.id || team2Info.teamId;
+    const team1Name = team1Info.teamname || team1Info.teamName || team1Info.teamsname || '';
+    const team2Name = team2Info.teamname || team2Info.teamName || team2Info.teamsname || '';
     
-    console.log(`[sync-playing-xi] Team IDs: team1=${team1Id}, team2=${team2Id}`);
+    console.log(`[sync-playing-xi] Team IDs: team1=${team1ApiId} (${team1Name}), team2=${team2ApiId} (${team2Name})`);
 
     const playersToAdd: any[] = [];
 
-    // Try squad endpoint with team IDs
-    for (const [teamNum, teamApiId] of [[1, team1Id], [2, team2Id]]) {
-      if (!teamApiId) continue;
+    // Try squad endpoint with team numbers
+    const teamConfigs = [
+      { teamNum: 1, apiId: team1ApiId, apiName: team1Name },
+      { teamNum: 2, apiId: team2ApiId, apiName: team2Name }
+    ];
+    
+    for (const teamConfig of teamConfigs) {
+      const { teamNum, apiName } = teamConfig;
       
       try {
         const squadUrl = `https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/${actualMatchId}/team/${teamNum}`;
@@ -274,9 +283,9 @@ Deno.serve(async (req) => {
                           [];
         
         const teamDetails = squadData.teamDetails || {};
-        const apiTeamName = teamDetails.teamName || teamDetails.teamSName || '';
+        const detailsTeamName = teamDetails.teamName || teamDetails.teamSName || apiName || '';
         
-        console.log(`[sync-playing-xi] Team ${teamNum} (${apiTeamName}): found ${playingXI.length} playing XI players`);
+        console.log(`[sync-playing-xi] Team ${teamNum} (${detailsTeamName}): found ${playingXI.length} playing XI players`);
 
         if (playingXI.length === 0) {
           // Try to get from players object with different keys
@@ -293,11 +302,12 @@ Deno.serve(async (req) => {
                   
                   // Determine local team ID
                   let localTeamId: string | null = null;
-                  if (teamsMatch(teamAName, teamAShortName, apiTeamName)) {
+                  if (teamsMatch(teamAName, teamAShortName, detailsTeamName)) {
                     localTeamId = teamAId;
-                  } else if (teamsMatch(teamBName, teamBShortName, apiTeamName)) {
+                  } else if (teamsMatch(teamBName, teamBShortName, detailsTeamName)) {
                     localTeamId = teamBId;
                   } else {
+                    // Fallback based on team order
                     localTeamId = teamNum === 1 ? teamAId : teamBId;
                   }
                   
@@ -324,11 +334,12 @@ Deno.serve(async (req) => {
             
             // Determine local team ID
             let localTeamId: string | null = null;
-            if (teamsMatch(teamAName, teamAShortName, apiTeamName)) {
+            if (teamsMatch(teamAName, teamAShortName, detailsTeamName)) {
               localTeamId = teamAId;
-            } else if (teamsMatch(teamBName, teamBShortName, apiTeamName)) {
+            } else if (teamsMatch(teamBName, teamBShortName, detailsTeamName)) {
               localTeamId = teamBId;
             } else {
+              // Fallback based on team order
               localTeamId = teamNum === 1 ? teamAId : teamBId;
             }
             
