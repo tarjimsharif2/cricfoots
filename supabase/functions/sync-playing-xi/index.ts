@@ -485,11 +485,124 @@ Deno.serve(async (req) => {
       }
     }
 
+    // If still no players, try to extract from scorecard/batting endpoint
+    if (playersToAdd.length === 0 && actualMatchId) {
+      console.log(`[sync-playing-xi] Trying scorecard endpoint as last resort`);
+      
+      try {
+        // Try batting scorecard for both innings
+        for (let inningsNum = 1; inningsNum <= 2; inningsNum++) {
+          const scorecardUrl = `https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/${actualMatchId}/scard`;
+          console.log(`[sync-playing-xi] Fetching scorecard: ${scorecardUrl}`);
+          
+          const scorecardResponse = await fetchWithRetry(scorecardUrl, {
+            method: 'GET',
+            headers: {
+              'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com',
+              'x-rapidapi-key': rapidApiKey,
+            },
+          });
+
+          if (scorecardResponse.ok) {
+            const scorecardText = await scorecardResponse.text();
+            console.log(`[sync-playing-xi] Scorecard response (first 1000 chars):`, scorecardText.substring(0, 1000));
+            
+            if (scorecardText && scorecardText.trim() !== '') {
+              try {
+                const scorecardData = JSON.parse(scorecardText);
+                
+                // Extract from scorecard - format: scoreCard[].batTeamDetails.batsmenData and bowlTeamDetails.bowlersData
+                const scoreCard = scorecardData.scoreCard || [];
+                const addedPlayerNames = new Set<string>();
+                
+                for (const innings of scoreCard) {
+                  const batTeamDetails = innings.batTeamDetails || {};
+                  const bowlTeamDetails = innings.bowlTeamDetails || {};
+                  const batTeamName = batTeamDetails.batTeamName || batTeamDetails.batTeamShortName || '';
+                  const bowlTeamName = bowlTeamDetails.bowlTeamName || bowlTeamDetails.bowlTeamShortName || '';
+                  
+                  // Get batsmen
+                  const batsmenData = batTeamDetails.batsmenData || {};
+                  let batOrder = 1;
+                  for (const key of Object.keys(batsmenData)) {
+                    const batsman = batsmenData[key];
+                    const playerName = batsman.batName || '';
+                    if (!playerName || addedPlayerNames.has(playerName.toLowerCase())) continue;
+                    addedPlayerNames.add(playerName.toLowerCase());
+                    
+                    // Determine team
+                    let localTeamId: string | null = null;
+                    if (teamsMatch(teamAName, teamAShortName, batTeamName)) {
+                      localTeamId = teamAId;
+                    } else if (teamsMatch(teamBName, teamBShortName, batTeamName)) {
+                      localTeamId = teamBId;
+                    } else {
+                      localTeamId = teamAId; // fallback
+                    }
+                    
+                    playersToAdd.push({
+                      match_id: matchId,
+                      team_id: localTeamId,
+                      player_name: playerName,
+                      player_role: 'Batsman',
+                      is_captain: batsman.isCaptain === true,
+                      is_vice_captain: false,
+                      is_wicket_keeper: batsman.isKeeper === true,
+                      batting_order: batOrder++,
+                    });
+                  }
+                  
+                  // Get bowlers
+                  const bowlersData = bowlTeamDetails.bowlersData || {};
+                  let bowlOrder = 1;
+                  for (const key of Object.keys(bowlersData)) {
+                    const bowler = bowlersData[key];
+                    const playerName = bowler.bowlName || '';
+                    if (!playerName || addedPlayerNames.has(playerName.toLowerCase())) continue;
+                    addedPlayerNames.add(playerName.toLowerCase());
+                    
+                    // Determine team
+                    let localTeamId: string | null = null;
+                    if (teamsMatch(teamAName, teamAShortName, bowlTeamName)) {
+                      localTeamId = teamAId;
+                    } else if (teamsMatch(teamBName, teamBShortName, bowlTeamName)) {
+                      localTeamId = teamBId;
+                    } else {
+                      localTeamId = teamBId; // fallback
+                    }
+                    
+                    playersToAdd.push({
+                      match_id: matchId,
+                      team_id: localTeamId,
+                      player_name: playerName,
+                      player_role: 'Bowler',
+                      is_captain: bowler.isCaptain === true,
+                      is_vice_captain: false,
+                      is_wicket_keeper: false,
+                      batting_order: bowlOrder++,
+                    });
+                  }
+                }
+                
+                console.log(`[sync-playing-xi] Extracted ${playersToAdd.length} players from scorecard`);
+              } catch (e) {
+                console.error(`[sync-playing-xi] Failed to parse scorecard:`, e);
+              }
+            }
+          }
+          
+          if (playersToAdd.length > 0) break;
+        }
+      } catch (e) {
+        console.error(`[sync-playing-xi] Scorecard fetch error:`, e);
+      }
+    }
+
     if (playersToAdd.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'No playing XI data available. The match may not have started or lineup not announced yet.',
+          error: 'No playing XI data available. Try again after the match has started and batsmen/bowlers are visible.',
           playersAdded: 0
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
