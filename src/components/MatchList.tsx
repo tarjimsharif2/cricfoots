@@ -67,12 +67,56 @@ const MatchList = () => {
       return new Date();
     };
 
+    // Helper function to check if a match should be treated as completed (frontend fallback)
+    const shouldBeCompleted = (match: typeof matches[0]): boolean => {
+      // If match_end_time exists and has passed, treat as completed
+      if (match.match_end_time) {
+        const endTime = new Date(match.match_end_time);
+        if (endTime < now) return true;
+      }
+      
+      // If match_start_time exists, calculate expected end based on format
+      if (match.match_start_time && match.match_format !== 'test') {
+        const startTime = new Date(match.match_start_time);
+        const formatDurations: Record<string, number> = {
+          't20': 3.5 * 60, // 3.5 hours in minutes
+          't10': 2 * 60,   // 2 hours
+          'odi': 8 * 60,   // 8 hours
+          'other': 3 * 60, // 3 hours default
+        };
+        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
+        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        
+        if (expectedEnd < now) return true;
+      }
+      
+      return false;
+    };
+
+    // Helper function to get effective status (frontend fallback for stale data)
+    const getEffectiveStatus = (match: typeof matches[0]): string => {
+      // If DB says completed/abandoned, trust it
+      if (match.status === 'completed' || match.status === 'abandoned') {
+        return match.status;
+      }
+      
+      // Frontend fallback: If match should be completed but status is still live/upcoming
+      if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompleted(match)) {
+        return 'completed';
+      }
+      
+      return match.status;
+    };
+
     const filtered = matches.filter((match) => {
       // Filter out inactive matches
       if (match.is_active === false) return false;
 
+      // Get effective status (with frontend fallback for stale data)
+      const effectiveStatus = getEffectiveStatus(match);
+
       // Hide completed/abandoned matches older than 2 days
-      if (match.status === 'completed' || match.status === 'abandoned') {
+      if (effectiveStatus === 'completed' || effectiveStatus === 'abandoned') {
         try {
           const dateMatch = match.match_date.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
           if (dateMatch) {
@@ -95,21 +139,21 @@ const MatchList = () => {
         if (matchSportName?.toLowerCase() !== activeSportFilter.toLowerCase()) return false;
       }
 
-      // Apply status filter
+      // Apply status filter using effective status
       if (activeFilter === 'all') return true;
       // STUMPS matches should show in live filter
       if (activeFilter === 'live') {
-        return match.status === 'live';
+        return effectiveStatus === 'live';
       }
       // Abandoned matches show in completed filter
       if (activeFilter === 'completed') {
-        return match.status === 'completed' || match.status === 'abandoned';
+        return effectiveStatus === 'completed' || effectiveStatus === 'abandoned';
       }
       // Postponed matches show in upcoming filter
       if (activeFilter === 'upcoming') {
-        return match.status === 'upcoming' || match.status === 'postponed';
+        return effectiveStatus === 'upcoming' || effectiveStatus === 'postponed';
       }
-      return match.status === activeFilter;
+      return effectiveStatus === activeFilter;
     });
 
     // Sort: Priority first, then Live, then postponed, then upcoming, then completed/abandoned - all sorted by start time
@@ -118,8 +162,12 @@ const MatchList = () => {
       if (a.is_priority && !b.is_priority) return -1;
       if (!a.is_priority && b.is_priority) return 1;
 
+      // Get effective status for sorting
+      const effectiveStatusA = getEffectiveStatus(a);
+      const effectiveStatusB = getEffectiveStatus(b);
+
       // Then sort by status priority (considering stumps)
-      const priorityDiff = getStatusPriority(a.status, a.is_stumps) - getStatusPriority(b.status, b.is_stumps);
+      const priorityDiff = getStatusPriority(effectiveStatusA, a.is_stumps) - getStatusPriority(effectiveStatusB, b.is_stumps);
       if (priorityDiff !== 0) return priorityDiff;
 
       // Within same status, sort by match start time
@@ -128,7 +176,7 @@ const MatchList = () => {
       
       // For live, postponed, and upcoming matches, sort by start time (earliest first)
       // For completed/abandoned, show most recent first
-      if (a.status === 'live' || a.status === 'upcoming' || a.status === 'postponed') {
+      if (effectiveStatusA === 'live' || effectiveStatusA === 'upcoming' || effectiveStatusA === 'postponed') {
         return dateA.getTime() - dateB.getTime();
       }
       return dateB.getTime() - dateA.getTime();
@@ -175,12 +223,48 @@ const MatchList = () => {
     return Array.from(sportSet).sort();
   }, [matches]);
 
-  // Calculate counts for filter badges
+  // Calculate counts for filter badges (using effective status for accurate counts)
   const counts = useMemo(() => {
     if (!matches) return { all: 0, upcoming: 0, live: 0, completed: 0 };
     
     const now = new Date();
     const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    
+    // Helper function to check if a match should be treated as completed (same as above)
+    const shouldBeCompletedForCount = (match: typeof matches[0]): boolean => {
+      if (match.match_end_time) {
+        const endTime = new Date(match.match_end_time);
+        if (endTime < now) return true;
+      }
+      
+      if (match.match_start_time && match.match_format !== 'test') {
+        const startTime = new Date(match.match_start_time);
+        const formatDurations: Record<string, number> = {
+          't20': 3.5 * 60,
+          't10': 2 * 60,
+          'odi': 8 * 60,
+          'other': 3 * 60,
+        };
+        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
+        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        
+        if (expectedEnd < now) return true;
+      }
+      
+      return false;
+    };
+
+    const getEffectiveStatusForCount = (match: typeof matches[0]): string => {
+      if (match.status === 'completed' || match.status === 'abandoned') {
+        return match.status;
+      }
+      
+      if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompletedForCount(match)) {
+        return 'completed';
+      }
+      
+      return match.status;
+    };
     
     let all = 0, upcoming = 0, live = 0, completed = 0;
     
@@ -188,8 +272,10 @@ const MatchList = () => {
       // Filter out inactive matches
       if (match.is_active === false) return;
 
+      const effectiveStatus = getEffectiveStatusForCount(match);
+
       // Skip completed/abandoned matches older than 2 days
-      if (match.status === 'completed' || match.status === 'abandoned') {
+      if (effectiveStatus === 'completed' || effectiveStatus === 'abandoned') {
         try {
           const dateMatch = match.match_date.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
           if (dateMatch) {
@@ -207,12 +293,55 @@ const MatchList = () => {
       }
       
       all++;
-      if (match.status === 'upcoming' || match.status === 'postponed') upcoming++;
-      else if (match.status === 'live') live++;
-      else if (match.status === 'completed' || match.status === 'abandoned') completed++;
+      if (effectiveStatus === 'upcoming' || effectiveStatus === 'postponed') upcoming++;
+      else if (effectiveStatus === 'live') live++;
+      else if (effectiveStatus === 'completed' || effectiveStatus === 'abandoned') completed++;
     });
     
     return { all, upcoming, live, completed };
+  }, [matches]);
+
+  // Create a map to store effective status for each match
+  const matchEffectiveStatuses = useMemo(() => {
+    if (!matches) return new Map<string, string>();
+    
+    const now = new Date();
+    const statusMap = new Map<string, string>();
+    
+    const shouldBeCompletedCheck = (match: typeof matches[0]): boolean => {
+      if (match.match_end_time) {
+        const endTime = new Date(match.match_end_time);
+        if (endTime < now) return true;
+      }
+      
+      if (match.match_start_time && match.match_format !== 'test') {
+        const startTime = new Date(match.match_start_time);
+        const formatDurations: Record<string, number> = {
+          't20': 3.5 * 60,
+          't10': 2 * 60,
+          'odi': 8 * 60,
+          'other': 3 * 60,
+        };
+        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
+        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        
+        if (expectedEnd < now) return true;
+      }
+      
+      return false;
+    };
+    
+    matches.forEach((match) => {
+      let effectiveStatus = match.status;
+      
+      if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompletedCheck(match)) {
+        effectiveStatus = 'completed';
+      }
+      
+      statusMap.set(match.id, effectiveStatus);
+    });
+    
+    return statusMap;
   }, [matches]);
 
   if (isLoading) {
@@ -284,7 +413,12 @@ const MatchList = () => {
         {filteredMatches.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredMatches.map((match, index) => (
-              <MatchCard key={match.id} match={match} index={index} />
+              <MatchCard 
+                key={match.id} 
+                match={match} 
+                index={index} 
+                effectiveStatus={matchEffectiveStatuses.get(match.id)}
+              />
             ))}
           </div>
         ) : (
