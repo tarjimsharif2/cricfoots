@@ -125,62 +125,103 @@ Deno.serve(async (req) => {
 
     // We need a cricbuzz match ID
     if (!actualMatchId) {
-      // Try to find match from live matches API
-      console.log(`[sync-playing-xi] No cricbuzz match ID, searching live matches for: ${teamAName} vs ${teamBName}`);
+      console.log(`[sync-playing-xi] No cricbuzz match ID, searching for: ${teamAName} vs ${teamBName}`);
       
-      const liveMatchesUrl = 'https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live';
-      const response = await fetchWithRetry(liveMatchesUrl, {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com',
-          'x-rapidapi-key': rapidApiKey,
-        },
-      });
+      // Try multiple endpoints to find the match
+      const endpoints = [
+        'https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live',
+        'https://cricbuzz-cricket.p.rapidapi.com/matches/v1/recent',
+        'https://cricbuzz-cricket.p.rapidapi.com/schedule/v1/all'
+      ];
+      
+      for (const endpoint of endpoints) {
+        if (actualMatchId) break;
+        
+        try {
+          console.log(`[sync-playing-xi] Searching in: ${endpoint}`);
+          
+          const response = await fetchWithRetry(endpoint, {
+            method: 'GET',
+            headers: {
+              'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com',
+              'x-rapidapi-key': rapidApiKey,
+            },
+          });
 
-      if (!response.ok) {
-        console.error(`[sync-playing-xi] Live matches API error: ${response.status}`);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to fetch live matches' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+          if (!response.ok) {
+            console.log(`[sync-playing-xi] Endpoint ${endpoint} error: ${response.status}`);
+            continue;
+          }
 
-      const liveData = await response.json();
-      console.log(`[sync-playing-xi] Live matches response received`);
-      
-      // Find matching match
-      const typeMatches = liveData.typeMatches || [];
-      
-      for (const typeMatch of typeMatches) {
-        const seriesMatches = typeMatch.seriesMatches || [];
-        for (const series of seriesMatches) {
-          const matches = series.seriesAdWrapper?.matches || [];
-          for (const match of matches) {
-            const matchInfo = match.matchInfo;
-            if (!matchInfo) continue;
+          const data = await response.json();
+          
+          // Handle schedule endpoint format
+          if (endpoint.includes('/schedule/')) {
+            const matchScheduleMap = data.matchScheduleMap || [];
+            for (const scheduleItem of matchScheduleMap) {
+              if (actualMatchId) break;
+              const scheduleList = scheduleItem.scheduleAdWrapper?.matchScheduleList || [];
+              for (const scheduleMatch of scheduleList) {
+                const matchInfo = scheduleMatch.matchInfo || [];
+                for (const match of matchInfo) {
+                  const team1Name = match.team1?.teamName || match.team1?.teamSName || '';
+                  const team2Name = match.team2?.teamName || match.team2?.teamSName || '';
+                  
+                  console.log(`[sync-playing-xi] Schedule match: ${team1Name} vs ${team2Name}`);
+                  
+                  const team1Matches = teamsMatch(teamAName, teamAShortName, team1Name) || teamsMatch(teamBName, teamBShortName, team1Name);
+                  const team2Matches = teamsMatch(teamAName, teamAShortName, team2Name) || teamsMatch(teamBName, teamBShortName, team2Name);
+                  
+                  if (team1Matches && team2Matches) {
+                    actualMatchId = match.matchId?.toString();
+                    console.log(`[sync-playing-xi] Found match in schedule: ${actualMatchId} - ${team1Name} vs ${team2Name}`);
+                    break;
+                  }
+                }
+                if (actualMatchId) break;
+              }
+            }
+          } else {
+            // Handle live/recent matches format
+            const typeMatches = data.typeMatches || [];
             
-            const team1Name = matchInfo.team1?.teamName || matchInfo.team1?.teamSName || '';
-            const team2Name = matchInfo.team2?.teamName || matchInfo.team2?.teamSName || '';
-            
-            const team1Matches = teamsMatch(teamAName, teamAShortName, team1Name) || teamsMatch(teamBName, teamBShortName, team1Name);
-            const team2Matches = teamsMatch(teamAName, teamAShortName, team2Name) || teamsMatch(teamBName, teamBShortName, team2Name);
-            
-            if (team1Matches && team2Matches) {
-              actualMatchId = matchInfo.matchId?.toString();
-              console.log(`[sync-playing-xi] Found match: ${actualMatchId} - ${team1Name} vs ${team2Name}`);
-              break;
+            for (const typeMatch of typeMatches) {
+              if (actualMatchId) break;
+              const seriesMatches = typeMatch.seriesMatches || [];
+              for (const series of seriesMatches) {
+                if (actualMatchId) break;
+                const matches = series.seriesAdWrapper?.matches || [];
+                for (const match of matches) {
+                  const matchInfo = match.matchInfo;
+                  if (!matchInfo) continue;
+                  
+                  const team1Name = matchInfo.team1?.teamName || matchInfo.team1?.teamSName || '';
+                  const team2Name = matchInfo.team2?.teamName || matchInfo.team2?.teamSName || '';
+                  
+                  console.log(`[sync-playing-xi] Match: ${team1Name} vs ${team2Name}`);
+                  
+                  const team1Matches = teamsMatch(teamAName, teamAShortName, team1Name) || teamsMatch(teamBName, teamBShortName, team1Name);
+                  const team2Matches = teamsMatch(teamAName, teamAShortName, team2Name) || teamsMatch(teamBName, teamBShortName, team2Name);
+                  
+                  if (team1Matches && team2Matches) {
+                    actualMatchId = matchInfo.matchId?.toString();
+                    console.log(`[sync-playing-xi] Found match: ${actualMatchId} - ${team1Name} vs ${team2Name}`);
+                    break;
+                  }
+                }
+              }
             }
           }
-          if (actualMatchId) break;
+        } catch (err) {
+          console.error(`[sync-playing-xi] Error fetching ${endpoint}:`, err);
         }
-        if (actualMatchId) break;
       }
 
       if (!actualMatchId) {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Match not found in live matches. Please set Cricbuzz Match ID manually.`,
+            error: `Match not found in schedule. Please set Cricbuzz Match ID manually or ensure team names match.`,
             playersAdded: 0
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
