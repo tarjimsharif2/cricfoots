@@ -69,33 +69,22 @@ const MatchList = () => {
 
     // Helper function to check if a match should be treated as completed (frontend fallback)
     const shouldBeCompleted = (match: typeof matches[0]): boolean => {
-      // If match has scores, it means it's currently being played - DON'T mark as completed
-      // Only apply fallback if there's no score data (stale cache scenario)
-      if (match.score_a || match.score_b) {
-        return false;
-      }
-      
-      // If match_end_time exists and is valid (after start time), check if passed
-      if (match.match_end_time && match.match_start_time) {
+      // If match_end_time exists and has passed, treat as completed
+      if (match.match_end_time) {
         const endTime = new Date(match.match_end_time);
-        const startTime = new Date(match.match_start_time);
-        
-        // Only use end_time if it's after start_time (validate data)
-        if (endTime > startTime && endTime < now) {
-          return true;
-        }
+        if (endTime < now) return true;
       }
       
       // If match_start_time exists, calculate expected end based on format
       if (match.match_start_time && match.match_format !== 'test') {
         const startTime = new Date(match.match_start_time);
         const formatDurations: Record<string, number> = {
-          't20': 4 * 60,   // 4 hours in minutes (buffer for delays)
-          't10': 2.5 * 60, // 2.5 hours
-          'odi': 9 * 60,   // 9 hours (buffer for breaks)
-          'other': 4 * 60, // 4 hours default
+          't20': 3.5 * 60, // 3.5 hours in minutes
+          't10': 2 * 60,   // 2 hours
+          'odi': 8 * 60,   // 8 hours
+          'other': 3 * 60, // 3 hours default
         };
-        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 240;
+        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
         const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
         
         if (expectedEnd < now) return true;
@@ -111,13 +100,7 @@ const MatchList = () => {
         return match.status;
       }
       
-      // If match is live and has scores, keep it as live
-      if (match.status === 'live' && (match.score_a || match.score_b)) {
-        return 'live';
-      }
-      
       // Frontend fallback: If match should be completed but status is still live/upcoming
-      // This only applies when there's no score data (stale cache)
       if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompleted(match)) {
         return 'completed';
       }
@@ -249,30 +232,20 @@ const MatchList = () => {
     
     // Helper function to check if a match should be treated as completed (same as above)
     const shouldBeCompletedForCount = (match: typeof matches[0]): boolean => {
-      // If match has scores, it means it's currently being played - DON'T mark as completed
-      if (match.score_a || match.score_b) {
-        return false;
-      }
-      
-      // If match_end_time exists and is valid (after start time), check if passed
-      if (match.match_end_time && match.match_start_time) {
+      if (match.match_end_time) {
         const endTime = new Date(match.match_end_time);
-        const startTime = new Date(match.match_start_time);
-        
-        if (endTime > startTime && endTime < now) {
-          return true;
-        }
+        if (endTime < now) return true;
       }
       
       if (match.match_start_time && match.match_format !== 'test') {
         const startTime = new Date(match.match_start_time);
         const formatDurations: Record<string, number> = {
-          't20': 4 * 60,
-          't10': 2.5 * 60,
-          'odi': 9 * 60,
-          'other': 4 * 60,
+          't20': 3.5 * 60,
+          't10': 2 * 60,
+          'odi': 8 * 60,
+          'other': 3 * 60,
         };
-        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 240;
+        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
         const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
         
         if (expectedEnd < now) return true;
@@ -284,11 +257,6 @@ const MatchList = () => {
     const getEffectiveStatusForCount = (match: typeof matches[0]): string => {
       if (match.status === 'completed' || match.status === 'abandoned') {
         return match.status;
-      }
-      
-      // If match is live and has scores, keep it as live
-      if (match.status === 'live' && (match.score_a || match.score_b)) {
-        return 'live';
       }
       
       if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompletedForCount(match)) {
@@ -341,30 +309,20 @@ const MatchList = () => {
     const statusMap = new Map<string, string>();
     
     const shouldBeCompletedCheck = (match: typeof matches[0]): boolean => {
-      // If match has scores, it means it's currently being played - DON'T mark as completed
-      if (match.score_a || match.score_b) {
-        return false;
-      }
-      
-      // If match_end_time exists and is valid (after start time), check if passed
-      if (match.match_end_time && match.match_start_time) {
+      if (match.match_end_time) {
         const endTime = new Date(match.match_end_time);
-        const startTime = new Date(match.match_start_time);
-        
-        if (endTime > startTime && endTime < now) {
-          return true;
-        }
+        if (endTime < now) return true;
       }
       
       if (match.match_start_time && match.match_format !== 'test') {
         const startTime = new Date(match.match_start_time);
         const formatDurations: Record<string, number> = {
-          't20': 4 * 60,
-          't10': 2.5 * 60,
-          'odi': 9 * 60,
-          'other': 4 * 60,
+          't20': 3.5 * 60,
+          't10': 2 * 60,
+          'odi': 8 * 60,
+          'other': 3 * 60,
         };
-        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 240;
+        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
         const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
         
         if (expectedEnd < now) return true;
@@ -376,10 +334,7 @@ const MatchList = () => {
     matches.forEach((match) => {
       let effectiveStatus = match.status;
       
-      // If match is live and has scores, keep it as live
-      if (match.status === 'live' && (match.score_a || match.score_b)) {
-        effectiveStatus = 'live';
-      } else if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompletedCheck(match)) {
+      if ((match.status === 'live' || match.status === 'upcoming') && shouldBeCompletedCheck(match)) {
         effectiveStatus = 'completed';
       }
       
