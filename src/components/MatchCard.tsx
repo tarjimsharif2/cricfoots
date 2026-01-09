@@ -10,6 +10,7 @@ import FlipClock from "@/components/FlipClock";
 interface MatchCardProps {
   match: Match;
   index?: number;
+  effectiveStatus?: string; // Frontend-calculated status for display (handles stale data)
 }
 
 // Cricket format badges with colors
@@ -102,8 +103,10 @@ const getDateLabel = (matchStartTime: string | null, matchDate: string): { label
   return { label: matchDate, isTodayOrTomorrow: false };
 };
 
-const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
+const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
   const navigate = useNavigate();
+  // Use effectiveStatus if provided, otherwise fall back to match.status
+  const displayStatus = effectiveStatus || match.status;
   const [countdown, setCountdown] = useState<string | null>(null);
   const [localTime, setLocalTime] = useState<string>("");
   const [timezone, setTimezone] = useState<string>("");
@@ -145,7 +148,7 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
         const now = new Date();
         const diff = matchDate.getTime() - now.getTime();
         
-        if (diff > 0 && diff <= 48 * 60 * 60 * 1000 && match.status === 'upcoming') {
+      if (diff > 0 && diff <= 48 * 60 * 60 * 1000 && displayStatus === 'upcoming') {
           const hours = Math.floor(diff / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
           const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -162,7 +165,7 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
       setLocalTime(match.match_time);
       setCountdown(null);
     }
-  }, [match.match_start_time, match.match_time, match.status]);
+  }, [match.match_start_time, match.match_time, displayStatus]);
 
   const getStatusVariant = (status: string, isStumps?: boolean) => {
     if (isStumps) return 'secondary';
@@ -360,7 +363,7 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
                   </span>
                   <FlipClock time={countdown} />
                 </div>
-              ) : match.status === 'live' && match.match_minute != null && (sportName.toLowerCase() === 'football' || sportName.toLowerCase() === 'soccer') ? (
+              ) : displayStatus === 'live' && match.match_minute != null && (sportName.toLowerCase() === 'football' || sportName.toLowerCase() === 'soccer') ? (
                 <div className="flex flex-col items-center">
                   <div className="w-11 h-11 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/30 relative">
                     <span className="font-display text-base text-red-500 font-bold">{match.match_minute}'</span>
@@ -418,14 +421,14 @@ const MatchCard = ({ match, index = 0 }: MatchCardProps) => {
               <span>• {localTime || match.match_time}</span>
               <span className="text-primary font-medium">({timezone})</span>
             </div>
-            <Badge variant={getStatusVariant(match.status, match.is_stumps)} className="px-4 py-1.5 text-sm">
-              {match.status === 'live' && !match.is_stumps && (
+            <Badge variant={getStatusVariant(displayStatus, match.is_stumps)} className="px-4 py-1.5 text-sm">
+              {displayStatus === 'live' && !match.is_stumps && (
                 <span className="w-2 h-2 bg-current rounded-full mr-1.5 animate-pulse" />
               )}
               {match.is_stumps && (
                 <span className="w-2 h-2 bg-slate-400 rounded-full mr-1.5" />
               )}
-              {getStatusText(match.status, match.is_stumps)}
+              {getStatusText(displayStatus, match.is_stumps)}
             </Badge>
           </div>
           

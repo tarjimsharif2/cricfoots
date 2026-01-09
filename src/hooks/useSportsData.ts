@@ -380,8 +380,8 @@ export const useMatches = () => {
     },
     staleTime: 0, // Data is immediately stale - allows invalidation to trigger refetch
     gcTime: 0, // Don't cache old data at all
-    refetchInterval: false, // NO auto polling - only realtime
-    refetchOnWindowFocus: false, // Don't refetch on focus - use realtime
+    refetchInterval: 30000, // Backup polling every 30 seconds in case realtime misses
+    refetchOnWindowFocus: true, // Refetch fresh data on window focus
     refetchOnMount: 'always' as const, // Always fetch fresh data on mount
     refetchOnReconnect: 'always' as const, // Always refetch when network reconnects
   });
