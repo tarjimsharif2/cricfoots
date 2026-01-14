@@ -405,6 +405,21 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
             </div>
           )}
 
+          {/* Match Result for Completed Matches */}
+          {displayStatus === 'completed' && match.match_result && (
+            <div className="mt-2 pt-2 border-t border-border/20">
+              <div className="text-center">
+                <span className="text-sm font-semibold text-primary">
+                  {match.match_result === 'team_a_won' && `${teamA.name} Won`}
+                  {match.match_result === 'team_b_won' && `${teamB.name} Won`}
+                  {match.match_result === 'tied' && 'Match Tied'}
+                  {match.match_result === 'draw' && 'Match Drawn'}
+                  {match.match_result === 'no_result' && 'No Result'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Footer: Venue, Time & Status */}
           <div className="mt-3 pt-2 border-t border-border/30 flex flex-col items-center gap-1.5">
             {match.venue && (

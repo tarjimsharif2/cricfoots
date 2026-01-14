@@ -293,6 +293,59 @@ Deno.serve(async (req) => {
         last_api_sync: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+
+      // Extract match result (winner) from API when match is finished
+      if (matchingEvent.event_status === 'Finished' && matchingEvent.event_result) {
+        const resultText = matchingEvent.event_result;
+        console.log(`[api-cricket] Match finished, result: ${resultText}`);
+        
+        // Determine winner from result text
+        // Patterns: "Team A won by X runs/wickets", "Match Tied", "Match Drawn", "No Result"
+        if (resultText.toLowerCase().includes('tied') || resultText.toLowerCase().includes('tie')) {
+          updateData.match_result = 'tied';
+        } else if (resultText.toLowerCase().includes('draw') || resultText.toLowerCase().includes('drawn')) {
+          updateData.match_result = 'draw';
+        } else if (resultText.toLowerCase().includes('no result') || resultText.toLowerCase().includes('abandoned')) {
+          updateData.match_result = 'no_result';
+        } else {
+          // Try to match winner team from result text
+          const winnerMatch = resultText.match(/^(.+?)\s+won\s+by/i);
+          if (winnerMatch) {
+            const winnerName = winnerMatch[1].trim();
+            const winnerNormalized = normalizeTeamName(winnerName);
+            
+            // Check which team won
+            const teamAMatches = teamANormalized.includes(winnerNormalized) || 
+                               winnerNormalized.includes(teamANormalized) ||
+                               normalizeTeamName(teamAName).split('').filter((c, i) => winnerNormalized.includes(c)).length > teamANormalized.length * 0.5;
+            const teamBMatches = teamBNormalized.includes(winnerNormalized) || 
+                               winnerNormalized.includes(teamBNormalized) ||
+                               normalizeTeamName(teamBName).split('').filter((c, i) => winnerNormalized.includes(c)).length > teamBNormalized.length * 0.5;
+            
+            if (teamAMatches && !teamBMatches) {
+              updateData.match_result = 'team_a_won';
+              console.log(`[api-cricket] Winner: Team A (${teamAName})`);
+            } else if (teamBMatches && !teamAMatches) {
+              updateData.match_result = 'team_b_won';
+              console.log(`[api-cricket] Winner: Team B (${teamBName})`);
+            } else {
+              // Fallback: try more flexible matching
+              const apiHomeNorm = normalizeTeamName(apiHomeTeam);
+              const apiAwayNorm = normalizeTeamName(apiAwayTeam);
+              
+              if (apiHomeNorm.includes(winnerNormalized) || winnerNormalized.includes(apiHomeNorm)) {
+                // API home team won
+                updateData.match_result = apiTeamForA === 'home' ? 'team_a_won' : 'team_b_won';
+                console.log(`[api-cricket] Winner: API home team -> ${apiTeamForA === 'home' ? 'Team A' : 'Team B'}`);
+              } else if (apiAwayNorm.includes(winnerNormalized) || winnerNormalized.includes(apiAwayNorm)) {
+                // API away team won
+                updateData.match_result = apiTeamForA === 'away' ? 'team_a_won' : 'team_b_won';
+                console.log(`[api-cricket] Winner: API away team -> ${apiTeamForA === 'away' ? 'Team A' : 'Team B'}`);
+              }
+            }
+          }
+        }
+      }
       
       const { error: updateError } = await supabase
         .from('matches')
