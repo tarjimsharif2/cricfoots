@@ -90,6 +90,20 @@ const TournamentPage = () => {
     fetchTournament();
   }, [slug]);
 
+  // Get unique participating teams from matches - must be before early returns (React hooks rules)
+  const participatingTeams = useMemo(() => {
+    const teamMap = new Map<string, { id: string; name: string; short_name: string; logo_url: string | null }>();
+    matches.forEach(match => {
+      if (match.team_a && !teamMap.has(match.team_a.id)) {
+        teamMap.set(match.team_a.id, match.team_a);
+      }
+      if (match.team_b && !teamMap.has(match.team_b.id)) {
+        teamMap.set(match.team_b.id, match.team_b);
+      }
+    });
+    return Array.from(teamMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [matches]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -119,20 +133,6 @@ const TournamentPage = () => {
   const completedMatches = matches.filter(m => m.status === 'completed');
   // STUMPS matches are included in live matches
   const stumpsMatches = liveMatches.filter(m => m.is_stumps);
-
-  // Get unique participating teams from matches
-  const participatingTeams = useMemo(() => {
-    const teamMap = new Map<string, { id: string; name: string; short_name: string; logo_url: string | null }>();
-    matches.forEach(match => {
-      if (match.team_a && !teamMap.has(match.team_a.id)) {
-        teamMap.set(match.team_a.id, match.team_a);
-      }
-      if (match.team_b && !teamMap.has(match.team_b.id)) {
-        teamMap.set(match.team_b.id, match.team_b);
-      }
-    });
-    return Array.from(teamMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [matches]);
 
   // Sort all matches by status: Live -> Upcoming -> Completed, then by start time
   const sortedAllMatches = [...matches].sort((a, b) => {
