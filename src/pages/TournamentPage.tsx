@@ -219,11 +219,29 @@ const TournamentPage = () => {
                       </p>
                     )}
                   </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-primary">
-                      {tournament.total_matches ?? matches.length}
+                  <div className="flex gap-6 flex-wrap justify-center">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-primary">
+                        {tournament.total_matches ?? matches.length}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Total Matches</div>
                     </div>
-                    <div className="text-sm text-muted-foreground">Total Matches</div>
+                    {(tournament.total_teams || participatingTeams.length > 0) && (
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-primary">
+                          {tournament.total_teams ?? participatingTeams.length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Total Teams</div>
+                      </div>
+                    )}
+                    {tournament.total_venues && (
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-primary">
+                          {tournament.total_venues}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Venues</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
