@@ -34,13 +34,15 @@ const BannerSlider = () => {
 
   const handleClick = (banner: Banner) => {
     if (banner.banner_type === 'match' && banner.match_id && banner.match) {
-      // Navigate to match page using slug
-      const matchSlug = banner.match.slug || banner.match.id;
-      navigate(`/match/${matchSlug}`);
+      // Only navigate if match has a slug
+      if (banner.match.slug) {
+        navigate(`/match/${banner.match.slug}`);
+      }
     } else if (banner.banner_type === 'tournament' && banner.tournament_id && banner.tournament) {
-      // Navigate to tournament page using slug
-      const tournamentSlug = banner.tournament.slug || banner.tournament.id;
-      navigate(`/tournament/${tournamentSlug}`);
+      // Only navigate if tournament has a slug
+      if (banner.tournament.slug) {
+        navigate(`/tournament/${banner.tournament.slug}`);
+      }
     } else if (banner.link_url) {
       window.open(banner.link_url, '_blank', 'noopener,noreferrer');
     }
