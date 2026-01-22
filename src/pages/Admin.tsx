@@ -397,6 +397,56 @@ const Admin = () => {
     return null;
   }
 
+  // Helper function to get effective match status (frontend fallback for stale data)
+  const getEffectiveMatchStatus = (match: Match): string => {
+    // If DB says completed/abandoned, trust it
+    if (match.status === 'completed' || match.status === 'abandoned') {
+      return match.status;
+    }
+    
+    // If manual override is enabled, trust the current status
+    if (match.manual_status_override) {
+      return match.status;
+    }
+    
+    const now = new Date();
+    
+    // Check if match should be completed based on end time
+    if (match.match_end_time) {
+      const endTime = new Date(match.match_end_time);
+      if (endTime < now) return 'completed';
+    }
+    
+    // Check based on duration
+    if (match.match_start_time && match.match_format !== 'test') {
+      const startTime = new Date(match.match_start_time);
+      
+      // Use explicit duration if set
+      if (match.match_duration_minutes) {
+        const expectedEnd = new Date(startTime.getTime() + match.match_duration_minutes * 60 * 1000);
+        if (expectedEnd < now) return 'completed';
+      }
+      
+      // Use default duration based on sport
+      const sportName = match.sport?.name?.toLowerCase() || '';
+      if (sportName === 'football' || sportName === 'soccer') {
+        const footballEnd = new Date(startTime.getTime() + 120 * 60 * 1000); // 120 mins
+        if (footballEnd < now) return 'completed';
+      } else if (sportName === 'cricket') {
+        const formatDurations: Record<string, number> = {
+          't20': 3.5 * 60,
+          't10': 2 * 60,
+          'odi': 8 * 60,
+          'other': 3 * 60,
+        };
+        const durationMinutes = formatDurations[match.match_format || 'other'] || 180;
+        const cricketEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        if (cricketEnd < now) return 'completed';
+      }
+    }
+    
+    return match.status;
+  };
 
   const handleClearCache = async () => {
     try {
@@ -2097,9 +2147,14 @@ const Admin = () => {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Badge variant={match.status === 'live' ? 'live' : match.status === 'completed' ? 'completed' : 'upcoming'}>
-                                    {match.status}
-                                  </Badge>
+                                  {(() => {
+                                    const effectiveStatus = getEffectiveMatchStatus(match);
+                                    return (
+                                      <Badge variant={effectiveStatus === 'live' ? 'live' : effectiveStatus === 'completed' ? 'completed' : 'upcoming'}>
+                                        {effectiveStatus}
+                                      </Badge>
+                                    );
+                                  })()}
                                   {match.sport?.name?.toLowerCase() === 'cricket' && (
                                     <Button 
                                       variant="outline" 
@@ -2293,7 +2348,12 @@ const Admin = () => {
                                   {match.match_date} • {match.match_time}
                                 </p>
                               </div>
-                              <Badge variant={match.status} className="text-xs flex-shrink-0">{match.status}</Badge>
+                              {(() => {
+                                const effStatus = getEffectiveMatchStatus(match);
+                                return (
+                                  <Badge variant={effStatus === 'live' ? 'live' : effStatus === 'completed' ? 'completed' : 'upcoming'} className="text-xs flex-shrink-0">{effStatus}</Badge>
+                                );
+                              })()}
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                               <Button 
