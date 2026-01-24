@@ -73,8 +73,13 @@ Deno.serve(async (req) => {
 
     if (createError) {
       console.error('Error creating user:', createError);
+      // Handle specific error codes with user-friendly messages
+      let errorMessage = createError.message;
+      if (createError.message?.includes('already been registered') || (createError as any).code === 'email_exists') {
+        errorMessage = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট আছে';
+      }
       return new Response(
-        JSON.stringify({ success: false, error: createError.message }),
+        JSON.stringify({ success: false, error: errorMessage }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
