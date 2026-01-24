@@ -50,7 +50,7 @@ import { useStreamingServerCounts } from "@/hooks/useStreamingServerCounts";
 import SitemapManager from "@/components/SitemapManager";
 import SponsorNoticeManager from "@/components/SponsorNoticeManager";
 import UserRolesManager from "@/components/UserRolesManager";
-
+import { useVisibleAdminTabs, useHasPermission } from "@/hooks/usePermissions";
 
 const Admin = () => {
   const { user, loading, signOut } = useAuth();
@@ -59,6 +59,22 @@ const Admin = () => {
 
   // Check if user is admin
   const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin(user?.id);
+  
+  // Permission-based tab visibility
+  const visibleTabs = useVisibleAdminTabs();
+  const canManageMatches = useHasPermission('manage_matches');
+  const canManageTeams = useHasPermission('manage_teams');
+  const canManageTournaments = useHasPermission('manage_tournaments');
+  const canManageBanners = useHasPermission('manage_banners');
+  const canManageStreaming = useHasPermission('manage_streaming');
+  const canManageSettings = useHasPermission('manage_settings');
+  const canManageUsers = useHasPermission('manage_users');
+  const canManagePages = useHasPermission('manage_pages');
+  const canManageAds = useHasPermission('manage_ads');
+  const canManageApiKeys = useHasPermission('manage_api_keys');
+  const canManageSeo = useHasPermission('manage_seo');
+  const canManageSponsor = useHasPermission('manage_sponsor_notices');
+  const canManagePointsTable = useHasPermission('manage_points_table');
 
   // Data hooks - MUST be called unconditionally before any returns
   const { data: matches, isLoading: matchesLoading } = useMatches();
@@ -1331,54 +1347,84 @@ const Admin = () => {
             </div>
           </motion.div>
 
-          <Tabs defaultValue="matches" className="space-y-4 sm:space-y-6">
+          <Tabs defaultValue={visibleTabs[0] || "matches"} className="space-y-4 sm:space-y-6">
             <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <TabsList className="bg-muted/50 p-1 flex flex-nowrap sm:flex-wrap h-auto min-w-max sm:min-w-0 gap-1">
-                <TabsTrigger value="matches" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Matches
-                </TabsTrigger>
-                <TabsTrigger value="live-scores" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Live Scores
-                </TabsTrigger>
-                <TabsTrigger value="streaming" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Streaming
-                </TabsTrigger>
-                <TabsTrigger value="teams" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Teams
-                </TabsTrigger>
-                <TabsTrigger value="tournaments" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Tournaments
-                </TabsTrigger>
-                <TabsTrigger value="points-table" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Points Table
-                </TabsTrigger>
-                <TabsTrigger value="sports" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Sports
-                </TabsTrigger>
-                <TabsTrigger value="banners" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Banners
-                </TabsTrigger>
-                <TabsTrigger value="pages" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Pages
-                </TabsTrigger>
-                <TabsTrigger value="ads" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Ads
-                </TabsTrigger>
-                <TabsTrigger value="live-api" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Live Score API
-                </TabsTrigger>
-                <TabsTrigger value="sitemap" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Sitemap
-                </TabsTrigger>
-                <TabsTrigger value="sponsor" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Sponsor Notice
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Settings
-                </TabsTrigger>
-                <TabsTrigger value="users" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
-                  Users
-                </TabsTrigger>
+                {canManageMatches && (
+                  <TabsTrigger value="matches" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Matches
+                  </TabsTrigger>
+                )}
+                {canManageMatches && (
+                  <TabsTrigger value="live-scores" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Live Scores
+                  </TabsTrigger>
+                )}
+                {canManageStreaming && (
+                  <TabsTrigger value="streaming" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Streaming
+                  </TabsTrigger>
+                )}
+                {canManageTeams && (
+                  <TabsTrigger value="teams" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Teams
+                  </TabsTrigger>
+                )}
+                {canManageTournaments && (
+                  <TabsTrigger value="tournaments" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Tournaments
+                  </TabsTrigger>
+                )}
+                {canManagePointsTable && (
+                  <TabsTrigger value="points-table" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Points Table
+                  </TabsTrigger>
+                )}
+                {canManageMatches && (
+                  <TabsTrigger value="sports" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Sports
+                  </TabsTrigger>
+                )}
+                {canManageBanners && (
+                  <TabsTrigger value="banners" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Banners
+                  </TabsTrigger>
+                )}
+                {canManagePages && (
+                  <TabsTrigger value="pages" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Pages
+                  </TabsTrigger>
+                )}
+                {canManageAds && (
+                  <TabsTrigger value="ads" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Ads
+                  </TabsTrigger>
+                )}
+                {canManageApiKeys && (
+                  <TabsTrigger value="live-api" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Live Score API
+                  </TabsTrigger>
+                )}
+                {canManageSeo && (
+                  <TabsTrigger value="sitemap" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Sitemap
+                  </TabsTrigger>
+                )}
+                {canManageSponsor && (
+                  <TabsTrigger value="sponsor" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Sponsor Notice
+                  </TabsTrigger>
+                )}
+                {canManageSettings && (
+                  <TabsTrigger value="settings" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Settings
+                  </TabsTrigger>
+                )}
+                {canManageUsers && (
+                  <TabsTrigger value="users" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-3">
+                    Users
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
 
