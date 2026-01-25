@@ -69,25 +69,24 @@ const MatchList = () => {
     };
 
     // Helper function to check if a match should be treated as completed (frontend fallback)
+    // IMPORTANT: Only use EXPLICIT end time or duration - NO default durations!
+    // This matches the server-side logic in update-match-status edge function
     const shouldBeCompleted = (match: typeof matches[0]): boolean => {
+      // If manual override is enabled, trust the database status
+      if (match.manual_status_override) {
+        return false;
+      }
+      
       // If match_end_time exists and has passed, treat as completed
       if (match.match_end_time) {
         const endTime = new Date(match.match_end_time);
         if (endTime < now) return true;
       }
       
-      // If match_start_time exists, calculate expected end based on format
-      if (match.match_start_time && match.match_format !== 'test') {
+      // Only use EXPLICIT duration set by admin - NO defaults!
+      if (match.match_start_time && match.match_duration_minutes && match.match_format !== 'test') {
         const startTime = new Date(match.match_start_time);
-        const formatDurations: Record<string, number> = {
-          't20': 3.5 * 60, // 3.5 hours in minutes
-          't10': 2 * 60,   // 2 hours
-          'odi': 8 * 60,   // 8 hours
-          'other': 3 * 60, // 3 hours default
-        };
-        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
-        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
-        
+        const expectedEnd = new Date(startTime.getTime() + match.match_duration_minutes * 60 * 1000);
         if (expectedEnd < now) return true;
       }
       
@@ -248,23 +247,22 @@ const MatchList = () => {
     const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
     
     // Helper function to check if a match should be treated as completed (same as above)
+    // IMPORTANT: Only use EXPLICIT end time or duration - NO default durations!
     const shouldBeCompletedForCount = (match: typeof matches[0]): boolean => {
+      // If manual override is enabled, trust the database status
+      if (match.manual_status_override) {
+        return false;
+      }
+      
       if (match.match_end_time) {
         const endTime = new Date(match.match_end_time);
         if (endTime < now) return true;
       }
       
-      if (match.match_start_time && match.match_format !== 'test') {
+      // Only use EXPLICIT duration - NO defaults!
+      if (match.match_start_time && match.match_duration_minutes && match.match_format !== 'test') {
         const startTime = new Date(match.match_start_time);
-        const formatDurations: Record<string, number> = {
-          't20': 3.5 * 60,
-          't10': 2 * 60,
-          'odi': 8 * 60,
-          'other': 3 * 60,
-        };
-        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
-        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
-        
+        const expectedEnd = new Date(startTime.getTime() + match.match_duration_minutes * 60 * 1000);
         if (expectedEnd < now) return true;
       }
       
@@ -325,23 +323,22 @@ const MatchList = () => {
     const now = new Date();
     const statusMap = new Map<string, string>();
     
+    // IMPORTANT: Only use EXPLICIT end time or duration - NO default durations!
     const shouldBeCompletedCheck = (match: typeof matches[0]): boolean => {
+      // If manual override is enabled, trust the database status
+      if (match.manual_status_override) {
+        return false;
+      }
+      
       if (match.match_end_time) {
         const endTime = new Date(match.match_end_time);
         if (endTime < now) return true;
       }
       
-      if (match.match_start_time && match.match_format !== 'test') {
+      // Only use EXPLICIT duration - NO defaults!
+      if (match.match_start_time && match.match_duration_minutes && match.match_format !== 'test') {
         const startTime = new Date(match.match_start_time);
-        const formatDurations: Record<string, number> = {
-          't20': 3.5 * 60,
-          't10': 2 * 60,
-          'odi': 8 * 60,
-          'other': 3 * 60,
-        };
-        const durationMinutes = match.match_duration_minutes || formatDurations[match.match_format || 'other'] || 180;
-        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
-        
+        const expectedEnd = new Date(startTime.getTime() + match.match_duration_minutes * 60 * 1000);
         if (expectedEnd < now) return true;
       }
       
