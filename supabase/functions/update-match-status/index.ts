@@ -60,18 +60,12 @@ Deno.serve(async (req) => {
     // This prevents race condition where old matches are started then immediately completed
     // Applies to BOTH 'live' AND 'upcoming' matches that have passed their end time
     // 
-    // For Cricket: Only complete matches that have EXPLICIT end time or duration set!
-    // For Football: Use default 120 minutes (2 hours) if no explicit duration
+    // Only complete matches that have EXPLICIT end time or duration set!
+    // NO DEFAULT DURATIONS - status only changes based on what admin explicitly sets
     // 
     // ALL matches (including api_score_enabled) are completed based on scheduled time.
     // API sync only updates scores, NOT status. Status is managed here based on time.
     // ============================================
-    
-    // Default durations by sport (in minutes) - for football matches
-    const DEFAULT_DURATIONS: Record<string, number> = {
-      'football': 120, // 2 hours including halftime/stoppage
-      'soccer': 120,
-    };
     
     // Fetch all live/upcoming matches (except Test) for completion check
     // Also exclude matches with manual_status_override = true
@@ -79,8 +73,7 @@ Deno.serve(async (req) => {
     const { data: matchesToComplete, error: completeFetchError } = await supabase
       .from('matches')
       .select(`
-        id, match_end_time, match_start_time, match_duration_minutes, match_format, status, manual_status_override,
-        sport:sport_id(name)
+        id, match_end_time, match_start_time, match_duration_minutes, match_format, status, manual_status_override
       `)
       .in('status', ['live', 'upcoming'])
       .or('match_format.is.null,match_format.neq.test') // Don't auto-complete Test matches by time
@@ -91,11 +84,10 @@ Deno.serve(async (req) => {
     if (completeFetchError) {
       console.error('Error fetching matches for completion check:', completeFetchError);
     } else if (matchesToComplete && matchesToComplete.length > 0) {
-      // Filter to only those with end criteria (end_time or duration)
+      // Filter to only those with EXPLICIT end criteria (end_time or duration)
+      // NO DEFAULT DURATIONS - only explicit values
       const matchesWithEndCriteria = matchesToComplete.filter(m => 
-        m.match_end_time || m.match_duration_minutes || 
-        (m.sport as { name?: string })?.name?.toLowerCase()?.includes('football') ||
-        (m.sport as { name?: string })?.name?.toLowerCase()?.includes('soccer')
+        m.match_end_time || m.match_duration_minutes
       );
       
       console.log(`Total live/upcoming matches: ${matchesToComplete.length}, with end criteria: ${matchesWithEndCriteria.length}`);
@@ -106,7 +98,6 @@ Deno.serve(async (req) => {
         for (const match of matchesWithEndCriteria) {
           let shouldComplete = false;
           let completionReason = '';
-          const sportName = (match.sport as { name?: string })?.name?.toLowerCase() || '';
 
           // Priority 1: Check if match_end_time is set and passed
           if (match.match_end_time) {
@@ -116,30 +107,18 @@ Deno.serve(async (req) => {
               completionReason = `past explicit end time ${endTime.toISOString()} (was ${match.status})`;
             }
           } 
-          // Priority 2: Calculate end time from start time + duration
-          else if (match.match_start_time) {
+          // Priority 2: Calculate end time from start time + EXPLICIT duration only
+          else if (match.match_start_time && match.match_duration_minutes) {
             const startTime = new Date(match.match_start_time);
+            const durationMinutes = match.match_duration_minutes;
+            const durationMs = durationMinutes * 60 * 1000;
+            const calculatedEndTime = new Date(startTime.getTime() + durationMs);
             
-            // Use explicit duration, or sport-based default for football
-            let durationMinutes = match.match_duration_minutes;
-            if (!durationMinutes) {
-              // Check if this is a football match - use default duration
-              if (sportName.includes('football') || sportName.includes('soccer')) {
-                durationMinutes = DEFAULT_DURATIONS['football'];
-              }
-            }
+            console.log(`Match ${match.id}: start=${startTime.toISOString()}, duration=${durationMinutes}min, end=${calculatedEndTime.toISOString()}, now=${now.toISOString()}`);
             
-            // Only complete if we have a duration (explicit or default for football)
-            if (durationMinutes) {
-              const durationMs = durationMinutes * 60 * 1000;
-              const calculatedEndTime = new Date(startTime.getTime() + durationMs);
-              
-              console.log(`Match ${match.id} (${sportName}): start=${startTime.toISOString()}, duration=${durationMinutes}min, end=${calculatedEndTime.toISOString()}, now=${now.toISOString()}`);
-              
-              if (now >= calculatedEndTime) {
-                shouldComplete = true;
-                completionReason = `past duration ${durationMinutes} mins, end: ${calculatedEndTime.toISOString()} (was ${match.status})`;
-              }
+            if (now >= calculatedEndTime) {
+              shouldComplete = true;
+              completionReason = `past duration ${durationMinutes} mins, end: ${calculatedEndTime.toISOString()} (was ${match.status})`;
             }
           }
 
@@ -169,8 +148,7 @@ Deno.serve(async (req) => {
     const { data: matchesToStart, error: startFetchError } = await supabase
       .from('matches')
       .select(`
-        id, match_format, match_start_time, status, day_start_time, match_end_time, match_duration_minutes, manual_status_override,
-        sport:sport_id(name)
+        id, match_format, match_start_time, status, day_start_time, match_end_time, match_duration_minutes, manual_status_override
       `)
       .eq('status', 'upcoming')
       .neq('manual_status_override', true) // Skip manually overridden matches
@@ -187,8 +165,8 @@ Deno.serve(async (req) => {
         console.log(`Found ${validMatchesToStart.length} matches to auto-start`);
         
         for (const match of validMatchesToStart) {
-          // Additional check: Don't start if match has explicit end time/duration and it's already passed
-          // Only skip/complete if there's EXPLICIT end criteria - don't use defaults
+          // Additional check: Don't start if match has EXPLICIT end time/duration and it's already passed
+          // NO DEFAULT DURATIONS - only explicit values
           let shouldSkip = false;
           
           if (match.match_end_time) {
@@ -197,25 +175,14 @@ Deno.serve(async (req) => {
               shouldSkip = true;
               console.log(`Skipping match ${match.id} - already past explicit end time ${endTime.toISOString()}`);
             }
-          } else if (match.match_start_time) {
+          } else if (match.match_start_time && match.match_duration_minutes) {
             const startTime = new Date(match.match_start_time);
-            
-            // Use explicit duration, or sport-based default for football
-            let durationMinutes = match.match_duration_minutes;
-            if (!durationMinutes) {
-              const sportName = (match.sport as { name?: string })?.name?.toLowerCase() || '';
-              if (sportName === 'football' || sportName === 'soccer') {
-                durationMinutes = DEFAULT_DURATIONS['football'];
-              }
-            }
-            
-            if (durationMinutes) {
-              const durationMs = durationMinutes * 60 * 1000;
-              const calculatedEndTime = new Date(startTime.getTime() + durationMs);
-              if (now >= calculatedEndTime) {
-                shouldSkip = true;
-                console.log(`Skipping match ${match.id} - already past duration ${durationMinutes} mins`);
-              }
+            const durationMinutes = match.match_duration_minutes;
+            const durationMs = durationMinutes * 60 * 1000;
+            const calculatedEndTime = new Date(startTime.getTime() + durationMs);
+            if (now >= calculatedEndTime) {
+              shouldSkip = true;
+              console.log(`Skipping match ${match.id} - already past duration ${durationMinutes} mins`);
             }
           }
           
