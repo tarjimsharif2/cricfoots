@@ -51,6 +51,7 @@ import SitemapManager from "@/components/SitemapManager";
 import SponsorNoticeManager from "@/components/SponsorNoticeManager";
 import UserRolesManager from "@/components/UserRolesManager";
 import { useVisibleAdminTabs, useHasPermission, useHasAdminAccess } from "@/hooks/usePermissions";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 
 const Admin = () => {
   const { user, loading, signOut } = useAuth();
@@ -86,6 +87,9 @@ const Admin = () => {
   const { data: siteSettings, isLoading: siteSettingsLoading } = useSiteSettings();
   const { data: serverCounts } = useStreamingServerCounts();
   const updateSiteSettings = useUpdateSiteSettings();
+  
+  // Enable realtime sync for live updates in admin panel
+  useRealtimeSync();
 
   // Mutation hooks
   const createMatch = useCreateMatch();
