@@ -158,6 +158,25 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
     
     console.log(`[Match ${eventId}] Found ${homeLineup.length} home players, ${awayLineup.length} away players`);
     
+    // Helper to extract player name from various ESPN API structures
+    const getPlayerName = (playerObj: Record<string, unknown> | undefined | null): string => {
+      if (!playerObj) return '';
+      // Direct properties
+      if (playerObj.displayName) return String(playerObj.displayName);
+      if (playerObj.fullName) return String(playerObj.fullName);
+      if (playerObj.shortName) return String(playerObj.shortName);
+      if (playerObj.name) return String(playerObj.name);
+      // Nested athlete object
+      const athlete = playerObj.athlete as Record<string, unknown> | undefined;
+      if (athlete) {
+        if (athlete.displayName) return String(athlete.displayName);
+        if (athlete.fullName) return String(athlete.fullName);
+        if (athlete.shortName) return String(athlete.shortName);
+        if (athlete.name) return String(athlete.name);
+      }
+      return '';
+    };
+    
     // Parse substitutions from keyEvents or plays
     const keyEvents = data.keyEvents || data.plays || [];
     for (const event of keyEvents) {
@@ -170,37 +189,90 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
         
         // Get players from athletesInvolved (usually [playerOut, playerIn])
         const athletes = event.athletesInvolved || event.participants || [];
+        
+        // Try to extract player names
+        let playerOut = '';
+        let playerIn = '';
+        
         if (athletes.length >= 2) {
+          playerOut = getPlayerName(athletes[0]) || getPlayerName(athletes[1]);
+          playerIn = getPlayerName(athletes[1]) || getPlayerName(athletes[0]);
+          
+          // Sometimes the order is reversed, check by type
+          for (const a of athletes) {
+            const pType = a.playerType || a.type;
+            if (pType === 'playerOff' || pType === 'off') {
+              playerOut = getPlayerName(a) || playerOut;
+            } else if (pType === 'playerOn' || pType === 'on') {
+              playerIn = getPlayerName(a) || playerIn;
+            }
+          }
+        } else if (athletes.length === 1) {
+          // Single athlete entry with both players nested
+          const entry = athletes[0];
+          playerOut = getPlayerName(entry.playerOff) || getPlayerName(entry.off) || getPlayerName(entry);
+          playerIn = getPlayerName(entry.playerOn) || getPlayerName(entry.on) || '';
+        }
+        
+        // Also try text parsing as fallback
+        if ((!playerOut || !playerIn) && event.text) {
+          const subText = String(event.text);
+          // Pattern: "Substitution, Team. PlayerIn replaces PlayerOut"
+          const replaceMatch = subText.match(/([A-Za-z\s\-']+)\s+replaces\s+([A-Za-z\s\-']+)/i);
+          if (replaceMatch) {
+            playerIn = playerIn || replaceMatch[1].trim();
+            playerOut = playerOut || replaceMatch[2].trim();
+          }
+        }
+        
+        if (playerOut || playerIn) {
           subsList.push({
-            playerOut: athletes[0]?.displayName || athletes[0]?.fullName || 'Unknown',
-            playerIn: athletes[1]?.displayName || athletes[1]?.fullName || 'Unknown',
-            minute: event.clock?.displayValue || event.time?.displayValue || '',
+            playerOut: playerOut || 'Unknown',
+            playerIn: playerIn || 'Unknown',
+            minute: event.clock?.displayValue || event.time?.displayValue || event.period?.displayValue || '',
           });
         }
       }
     }
     
-    // Also check commentary/plays for substitutions
-    const plays = data.commentary || [];
-    for (const play of plays) {
-      if (play.text?.toLowerCase().includes('substitution') || play.type?.id === '18') {
-        const teamId = play.team?.id;
+    // Also check details array for substitutions (like goals)
+    const details = data.details || competition?.details || [];
+    for (const detail of details) {
+      if (detail.type?.text === 'Substitution' || detail.type?.id === '18') {
+        const teamId = detail.team?.id;
         const isHome = teamId === homeTeamId;
         const subsList = isHome ? homeSubs : awaySubs;
         
-        const athletes = play.athletesInvolved || [];
-        if (athletes.length >= 2) {
-          // Check if this sub already exists
-          const exists = subsList.some(s => 
-            s.playerIn === (athletes[1]?.displayName || athletes[1]?.fullName)
-          );
-          if (!exists) {
-            subsList.push({
-              playerOut: athletes[0]?.displayName || athletes[0]?.fullName || 'Unknown',
-              playerIn: athletes[1]?.displayName || athletes[1]?.fullName || 'Unknown',
-              minute: play.clock?.displayValue || play.time?.displayValue || '',
-            });
+        const athletes = detail.athletesInvolved || [];
+        let playerOut = '';
+        let playerIn = '';
+        
+        for (const a of athletes) {
+          const name = getPlayerName(a);
+          const pType = a.playerType || a.type;
+          if (pType === 'playerOff' || pType === 'off') {
+            playerOut = name;
+          } else if (pType === 'playerOn' || pType === 'on') {
+            playerIn = name;
           }
+        }
+        
+        // Fallback to array order
+        if (!playerOut && !playerIn && athletes.length >= 2) {
+          playerOut = getPlayerName(athletes[0]);
+          playerIn = getPlayerName(athletes[1]);
+        }
+        
+        const minute = detail.clock?.displayValue || detail.time?.displayValue || '';
+        
+        // Avoid duplicates
+        const exists = subsList.some(s => s.minute === minute && s.playerIn === playerIn);
+        if (!exists && (playerOut || playerIn)) {
+          subsList.push({
+            playerOut: playerOut || 'Unknown',
+            playerIn: playerIn || 'Unknown',
+            minute,
+          });
         }
       }
     }
