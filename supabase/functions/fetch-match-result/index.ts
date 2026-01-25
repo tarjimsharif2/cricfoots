@@ -350,21 +350,44 @@ serve(async (req) => {
       }
     }
 
-    // Calculate totals for NRR
-    let teamARuns = 0, teamAOvers = 0;
-    let teamBRuns = 0, teamBOvers = 0;
+    // Calculate totals for NRR and format scores
+    let teamARuns = 0, teamAOvers = 0, teamAWickets = 0;
+    let teamBRuns = 0, teamBOvers = 0, teamBWickets = 0;
+    
+    // Track individual innings scores for Test matches
+    const teamAInningsScores: string[] = [];
+    const teamBInningsScores: string[] = [];
     
     for (const innings of inningsData) {
+      // Format overs properly (e.g., 20.3 instead of 20.5 for 20 overs and 3 balls)
+      const oversStr = innings.overs ? String(innings.overs) : null;
+      const inningsScore = oversStr 
+        ? `${innings.runs}/${innings.wickets} (${oversStr} ov)`
+        : `${innings.runs}/${innings.wickets}`;
+      
       if (innings.teamId === matchData.team_a.id) {
         teamARuns += innings.runs;
         teamAOvers += innings.overs;
+        teamAWickets = innings.wickets; // Use last innings wickets for display
+        teamAInningsScores.push(inningsScore);
       } else {
         teamBRuns += innings.runs;
         teamBOvers += innings.overs;
+        teamBWickets = innings.wickets; // Use last innings wickets for display
+        teamBInningsScores.push(inningsScore);
       }
     }
+    
+    // Format final scores with proper format (runs/wickets (overs ov))
+    // For multi-innings (Test), join with " & "
+    const scoreA = teamAInningsScores.length > 1 
+      ? teamAInningsScores.join(' & ') 
+      : (teamAInningsScores[0] || null);
+    const scoreB = teamBInningsScores.length > 1 
+      ? teamBInningsScores.join(' & ') 
+      : (teamBInningsScores[0] || null);
 
-    console.log(`Scores - ${teamAShort}: ${teamARuns}/${teamAOvers}ov, ${teamBShort}: ${teamBRuns}/${teamBOvers}ov`);
+    console.log(`Scores - ${teamAShort}: ${scoreA}, ${teamBShort}: ${scoreB}`);
 
     // Delete existing innings and insert new ones
     const { error: deleteError } = await supabase.from('match_innings').delete().eq('match_id', matchId);
@@ -400,8 +423,8 @@ serve(async (req) => {
       .update({ 
         match_result: matchResult, 
         status: 'completed',
-        score_a: teamARuns > 0 ? `${teamARuns}` : null,
-        score_b: teamBRuns > 0 ? `${teamBRuns}` : null
+        score_a: scoreA,
+        score_b: scoreB
       })
       .eq('id', matchId);
 
