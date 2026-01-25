@@ -149,13 +149,18 @@ const TournamentPage = () => {
                   className="flex flex-col items-center p-3 rounded-xl bg-background/50 border border-border/30 hover:border-primary/50 transition-colors"
                 >
                   {team.logo_url ? (
-                    <img 
-                      src={team.logo_url} 
-                      alt={team.name} 
-                      className="w-12 h-12 object-contain mb-2"
-                    />
+                    <div 
+                      className="w-14 h-14 rounded-xl p-1.5 mb-2 border border-border/20"
+                      style={{ backgroundColor: (tournament as any)?.logo_background_color || 'transparent' }}
+                    >
+                      <img 
+                        src={team.logo_url} 
+                        alt={team.name} 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-2">
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-2">
                       <span className="text-lg font-bold text-primary">{team.short_name.charAt(0)}</span>
                     </div>
                   )}
@@ -244,7 +249,10 @@ const TournamentPage = () => {
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row items-center gap-6">
                   {tournament.logo_url ? (
-                    <div className="w-24 h-24 rounded-2xl bg-background/60 p-3 border border-border/30">
+                    <div 
+                      className="w-24 h-24 rounded-2xl p-3 border border-border/30"
+                      style={{ backgroundColor: (tournament as any).logo_background_color || 'rgba(var(--background), 0.6)' }}
+                    >
                       <img 
                         src={tournament.logo_url} 
                         alt={tournament.name}
