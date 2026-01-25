@@ -294,6 +294,7 @@ const Admin = () => {
   
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [syncingMatchId, setSyncingMatchId] = useState<string | null>(null);
+  const [forceSyncingMatchId, setForceSyncingMatchId] = useState<string | null>(null);
   const [slugConflict, setSlugConflict] = useState<{ matchId: string; teamA: string; teamB: string; matchDate: string } | null>(null);
   const [isCheckingSlug, setIsCheckingSlug] = useState(false);
 
@@ -883,8 +884,6 @@ const Admin = () => {
   };
 
   // Force Re-sync using sync-api-scores edge function
-  const [forceSyncingMatchId, setForceSyncingMatchId] = useState<string | null>(null);
-  
   const handleForceResync = async (match: Match) => {
     if (forceSyncingMatchId) return;
     
