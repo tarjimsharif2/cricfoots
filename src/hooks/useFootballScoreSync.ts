@@ -106,14 +106,14 @@ export function useFootballScoreSync(intervalSeconds: number = 60) {
         return results;
       }
 
-      // Filter only football matches with auto_sync enabled
+      // Filter only football matches (no auto_sync_enabled check - sync all live football matches)
       const footballMatches = (liveMatches || []).filter(m => 
-        m.sport?.name?.toLowerCase() === 'football' && 
-        m.auto_sync_enabled === true
+        m.sport?.name?.toLowerCase() === 'football' || 
+        m.sport?.name?.toLowerCase().includes('football')
       );
 
       if (footballMatches.length === 0) {
-        console.log('[Football Sync] No live football matches with auto-sync enabled');
+        console.log('[Football Sync] No live football matches found');
         return results;
       }
 
