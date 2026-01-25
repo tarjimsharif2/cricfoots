@@ -37,28 +37,48 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
 }
 
 // Normalize team name for matching - remove special chars and lowercase
+// Also normalize common variations (e.g., "Sri Lanka" -> "srilanka")
 const normalizeTeamName = (name: string): string => {
-  return (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  let normalized = (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  
+  // Normalize known variations by removing internal spaces for specific patterns
+  // This handles cases like "Sri Lanka" vs "Srilanka", "New Zealand" vs "NewZealand"
+  const spaceVariations: Record<string, string> = {
+    'sri lanka': 'srilanka',
+    'new zealand': 'newzealand',
+    'south africa': 'southafrica',
+    'west indies': 'westindies',
+    'united states': 'unitedstates',
+    'united arab emirates': 'uae',
+  };
+  
+  // Check if the normalized name matches any variation
+  if (spaceVariations[normalized]) {
+    return spaceVariations[normalized];
+  }
+  
+  return normalized;
 };
 
 // Common team name aliases for international teams
+// Keys are normalized versions (after normalizeTeamName is applied)
 const teamAliases: Record<string, string[]> = {
   'australia': ['aus', 'australian', 'aussies', 'australia men', 'australia women'],
   'england': ['eng', 'english', 'england men', 'england women', 'england lions'],
   'india': ['ind', 'indian', 'india men', 'india women', 'team india'],
   'pakistan': ['pak', 'pakistani', 'pakistan men', 'pakistan women'],
-  'south africa': ['sa', 'rsa', 'south african', 'proteas', 'south africa men'],
-  'new zealand': ['nz', 'nzl', 'kiwis', 'black caps', 'blackcaps', 'new zealand men'],
-  'west indies': ['wi', 'windies', 'caribbean', 'west indies men'],
-  'sri lanka': ['sl', 'srilanka', 'sri lankan', 'sri lanka men'],
+  'southafrica': ['sa', 'rsa', 'south african', 'proteas', 'south africa', 'south africa men', 'southafrica men'],
+  'newzealand': ['nz', 'nzl', 'kiwis', 'black caps', 'blackcaps', 'new zealand', 'new zealand men', 'newzealand men'],
+  'westindies': ['wi', 'windies', 'caribbean', 'west indies', 'west indies men', 'westindies men'],
+  'srilanka': ['sl', 'sri lanka', 'sri lankan', 'sri lanka men', 'srilanka men'],
   'bangladesh': ['ban', 'bd', 'bangladeshi', 'tigers', 'bangladesh men'],
   'afghanistan': ['afg', 'afghan', 'afghanistan men'],
   'zimbabwe': ['zim', 'zimbabwean', 'zimbabwe men'],
   'ireland': ['ire', 'irish', 'ireland men'],
   'scotland': ['sco', 'scottish', 'scotland men'],
   'netherlands': ['ned', 'holland', 'dutch', 'netherlands men'],
-  'uae': ['united arab emirates', 'emirates'],
-  'usa': ['united states', 'america', 'american'],
+  'uae': ['united arab emirates', 'emirates', 'unitedstates'],
+  'usa': ['united states', 'america', 'american', 'unitedstates'],
 };
 
 // Get canonical team name
