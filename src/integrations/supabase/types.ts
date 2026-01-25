@@ -1260,6 +1260,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_completed: boolean | null
+          logo_background_color: string | null
           logo_url: string | null
           name: string
           participating_teams_position: string | null
@@ -1287,6 +1288,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_completed?: boolean | null
+          logo_background_color?: string | null
           logo_url?: string | null
           name: string
           participating_teams_position?: string | null
@@ -1314,6 +1316,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_completed?: boolean | null
+          logo_background_color?: string | null
           logo_url?: string | null
           name?: string
           participating_teams_position?: string | null
