@@ -353,8 +353,9 @@ const FootballMatchDetails = ({ matchId, teamA, teamB, goalsTeamA, goalsTeamB }:
     </div>
   );
 
-  const renderPlayersList = (teamPlayers: Player[], teamName: string, teamLogo?: string | null, teamSubs?: Substitution[]) => (
-    <div className="space-y-3">
+  // Compact player row for lineup (no subs here)
+  const renderCompactPlayersList = (teamPlayers: Player[], teamName: string, teamLogo?: string | null) => (
+    <div className="space-y-2">
       <div className="flex items-center gap-2 pb-2 border-b border-border/30">
         {teamLogo ? (
           <img src={teamLogo} alt={teamName} className="w-5 h-5 object-contain" />
@@ -365,35 +366,31 @@ const FootballMatchDetails = ({ matchId, teamA, teamB, goalsTeamA, goalsTeamB }:
         <Badge variant="secondary" className="text-[10px]">{teamPlayers.length}</Badge>
       </div>
       
-      {/* Starting XI */}
       {teamPlayers.length > 0 ? (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {teamPlayers.map((player, index) => (
             <motion.div 
               key={player.id}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.03 }}
-              className="flex items-center justify-between gap-2 bg-muted/30 rounded-md px-3 py-2"
+              transition={{ delay: index * 0.02 }}
+              className="flex items-center justify-between gap-2 bg-muted/30 rounded-md px-2.5 py-1.5"
             >
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 min-w-0">
                 {player.batting_order && (
-                  <span className="text-xs font-bold bg-primary/20 text-primary px-1.5 py-0.5 rounded min-w-[24px] text-center">
+                  <span className="text-[10px] font-bold bg-primary/20 text-primary px-1.5 py-0.5 rounded min-w-[20px] text-center">
                     {player.batting_order}
                   </span>
                 )}
-                <span className="text-sm font-medium">{player.player_name}</span>
+                <span className="text-xs font-medium truncate">{player.player_name}</span>
                 {player.is_captain && (
-                  <Badge className="text-[9px] px-1.5 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30">C</Badge>
-                )}
-                {player.is_vice_captain && (
-                  <Badge className="text-[9px] px-1.5 py-0 bg-blue-500/20 text-blue-400 border-blue-500/30">VC</Badge>
+                  <Badge className="text-[8px] px-1 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30">C</Badge>
                 )}
               </div>
               {player.player_role && (
                 <Badge 
                   variant="outline" 
-                  className={`text-[10px] px-2 py-0.5 font-medium ${getPositionColor(player.player_role)}`}
+                  className={`text-[9px] px-1.5 py-0.5 font-medium shrink-0 ${getPositionColor(player.player_role)}`}
                 >
                   {player.player_role}
                 </Badge>
@@ -402,32 +399,42 @@ const FootballMatchDetails = ({ matchId, teamA, teamB, goalsTeamA, goalsTeamB }:
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground py-2">Lineup not available</p>
+        <p className="text-xs text-muted-foreground py-3 text-center">Lineup not available</p>
       )}
-
-      {/* Substitutions */}
-      {teamSubs && teamSubs.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-border/30">
-          <div className="flex items-center gap-2 mb-2">
-            <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">Substitutions</span>
-          </div>
-          <div className="space-y-1.5">
-            {teamSubs.map((sub, index) => (
-              <motion.div 
-                key={sub.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="flex items-center gap-2 bg-muted/20 rounded-md px-3 py-1.5 text-sm"
-              >
-                <span className="text-primary font-medium">{sub.minute}'</span>
-                <span className="text-red-400">↓ {sub.player_out}</span>
-                <span className="text-muted-foreground">→</span>
-                <span className="text-green-400">↑ {sub.player_in}</span>
-              </motion.div>
-            ))}
-          </div>
+    </div>
+  );
+  
+  // Compact substitution row
+  const renderCompactSubsList = (subs: Substitution[], teamName: string, teamLogo?: string | null) => (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 pb-2 border-b border-border/30">
+        {teamLogo ? (
+          <img src={teamLogo} alt={teamName} className="w-5 h-5 object-contain" />
+        ) : (
+          <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+        )}
+        <span className="text-sm font-medium">{teamName}</span>
+        <Badge variant="secondary" className="text-[10px]">{subs.length}</Badge>
+      </div>
+      
+      {subs.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-3 text-center">No substitutions</p>
+      ) : (
+        <div className="space-y-1">
+          {subs.map((sub, index) => (
+            <motion.div 
+              key={sub.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.03 }}
+              className="flex items-center gap-1.5 bg-muted/30 rounded-md px-2.5 py-1.5 text-xs"
+            >
+              <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30 shrink-0">{sub.minute}</Badge>
+              <span className="text-red-400 truncate">↓ {sub.player_out}</span>
+              <ArrowRightLeft className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-green-400 truncate">↑ {sub.player_in}</span>
+            </motion.div>
+          ))}
         </div>
       )}
     </div>
@@ -489,15 +496,15 @@ const FootballMatchDetails = ({ matchId, teamA, teamB, goalsTeamA, goalsTeamB }:
 
             {/* Lineups Tab */}
             <TabsContent value="lineups">
-              <div className="grid md:grid-cols-2 gap-6">
-                {renderPlayersList(teamAPlayers, teamA.name, teamA.logo_url, teamASubs)}
-                {renderPlayersList(teamBPlayers, teamB.name, teamB.logo_url, teamBSubs)}
+              <div className="grid md:grid-cols-2 gap-4">
+                {renderCompactPlayersList(teamAPlayers, teamA.name, teamA.logo_url)}
+                {renderCompactPlayersList(teamBPlayers, teamB.name, teamB.logo_url)}
               </div>
             </TabsContent>
 
             {/* Goals Tab */}
             <TabsContent value="goals">
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-2 gap-4">
                 {renderGoalsList(goalsTeamA, teamA.name, teamA.logo_url)}
                 {renderGoalsList(goalsTeamB, teamB.name, teamB.logo_url)}
               </div>
@@ -505,73 +512,9 @@ const FootballMatchDetails = ({ matchId, teamA, teamB, goalsTeamA, goalsTeamB }:
 
             {/* Substitutions Tab */}
             <TabsContent value="subs">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-border/30">
-                    {teamA.logo_url && <img src={teamA.logo_url} alt={teamA.name} className="w-5 h-5 object-contain" />}
-                    <span className="text-sm font-medium">{teamA.name}</span>
-                    <Badge variant="secondary" className="text-[10px]">{teamASubs.length}</Badge>
-                  </div>
-                  {teamASubs.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-2">No substitutions</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {teamASubs.map((sub, index) => (
-                        <motion.div 
-                          key={sub.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="flex items-center gap-2 bg-muted/30 rounded-md px-3 py-2 text-sm"
-                        >
-                          <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">{sub.minute}'</Badge>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-red-400 flex items-center gap-1">
-                              <span className="text-[10px]">OUT</span> {sub.player_out}
-                            </span>
-                            <ArrowRightLeft className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-green-400 flex items-center gap-1">
-                              <span className="text-[10px]">IN</span> {sub.player_in}
-                            </span>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-border/30">
-                    {teamB.logo_url && <img src={teamB.logo_url} alt={teamB.name} className="w-5 h-5 object-contain" />}
-                    <span className="text-sm font-medium">{teamB.name}</span>
-                    <Badge variant="secondary" className="text-[10px]">{teamBSubs.length}</Badge>
-                  </div>
-                  {teamBSubs.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-2">No substitutions</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {teamBSubs.map((sub, index) => (
-                        <motion.div 
-                          key={sub.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="flex items-center gap-2 bg-muted/30 rounded-md px-3 py-2 text-sm"
-                        >
-                          <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">{sub.minute}'</Badge>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-red-400 flex items-center gap-1">
-                              <span className="text-[10px]">OUT</span> {sub.player_out}
-                            </span>
-                            <ArrowRightLeft className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-green-400 flex items-center gap-1">
-                              <span className="text-[10px]">IN</span> {sub.player_in}
-                            </span>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                {renderCompactSubsList(teamASubs, teamA.name, teamA.logo_url)}
+                {renderCompactSubsList(teamBSubs, teamB.name, teamB.logo_url)}
               </div>
             </TabsContent>
           </Tabs>
