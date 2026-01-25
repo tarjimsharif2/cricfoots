@@ -249,6 +249,8 @@ Deno.serve(async (req) => {
         api_score_enabled,
         last_api_sync,
         updated_at,
+        score_a,
+        score_b,
         team_a:teams!matches_team_a_id_fkey(name, short_name),
         team_b:teams!matches_team_b_id_fkey(name, short_name)
       `)
@@ -273,14 +275,27 @@ Deno.serve(async (req) => {
 
     // Filter matches that should be synced
     const matchesToSync = matches.filter(match => {
-      // Skip matches that are completed for more than 30 minutes
+      // Helper to check if scores are incomplete (one team hasn't batted)
+      const hasIncompleteScores = () => {
+        // If match is completed but one or both scores are missing, it's incomplete
+        if (match.status === 'completed') {
+          return !match.score_a || !match.score_b;
+        }
+        return false;
+      };
+      
+      // Skip matches that are completed for more than 30 minutes (unless scores are incomplete)
       if (match.status === 'completed') {
         const updatedAt = new Date(match.updated_at || match.last_api_sync || 0);
-        if (updatedAt < thirtyMinutesAgo) {
-          console.log(`[sync-api-scores] Skipping completed match ${match.id} - completed more than 30 mins ago`);
+        if (updatedAt < thirtyMinutesAgo && !hasIncompleteScores()) {
+          console.log(`[sync-api-scores] Skipping completed match ${match.id} - completed more than 30 mins ago with full scores`);
           return false;
         }
-        // For recently completed matches, do one final sync if not synced after completion
+        // For recently completed matches OR matches with incomplete scores, force sync
+        if (hasIncompleteScores()) {
+          console.log(`[sync-api-scores] Force syncing completed match ${match.id} - has incomplete scores (score_a=${match.score_a}, score_b=${match.score_b})`);
+          return true; // Skip the last_api_sync check for incomplete data
+        }
         console.log(`[sync-api-scores] Recently completed match ${match.id} - checking for final sync`);
       }
       
