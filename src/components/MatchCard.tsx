@@ -261,7 +261,10 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
         {/* Tournament Logo - Top Right */}
         {tournament?.logo_url && (
           <div className="absolute top-3 right-3 z-10">
-            <div className="w-10 h-10 rounded-xl bg-background/60 backdrop-blur-sm p-1 border border-border/30 shadow-lg">
+            <div 
+              className="w-10 h-10 rounded-xl backdrop-blur-sm p-1 border border-border/30 shadow-lg"
+              style={{ backgroundColor: (tournament as any).logo_background_color || 'rgba(var(--background), 0.6)' }}
+            >
               <img 
                 src={tournament.logo_url} 
                 alt={tournament.name}

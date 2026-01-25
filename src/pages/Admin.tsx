@@ -204,6 +204,7 @@ const Admin = () => {
     sport: 'Cricket',
     season: '',
     logo_url: '',
+    logo_background_color: '#1a1a2e',
     slug: '',
     is_active: true,
     show_in_menu: true,
@@ -981,6 +982,7 @@ const Admin = () => {
         sport: tournamentForm.sport,
         season: tournamentForm.season,
         logo_url: tournamentForm.logo_url || null,
+        logo_background_color: tournamentForm.logo_background_color || '#1a1a2e',
         slug: tournamentForm.slug || generateSlug(tournamentForm.name),
         is_active: tournamentForm.is_active,
         show_in_menu: tournamentForm.show_in_menu,
@@ -1041,6 +1043,7 @@ const Admin = () => {
       sport: tournament.sport,
       season: tournament.season,
       logo_url: tournament.logo_url || '',
+      logo_background_color: (tournament as any).logo_background_color || '#1a1a2e',
       slug: tournament.slug || '',
       is_active: tournament.is_active ?? true,
       show_in_menu: tournament.show_in_menu ?? true,
@@ -1123,6 +1126,7 @@ const Admin = () => {
       sport: 'Cricket', 
       season: '', 
       logo_url: '', 
+      logo_background_color: '#1a1a2e',
       slug: '', 
       is_active: true, 
       show_in_menu: true, 
@@ -2723,9 +2727,26 @@ const Admin = () => {
                           <Label>URL Slug</Label>
                           <Input placeholder="e.g., bpl-2025" value={tournamentForm.slug} onChange={(e) => setTournamentForm({ ...tournamentForm, slug: e.target.value })} />
                         </div>
-                        <div className="space-y-2 md:col-span-2">
+                        <div className="space-y-2">
                           <Label>Logo URL (optional)</Label>
                           <Input placeholder="https://..." value={tournamentForm.logo_url} onChange={(e) => setTournamentForm({ ...tournamentForm, logo_url: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Logo Background</Label>
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="color" 
+                              value={tournamentForm.logo_background_color} 
+                              onChange={(e) => setTournamentForm({ ...tournamentForm, logo_background_color: e.target.value })}
+                              className="w-12 h-10 rounded-md border border-border cursor-pointer"
+                            />
+                            <Input 
+                              placeholder="#1a1a2e" 
+                              value={tournamentForm.logo_background_color} 
+                              onChange={(e) => setTournamentForm({ ...tournamentForm, logo_background_color: e.target.value })}
+                              className="flex-1"
+                            />
+                          </div>
                         </div>
                       </div>
 
