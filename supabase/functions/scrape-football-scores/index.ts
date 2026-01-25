@@ -85,7 +85,15 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
     const homeSubs: SubstitutionEvent[] = [];
     const awaySubs: SubstitutionEvent[] = [];
     
-    // Parse rosters/lineups
+    // Get home/away team IDs from header
+    const competition = data.header?.competitions?.[0];
+    const competitors = competition?.competitors || [];
+    const homeTeamData = competitors.find((c: { homeAway: string }) => c.homeAway === 'home');
+    const awayTeamData = competitors.find((c: { homeAway: string }) => c.homeAway === 'away');
+    const homeTeamId = homeTeamData?.team?.id;
+    const awayTeamId = awayTeamData?.team?.id;
+    
+    // Method 1: Parse from rosters array
     const rosters = data.rosters || [];
     for (const roster of rosters) {
       const isHome = roster.homeAway === 'home';
@@ -104,21 +112,64 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
       }
     }
     
-    // Parse substitutions from keyEvents or plays
-    const keyEvents = data.keyEvents || [];
-    for (const event of keyEvents) {
-      if (event.type?.text === 'Substitution' || event.type?.id === '18') {
-        const teamId = event.team?.id;
-        const competition = data.header?.competitions?.[0];
-        const competitors = competition?.competitors || [];
+    // Method 2: Parse from boxscore.players if rosters empty
+    if (homeLineup.length === 0 && awayLineup.length === 0) {
+      const boxscorePlayers = data.boxscore?.players || [];
+      for (const teamPlayers of boxscorePlayers) {
+        const teamId = teamPlayers.team?.id;
+        const isHome = teamId === homeTeamId;
+        const lineup = isHome ? homeLineup : awayLineup;
         
-        const homeTeam = competitors.find((c: { homeAway: string }) => c.homeAway === 'home');
-        const isHome = teamId === homeTeam?.team?.id;
+        // Look for lineup/starters in statistics
+        for (const statGroup of teamPlayers.statistics || []) {
+          if (statGroup.type === 'starters' || statGroup.name?.toLowerCase().includes('starter')) {
+            for (const player of statGroup.athletes || []) {
+              const athlete = player.athlete || player;
+              lineup.push({
+                name: athlete.displayName || athlete.fullName || 'Unknown',
+                position: athlete.position?.abbreviation || player.position?.abbreviation || '',
+                jerseyNumber: athlete.jersey,
+                isCaptain: false,
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // Method 3: Parse from gameInfo.officials/formations if available
+    if (homeLineup.length === 0 && awayLineup.length === 0) {
+      const formations = data.gameInfo?.formations || data.formations || [];
+      for (const formation of formations) {
+        const teamId = formation.team?.id;
+        const isHome = teamId === homeTeamId;
+        const lineup = isHome ? homeLineup : awayLineup;
+        
+        for (const player of formation.players || formation.lineup || []) {
+          lineup.push({
+            name: player.displayName || player.name || player.fullName || 'Unknown',
+            position: player.position?.abbreviation || player.position || '',
+            jerseyNumber: player.jersey,
+            isCaptain: player.captain || false,
+          });
+        }
+      }
+    }
+    
+    console.log(`[Match ${eventId}] Found ${homeLineup.length} home players, ${awayLineup.length} away players`);
+    
+    // Parse substitutions from keyEvents or plays
+    const keyEvents = data.keyEvents || data.plays || [];
+    for (const event of keyEvents) {
+      if (event.type?.text === 'Substitution' || event.type?.id === '18' || 
+          event.text?.toLowerCase().includes('substitution')) {
+        const teamId = event.team?.id;
+        const isHome = teamId === homeTeamId;
         
         const subsList = isHome ? homeSubs : awaySubs;
         
         // Get players from athletesInvolved (usually [playerOut, playerIn])
-        const athletes = event.athletesInvolved || [];
+        const athletes = event.athletesInvolved || event.participants || [];
         if (athletes.length >= 2) {
           subsList.push({
             playerOut: athletes[0]?.displayName || athletes[0]?.fullName || 'Unknown',
@@ -128,6 +179,33 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
         }
       }
     }
+    
+    // Also check commentary/plays for substitutions
+    const plays = data.commentary || [];
+    for (const play of plays) {
+      if (play.text?.toLowerCase().includes('substitution') || play.type?.id === '18') {
+        const teamId = play.team?.id;
+        const isHome = teamId === homeTeamId;
+        const subsList = isHome ? homeSubs : awaySubs;
+        
+        const athletes = play.athletesInvolved || [];
+        if (athletes.length >= 2) {
+          // Check if this sub already exists
+          const exists = subsList.some(s => 
+            s.playerIn === (athletes[1]?.displayName || athletes[1]?.fullName)
+          );
+          if (!exists) {
+            subsList.push({
+              playerOut: athletes[0]?.displayName || athletes[0]?.fullName || 'Unknown',
+              playerIn: athletes[1]?.displayName || athletes[1]?.fullName || 'Unknown',
+              minute: play.clock?.displayValue || play.time?.displayValue || '',
+            });
+          }
+        }
+      }
+    }
+    
+    console.log(`[Match ${eventId}] Found ${homeSubs.length} home subs, ${awaySubs.length} away subs`);
     
     return {
       homeLineup: homeLineup.length > 0 ? homeLineup : undefined,

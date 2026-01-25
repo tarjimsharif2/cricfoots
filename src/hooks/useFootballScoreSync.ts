@@ -107,7 +107,7 @@ export function useFootballScoreSync(intervalSeconds: number = 60) {
     try {
       console.log('[Football Sync] Starting sync...');
 
-      // Get all live AND completed (within last 24h) football matches from database
+      // Get all live AND completed (within last 48h) football matches from database
       const { data: liveMatches, error: matchError } = await supabase
         .from('matches')
         .select(`
@@ -134,7 +134,7 @@ export function useFootballScoreSync(intervalSeconds: number = 60) {
       }
 
       // Filter only football matches with auto_sync enabled
-      // For completed matches, only sync if completed within last 24 hours
+      // For completed matches, sync if completed within last 48 hours
       const now = new Date();
       const footballMatches = (liveMatches || []).filter(m => {
         const isFootball = m.sport?.name?.toLowerCase() === 'football' || 
@@ -143,11 +143,11 @@ export function useFootballScoreSync(intervalSeconds: number = 60) {
         
         if (!isFootball || !hasAutoSync) return false;
         
-        // For completed matches, only sync if match started within last 24 hours
+        // For completed matches, sync if match started within last 48 hours
         if (m.status === 'completed' && m.match_start_time) {
           const matchTime = new Date(m.match_start_time);
           const hoursSinceMatch = (now.getTime() - matchTime.getTime()) / (1000 * 60 * 60);
-          return hoursSinceMatch <= 24;
+          return hoursSinceMatch <= 48;
         }
         
         return true;
@@ -158,7 +158,19 @@ export function useFootballScoreSync(intervalSeconds: number = 60) {
         return results;
       }
 
-      console.log(`[Football Sync] Found ${footballMatches.length} live football matches`);
+      console.log(`[Football Sync] Found ${footballMatches.length} football matches to sync`);
+      
+      // Check which matches need lineup data
+      const matchIds = footballMatches.map(m => m.id);
+      const { data: existingLineups } = await supabase
+        .from('match_playing_xi')
+        .select('match_id')
+        .in('match_id', matchIds);
+      
+      const matchesWithLineup = new Set((existingLineups || []).map(l => l.match_id));
+      const matchesNeedingLineup = footballMatches.filter(m => !matchesWithLineup.has(m.id));
+      
+      console.log(`[Football Sync] ${matchesNeedingLineup.length} matches need lineup data`);
 
       // Fetch scores from ESPN API (all leagues) with details for lineup/subs
       const { data: apiResponse, error: apiError } = await supabase.functions.invoke(
