@@ -26,6 +26,8 @@ interface ESPNMatch {
   venue?: string | null;
   eventId?: string;
   round?: string | null;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
 }
 
 interface MatchToImport extends ESPNMatch {
@@ -221,8 +223,8 @@ export default function FootballMatchImporter({ onImportComplete }: FootballMatc
     return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
   };
 
-  // Create team if it doesn't exist
-  const getOrCreateTeam = async (teamName: string, existingTeamId: string | null): Promise<string | null> => {
+  // Create team if it doesn't exist (with optional logo URL from ESPN)
+  const getOrCreateTeam = async (teamName: string, existingTeamId: string | null, logoUrl?: string | null): Promise<string | null> => {
     // If already matched, return the existing ID
     if (existingTeamId) {
       return existingTeamId;
@@ -234,12 +236,12 @@ export default function FootballMatchImporter({ onImportComplete }: FootballMatc
       return foundId;
     }
 
-    // Create new team
+    // Create new team with logo from ESPN
     try {
       const newTeam = {
         name: teamName,
         short_name: generateShortName(teamName),
-        logo_url: null,
+        logo_url: logoUrl || null,
         logo_background_color: null,
       };
 
@@ -292,9 +294,9 @@ export default function FootballMatchImporter({ onImportComplete }: FootballMatc
 
     for (const match of selectedMatches) {
       try {
-        // Get or create teams
-        const teamAId = await getOrCreateTeam(match.homeTeam, match.teamAId);
-        const teamBId = await getOrCreateTeam(match.awayTeam, match.teamBId);
+        // Get or create teams with ESPN logos
+        const teamAId = await getOrCreateTeam(match.homeTeam, match.teamAId, match.homeTeamLogo);
+        const teamBId = await getOrCreateTeam(match.awayTeam, match.teamBId, match.awayTeamLogo);
 
         if (!teamAId || !teamBId) {
           console.error('Could not get/create teams for match:', match.homeTeam, 'vs', match.awayTeam);

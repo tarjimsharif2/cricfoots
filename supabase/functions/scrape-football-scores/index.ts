@@ -38,6 +38,8 @@ interface FootballMatch {
   venue?: string | null;
   eventId?: string;
   round?: string | null;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   homeGoals?: GoalEvent[];
   awayGoals?: GoalEvent[];
   homeLineup?: PlayerInfo[];
@@ -423,6 +425,10 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
         }
       }
       
+      // Extract team logos from ESPN data
+      const homeTeamLogo = homeTeam.team?.logo || homeTeam.team?.logos?.[0]?.href || null;
+      const awayTeamLogo = awayTeam.team?.logo || awayTeam.team?.logos?.[0]?.href || null;
+      
       const matchObj: FootballMatch = {
         homeTeam: homeTeam.team?.displayName || homeTeam.team?.name || 'Unknown',
         awayTeam: awayTeam.team?.displayName || awayTeam.team?.name || 'Unknown',
@@ -436,6 +442,8 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
         venue,
         eventId: event.id,
         round,
+        homeTeamLogo,
+        awayTeamLogo,
         homeGoals: homeGoals.length > 0 ? homeGoals : undefined,
         awayGoals: awayGoals.length > 0 ? awayGoals : undefined,
       };
