@@ -2331,7 +2331,7 @@ const Admin = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="manual">Manual Entry Only</SelectItem>
-                            <SelectItem value="api_cricket">API Cricket (RapidAPI)</SelectItem>
+                            <SelectItem value="api_cricket">API Cricket (api-cricket.com)</SelectItem>
                             <SelectItem value="espn">ESPN Cricinfo</SelectItem>
                           </SelectContent>
                         </Select>
