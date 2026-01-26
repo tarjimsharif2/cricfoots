@@ -39,10 +39,14 @@ const ESPN_CRICKET_SERIES: Record<string, { id: string; name: string }> = {
   'icc-t20wc': { id: '8601', name: 'ICC T20 World Cup' },
   'icc-wtc': { id: '19430', name: 'ICC World Test Championship' },
   'asia-cup': { id: '8532', name: 'Asia Cup' },
-  // Bilateral Series 2025
+  'u19-wc': { id: '1410322', name: 'ICC U19 World Cup 2026' },
+  // Bilateral Series 2025-26
   'ind-vs-eng': { id: '22802', name: 'India vs England 2025' },
-  'ind-vs-aus': { id: '22775', name: 'India vs Australia 2025' },
+  'aus-vs-ind': { id: '23265', name: 'Australia vs India 2025-26' },
   'nz-in-ind': { id: '23697', name: 'New Zealand in India 2025' },
+  'sa-vs-wi': { id: '1477604', name: 'SA vs West Indies 2025-26' },
+  'eng-vs-wi': { id: '1384428', name: 'England vs West Indies 2025' },
+  'pak-vs-wi': { id: '1384430', name: 'Pakistan vs West Indies 2025' },
 };
 
 // Parse match data from ESPN API response
@@ -73,6 +77,16 @@ function parseMatchData(event: Record<string, unknown>, seriesName: string): Cri
   
   // Filter out completed matches - only return Live and Upcoming
   if (status === 'Completed') {
+    return null;
+  }
+  
+  // Filter out old matches (more than 7 days ago)
+  const matchDate = new Date(event.date as string || (competition.date as string) || '');
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  if (matchDate < sevenDaysAgo) {
+    console.log(`Skipping old match: ${matchDate.toISOString()}`);
     return null;
   }
   
