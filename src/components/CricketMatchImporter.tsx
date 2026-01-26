@@ -45,14 +45,23 @@ interface CricketMatchImporterProps {
 
 const ESPN_CRICKET_SERIES = [
   { value: 'all', label: 'All Live/Upcoming Matches' },
+  // Domestic T20 Leagues
   { value: 'ipl', label: 'IPL' },
   { value: 'bpl', label: 'BPL' },
   { value: 'psl', label: 'PSL' },
   { value: 'bbl', label: 'BBL' },
   { value: 'cpl', label: 'CPL' },
+  { value: 'sa20', label: 'SA20' },
+  { value: 'ilt20', label: 'ILT20' },
+  { value: 'wpl', label: "WPL (Women's Premier League)" },
+  // ICC Events
   { value: 'icc-wc', label: 'ICC World Cup' },
   { value: 'icc-t20wc', label: 'ICC T20 World Cup' },
+  { value: 'icc-wtc', label: 'ICC World Test Championship' },
   { value: 'asia-cup', label: 'Asia Cup' },
+  // Bilateral Series 2025
+  { value: 'ind-vs-eng', label: 'India vs England 2025' },
+  { value: 'ind-vs-aus', label: 'India vs Australia 2025' },
 ];
 
 export default function CricketMatchImporter({ onImportComplete }: CricketMatchImporterProps) {

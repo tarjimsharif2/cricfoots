@@ -23,16 +23,26 @@ interface CricketMatch {
   awayTeamLogo?: string | null;
 }
 
-// Series ID mappings
+// Series ID mappings - Updated 2025
 const SERIES_MAPPINGS: Record<string, string> = {
+  // Domestic T20 Leagues
   'ipl': '8048',
-  'bpl': '13652', 
+  'bpl': '21245',
   'psl': '8661',
   'bbl': '8044',
   'cpl': '11290',
+  'sa20': '21275',
+  'ilt20': '21137',
+  'wpl': '21241',
+  // ICC Events
   'icc-wc': '8604',
   'icc-t20wc': '8601',
+  'icc-wtc': '19430',
   'asia-cup': '8532',
+  // Bilateral Series 2025
+  'ind-vs-eng': '22802',
+  'ind-vs-aus': '22775',
+  'eng-vs-ind': '22802',
 };
 
 // Parse match data from ESPN API response
@@ -153,16 +163,25 @@ async function fetchESPNCricketScoreboard(): Promise<CricketMatch[]> {
   const matches: CricketMatch[] = [];
   const seenEventIds = new Set<string>();
   
-  // ESPN Cricket uses numeric series IDs - these work based on previous logs
+  // ESPN Cricket uses numeric series IDs - expanded list 2025
   const endpoints = [
+    // Domestic T20 Leagues
     { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8048/scoreboard', name: 'IPL' },
     { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8661/scoreboard', name: 'PSL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/13652/scoreboard', name: 'BPL' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21245/scoreboard', name: 'BPL' },
     { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8044/scoreboard', name: 'BBL' },
     { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/11290/scoreboard', name: 'CPL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8604/scoreboard', name: 'ICC WC' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8601/scoreboard', name: 'ICC T20 WC' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21275/scoreboard', name: 'SA20' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21137/scoreboard', name: 'ILT20' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21241/scoreboard', name: 'WPL' },
+    // ICC Events
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8604/scoreboard', name: 'ICC World Cup' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8601/scoreboard', name: 'ICC T20 World Cup' },
     { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8532/scoreboard', name: 'Asia Cup' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/19430/scoreboard', name: 'ICC World Test Championship' },
+    // Bilateral Series 2025
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/22802/scoreboard', name: 'India vs England 2025' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/22775/scoreboard', name: 'India vs Australia 2025' },
   ];
   
   for (const endpoint of endpoints) {
@@ -173,8 +192,12 @@ async function fetchESPNCricketScoreboard(): Promise<CricketMatch[]> {
       if (eventId && seenEventIds.has(eventId)) continue;
       if (eventId) seenEventIds.add(eventId);
       
-      const match = parseMatchData(event, leagueName || endpoint.name);
+      // Use the endpoint name as fallback - more reliable than API seriesName
+      const match = parseMatchData(event, endpoint.name);
       if (match && match.homeTeam !== 'Unknown') {
+        // Override seriesName with endpoint name for consistency
+        match.seriesName = endpoint.name;
+        match.competition = endpoint.name;
         matches.push(match);
       }
     }
@@ -183,25 +206,50 @@ async function fetchESPNCricketScoreboard(): Promise<CricketMatch[]> {
   return matches;
 }
 
+// Mapping for friendly names
+const SERIES_NAMES: Record<string, string> = {
+  'ipl': 'IPL',
+  'bpl': 'BPL',
+  'psl': 'PSL',
+  'bbl': 'BBL',
+  'cpl': 'CPL',
+  'sa20': 'SA20',
+  'ilt20': 'ILT20',
+  'wpl': "WPL",
+  'icc-wc': 'ICC World Cup',
+  'icc-t20wc': 'ICC T20 World Cup',
+  'icc-wtc': 'ICC World Test Championship',
+  'asia-cup': 'Asia Cup',
+  'ind-vs-eng': 'India vs England 2025',
+  'ind-vs-aus': 'India vs Australia 2025',
+  'eng-vs-ind': 'India vs England 2025',
+};
+
 // Fetch from specific ESPN cricket series
 async function fetchESPNSeriesSchedule(seriesId: string): Promise<CricketMatch[]> {
   const matches: CricketMatch[] = [];
   
   // Resolve series slug to numeric ID if needed
   const numericId = SERIES_MAPPINGS[seriesId] || seriesId;
+  const seriesName = SERIES_NAMES[seriesId] || `Series ${numericId}`;
   
   const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/cricket/${numericId}/scoreboard`;
-  const { events, leagueName } = await fetchFromEndpoint(apiUrl, `Series ${numericId}`);
+  const { events } = await fetchFromEndpoint(apiUrl, seriesName);
   
   for (const event of events) {
-    const match = parseMatchData(event, leagueName || undefined);
+    const match = parseMatchData(event, seriesName);
     if (match && match.homeTeam !== 'Unknown') {
+      // Override with our known series name for consistency
+      match.seriesName = seriesName;
+      match.competition = seriesName;
       matches.push(match);
     }
   }
   
   return matches;
 }
+
+
 
 serve(async (req) => {
   // Handle CORS preflight requests
