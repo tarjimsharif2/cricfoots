@@ -68,6 +68,7 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
   awayLineup?: PlayerInfo[];
   homeSubs?: SubstitutionEvent[];
   awaySubs?: SubstitutionEvent[];
+  round?: string;
 } | null> {
   try {
     const detailUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/summary?event=${eventId}`;
@@ -88,6 +89,20 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
     const awayLineup: PlayerInfo[] = [];
     const homeSubs: SubstitutionEvent[] = [];
     const awaySubs: SubstitutionEvent[] = [];
+    let round: string | undefined = undefined;
+    
+    // Extract round/week info from summary API (header.week)
+    const headerWeek = data.header?.week?.number;
+    if (headerWeek) {
+      round = `Round #${headerWeek}`;
+      console.log(`[Match ${eventId}] Found week from header: ${round}`);
+    }
+    
+    // Also check header.season.type.week
+    if (!round && data.header?.season?.type?.week?.number) {
+      round = `Round #${data.header.season.type.week.number}`;
+      console.log(`[Match ${eventId}] Found week from season.type: ${round}`);
+    }
     
     // Get home/away team IDs from header
     const competition = data.header?.competitions?.[0];
@@ -295,6 +310,7 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
       awayLineup: awayLineup.length > 0 ? awayLineup : undefined,
       homeSubs: homeSubs.length > 0 ? homeSubs : undefined,
       awaySubs: awaySubs.length > 0 ? awaySubs : undefined,
+      round,
     };
     
   } catch (error) {
@@ -404,56 +420,97 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
       // Get venue from competition
       const venue = competition.venue?.fullName || competition.venue?.shortName || null;
       
-      // Extract round/matchday info from event or season
+      // Extract round/matchday info from multiple sources in ESPN API
       let round: string | null = null;
-      // Try week number first (e.g., week.number for league matches)
+      
+      // Source 1: event.week.number (most common for league matches)
       if (event.week?.number) {
-        round = `${event.week.number}`;
+        round = `Round #${event.week.number}`;
       } else if (event.season?.type?.week?.number) {
-        round = `${event.season.type.week.number}`;
+        round = `Round #${event.season.type.week.number}`;
       }
       
-      // For league stage and knockout rounds, check competition type and event name
+      // Source 2: Check season.week directly
+      if (!round && event.season?.week?.number) {
+        round = `Round #${event.season.week.number}`;
+      }
+      
+      // Source 3: Check competition.matchday or competition.week
+      if (!round && competition.matchday) {
+        round = `Matchday ${competition.matchday}`;
+      }
+      
+      // Source 4: Status detail sometimes contains matchday info
       if (!round) {
-        // Check competition type for round info
-        const competitionType = event.seasonType?.name || event.season?.type?.name || '';
+        const statusDescription = competition.status?.type?.description || '';
+        const statusDetail = competition.status?.type?.detail || '';
+        const combined = `${statusDescription} ${statusDetail}`;
         
-        // Check if event name or competition type contains round info
-        const eventName = event.name || '';
-        const combined = `${eventName} ${competitionType}`;
+        const matchdayMatch = combined.match(/(?:Matchday|Round|Gameweek|Week)\s*(\d+)/i);
+        if (matchdayMatch) {
+          round = `Round #${matchdayMatch[1]}`;
+        }
+      }
+      
+      // Source 5: Competition groups sometimes have round info
+      if (!round && competition.groups) {
+        const groupInfo = Array.isArray(competition.groups) ? competition.groups.join(' ') : String(competition.groups);
+        const groupMatch = groupInfo.match(/(?:Matchday|Round|Week)\s*(\d+)/i);
+        if (groupMatch) {
+          round = `Round #${groupMatch[1]}`;
+        }
+      }
+      
+      // Source 6: Event name for knockout stages or round info
+      if (!round && event.name) {
+        const eventName = event.name;
         
-        // Match various round patterns
+        // Check for league round patterns
         const roundPatterns = [
           /(?:Round|Matchday|Week|Gameweek|Match Day)\s*(\d+)/i,
           /(?:League Phase|Group Stage)\s*-?\s*(?:Matchday|Day|Round)?\s*(\d+)/i,
-          /MD?\s*(\d+)/i,  // Matchday shortcuts like "MD8", "M8"
+          /MD\s*(\d+)/i,  // Matchday shortcuts like "MD8"
         ];
         
         for (const pattern of roundPatterns) {
-          const match = combined.match(pattern);
+          const match = eventName.match(pattern);
           if (match) {
-            round = match[1];
+            round = `Round #${match[1]}`;
             break;
           }
         }
         
         // Check for knockout stages
         if (!round) {
-          const knockoutMatch = combined.match(/(Final|Semi-?Final|Quarter-?Final|Round of \d+|Playoffs?|Group Stage)/i);
+          const knockoutMatch = eventName.match(/(Final|Semi-?Final|Quarter-?Final|Round of \d+|Playoffs?|Group Stage)/i);
           if (knockoutMatch) {
             round = knockoutMatch[1];
           }
         }
       }
       
-      // Also try extracting from competition notes
+      // Source 7: Competition notes
       if (!round && competition.notes) {
         const notes = Array.isArray(competition.notes) ? competition.notes.join(' ') : String(competition.notes);
         const noteMatch = notes.match(/(?:Matchday|Round|Week)\s*(\d+)/i);
         if (noteMatch) {
-          round = noteMatch[1];
+          round = `Round #${noteMatch[1]}`;
         }
       }
+      
+      // Source 8: competition headlines/shortName
+      if (!round && competition.headlines) {
+        const headlines = Array.isArray(competition.headlines) 
+          ? competition.headlines.map((h: any) => h.shortLinkText || h.description || '').join(' ')
+          : String(competition.headlines);
+        const headlineMatch = headlines.match(/(?:Matchday|Round|Week)\s*(\d+)/i);
+        if (headlineMatch) {
+          round = `Round #${headlineMatch[1]}`;
+        }
+      }
+      
+      console.log(`Match: ${homeTeam.team?.displayName} vs ${awayTeam.team?.displayName}, Round: ${round}, event.week: ${JSON.stringify(event.week)}`);
+      
       
       // Extract team logos from ESPN data
       const homeTeamLogo = homeTeam.team?.logo || homeTeam.team?.logos?.[0]?.href || null;
@@ -479,13 +536,22 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
       };
       
       // Fetch detailed lineup & subs if requested and match is live or completed
-      if (includeDetails && (status === 'Live' || status === 'Half Time' || status === 'Completed')) {
+      // Also fetch round info from summary API if not found from scoreboard
+      if (includeDetails) {
         const matchDetails = await fetchMatchDetails(event.id, leagueCode);
         if (matchDetails) {
-          matchObj.homeLineup = matchDetails.homeLineup;
-          matchObj.awayLineup = matchDetails.awayLineup;
-          matchObj.homeSubs = matchDetails.homeSubs;
-          matchObj.awaySubs = matchDetails.awaySubs;
+          // Update round from summary API if we didn't find it in scoreboard
+          if (!matchObj.round && matchDetails.round) {
+            matchObj.round = matchDetails.round;
+          }
+          
+          // Only apply lineup/subs for live/completed matches
+          if (status === 'Live' || status === 'Half Time' || status === 'Completed') {
+            matchObj.homeLineup = matchDetails.homeLineup;
+            matchObj.awayLineup = matchDetails.awayLineup;
+            matchObj.homeSubs = matchDetails.homeSubs;
+            matchObj.awaySubs = matchDetails.awaySubs;
+          }
         }
       }
       

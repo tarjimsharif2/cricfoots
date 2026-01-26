@@ -364,11 +364,20 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
               )}
               {match.match_number && (
                 <span className="text-muted-foreground text-xs font-medium bg-muted/40 px-3 py-1.5 rounded-full">
-                  {/^\d+$/.test(match.match_number) 
-                    ? `Match #${match.match_number}` 
-                    : /^round\s*(\d+)$/i.test(match.match_number)
-                      ? `Round #${match.match_number.replace(/^round\s*/i, '')}`
-                      : match.match_number}
+                  {(() => {
+                    const num = match.match_number;
+                    // Pure number: "5" -> "Match #5"
+                    if (/^\d+$/.test(num)) {
+                      return `Match #${num}`;
+                    }
+                    // Already formatted correctly: "Round #22" -> keep as is
+                    if (/^(Round|Matchday|Week|Match)\s*#?\s*\d+$/i.test(num)) {
+                      // Ensure # is present
+                      return num.replace(/^(Round|Matchday|Week|Match)\s*#?\s*(\d+)$/i, '$1 #$2');
+                    }
+                    // Other text like "Final", "Semi-Final", etc
+                    return num;
+                  })()}
                 </span>
               )}
             </div>

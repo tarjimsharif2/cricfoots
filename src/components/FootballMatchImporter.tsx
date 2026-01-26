@@ -102,8 +102,9 @@ export default function FootballMatchImporter({ onImportComplete }: FootballMatc
   const fetchMatches = async () => {
     setLoading(true);
     try {
+      // Use includeDetails: true to get round/matchday info from ESPN summary API
       const { data, error } = await supabase.functions.invoke('scrape-football-scores', {
-        body: { league: selectedLeague, includeDetails: false }
+        body: { league: selectedLeague, includeDetails: true }
       });
 
       if (error) throw error;
