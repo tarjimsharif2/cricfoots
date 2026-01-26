@@ -23,30 +23,30 @@ interface CricketMatch {
   awayTeamLogo?: string | null;
 }
 
-// Series ID mappings - Updated 2025
-const SERIES_MAPPINGS: Record<string, string> = {
+// ESPN Cricket Series IDs - similar to football league codes
+const ESPN_CRICKET_SERIES: Record<string, { id: string; name: string }> = {
   // Domestic T20 Leagues
-  'ipl': '8048',
-  'bpl': '21245',
-  'psl': '8661',
-  'bbl': '8044',
-  'cpl': '11290',
-  'sa20': '21275',
-  'ilt20': '21137',
-  'wpl': '21241',
+  'ipl': { id: '8048', name: 'IPL' },
+  'bpl': { id: '21245', name: 'BPL' },
+  'psl': { id: '8661', name: 'PSL' },
+  'bbl': { id: '8044', name: 'BBL' },
+  'cpl': { id: '11290', name: 'CPL' },
+  'sa20': { id: '21275', name: 'SA20' },
+  'ilt20': { id: '21137', name: 'ILT20' },
+  'wpl': { id: '21241', name: 'WPL' },
   // ICC Events
-  'icc-wc': '8604',
-  'icc-t20wc': '8601',
-  'icc-wtc': '19430',
-  'asia-cup': '8532',
+  'icc-wc': { id: '8604', name: 'ICC World Cup' },
+  'icc-t20wc': { id: '8601', name: 'ICC T20 World Cup' },
+  'icc-wtc': { id: '19430', name: 'ICC World Test Championship' },
+  'asia-cup': { id: '8532', name: 'Asia Cup' },
   // Bilateral Series 2025
-  'ind-vs-eng': '22802',
-  'ind-vs-aus': '22775',
-  'eng-vs-ind': '22802',
+  'ind-vs-eng': { id: '22802', name: 'India vs England 2025' },
+  'ind-vs-aus': { id: '22775', name: 'India vs Australia 2025' },
+  'nz-in-ind': { id: '23697', name: 'New Zealand in India 2025' },
 };
 
 // Parse match data from ESPN API response
-function parseMatchData(event: Record<string, unknown>, leagueName?: string): CricketMatch | null {
+function parseMatchData(event: Record<string, unknown>, seriesName: string): CricketMatch | null {
   const competition = (event.competitions as Record<string, unknown>[])?.[0];
   if (!competition) return null;
   
@@ -71,7 +71,7 @@ function parseMatchData(event: Record<string, unknown>, leagueName?: string): Cr
     status = 'Postponed';
   }
   
-  // Get match format from name
+  // Get match format from event name
   let matchFormat = 'T20';
   const eventName = (event.name as string)?.toLowerCase() || '';
   if (eventName.includes('test')) {
@@ -84,11 +84,6 @@ function parseMatchData(event: Record<string, unknown>, leagueName?: string): Cr
   const venueObj = competition.venue as Record<string, unknown> | undefined;
   const venue = (venueObj?.fullName as string) || (venueObj?.shortName as string) || null;
   
-  // Get series name
-  const seasonObj = event.season as Record<string, unknown> | undefined;
-  const leagueObj = event.league as Record<string, unknown> | undefined;
-  const seriesName = (seasonObj?.name as string) || (leagueObj?.name as string) || leagueName || null;
-  
   // Get match number from event name
   let matchNumber: string | null = null;
   const matchNumMatch = eventName.match(/(\d+)(st|nd|rd|th)\s*(t20|odi|test|match)/i);
@@ -99,7 +94,7 @@ function parseMatchData(event: Record<string, unknown>, leagueName?: string): Cr
   if (!matchNumber && matchPattern) {
     matchNumber = `Match ${matchPattern[1]}`;
   }
-  // Also check for finals, semi-finals, etc.
+  // Check for finals, semi-finals, etc.
   if (!matchNumber) {
     if (eventName.includes('final')) matchNumber = 'Final';
     else if (eventName.includes('semi')) matchNumber = 'Semi-Final';
@@ -129,12 +124,23 @@ function parseMatchData(event: Record<string, unknown>, leagueName?: string): Cr
   };
 }
 
-// Fetch from a single ESPN endpoint
-async function fetchFromEndpoint(url: string, name: string): Promise<{events: Record<string, unknown>[], leagueName: string | null}> {
+// Fetch matches for a specific series with date range (like football)
+async function fetchESPNCricketSeries(seriesId: string, seriesName: string): Promise<CricketMatch[]> {
+  const matches: CricketMatch[] = [];
+  
   try {
-    console.log(`Fetching: ${url}`);
+    // Generate date range: today to 30 days ahead
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 30);
     
-    const response = await fetch(url, {
+    const formatDate = (d: Date) => d.toISOString().split('T')[0].replace(/-/g, '');
+    const dateRange = `${formatDate(today)}-${formatDate(endDate)}`;
+    
+    const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/cricket/${seriesId}/scoreboard?dates=${dateRange}`;
+    console.log(`Fetching: ${apiUrl}`);
+    
+    const response = await fetch(apiUrl, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -142,114 +148,61 @@ async function fetchFromEndpoint(url: string, name: string): Promise<{events: Re
     });
     
     if (!response.ok) {
-      console.log(`${name}: ${response.status}`);
-      return { events: [], leagueName: null };
+      console.log(`${seriesName}: HTTP ${response.status}`);
+      return matches;
     }
     
     const data = await response.json();
     const events = data.events || [];
-    const leagueName = data.leagues?.[0]?.name || name;
-    console.log(`${name}: ${events.length} events`);
-    
-    return { events, leagueName };
-  } catch (error) {
-    console.error(`Error ${name}:`, error);
-    return { events: [], leagueName: null };
-  }
-}
-
-// Fetch all cricket matches from multiple ESPN endpoints
-async function fetchESPNCricketScoreboard(): Promise<CricketMatch[]> {
-  const matches: CricketMatch[] = [];
-  const seenEventIds = new Set<string>();
-  
-  // ESPN Cricket uses numeric series IDs - expanded list 2025
-  const endpoints = [
-    // Domestic T20 Leagues
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8048/scoreboard', name: 'IPL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8661/scoreboard', name: 'PSL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21245/scoreboard', name: 'BPL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8044/scoreboard', name: 'BBL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/11290/scoreboard', name: 'CPL' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21275/scoreboard', name: 'SA20' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21137/scoreboard', name: 'ILT20' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/21241/scoreboard', name: 'WPL' },
-    // ICC Events
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8604/scoreboard', name: 'ICC World Cup' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8601/scoreboard', name: 'ICC T20 World Cup' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/8532/scoreboard', name: 'Asia Cup' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/19430/scoreboard', name: 'ICC World Test Championship' },
-    // Bilateral Series 2025
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/22802/scoreboard', name: 'India vs England 2025' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/cricket/22775/scoreboard', name: 'India vs Australia 2025' },
-  ];
-  
-  for (const endpoint of endpoints) {
-    const { events, leagueName } = await fetchFromEndpoint(endpoint.url, endpoint.name);
+    console.log(`${seriesName}: ${events.length} events found`);
     
     for (const event of events) {
-      const eventId = event.id as string;
-      if (eventId && seenEventIds.has(eventId)) continue;
-      if (eventId) seenEventIds.add(eventId);
-      
-      // Use the endpoint name as fallback - more reliable than API seriesName
-      const match = parseMatchData(event, endpoint.name);
+      const match = parseMatchData(event, seriesName);
       if (match && match.homeTeam !== 'Unknown') {
-        // Override seriesName with endpoint name for consistency
-        match.seriesName = endpoint.name;
-        match.competition = endpoint.name;
         matches.push(match);
       }
     }
+  } catch (error) {
+    console.error(`Error fetching ${seriesName}:`, error);
   }
   
   return matches;
 }
 
-// Mapping for friendly names
-const SERIES_NAMES: Record<string, string> = {
-  'ipl': 'IPL',
-  'bpl': 'BPL',
-  'psl': 'PSL',
-  'bbl': 'BBL',
-  'cpl': 'CPL',
-  'sa20': 'SA20',
-  'ilt20': 'ILT20',
-  'wpl': "WPL",
-  'icc-wc': 'ICC World Cup',
-  'icc-t20wc': 'ICC T20 World Cup',
-  'icc-wtc': 'ICC World Test Championship',
-  'asia-cup': 'Asia Cup',
-  'ind-vs-eng': 'India vs England 2025',
-  'ind-vs-aus': 'India vs Australia 2025',
-  'eng-vs-ind': 'India vs England 2025',
-};
-
-// Fetch from specific ESPN cricket series
-async function fetchESPNSeriesSchedule(seriesId: string): Promise<CricketMatch[]> {
+// Fetch all cricket matches from multiple series (like football fetchESPNScores)
+async function fetchAllCricketMatches(): Promise<CricketMatch[]> {
   const matches: CricketMatch[] = [];
+  const seenEventIds = new Set<string>();
   
-  // Resolve series slug to numeric ID if needed
-  const numericId = SERIES_MAPPINGS[seriesId] || seriesId;
-  const seriesName = SERIES_NAMES[seriesId] || `Series ${numericId}`;
-  
-  const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/cricket/${numericId}/scoreboard`;
-  const { events } = await fetchFromEndpoint(apiUrl, seriesName);
-  
-  for (const event of events) {
-    const match = parseMatchData(event, seriesName);
-    if (match && match.homeTeam !== 'Unknown') {
-      // Override with our known series name for consistency
-      match.seriesName = seriesName;
-      match.competition = seriesName;
+  // Iterate through all known series
+  for (const [key, series] of Object.entries(ESPN_CRICKET_SERIES)) {
+    const seriesMatches = await fetchESPNCricketSeries(series.id, series.name);
+    
+    for (const match of seriesMatches) {
+      // Avoid duplicates by eventId
+      if (match.eventId && seenEventIds.has(match.eventId)) continue;
+      if (match.eventId) seenEventIds.add(match.eventId);
+      
       matches.push(match);
     }
   }
   
+  console.log(`Total cricket matches found: ${matches.length}`);
   return matches;
 }
 
-
+// Fetch specific series by key
+async function fetchSpecificSeries(seriesKey: string): Promise<CricketMatch[]> {
+  const series = ESPN_CRICKET_SERIES[seriesKey];
+  
+  if (!series) {
+    // Try as numeric ID directly
+    console.log(`Using direct series ID: ${seriesKey}`);
+    return await fetchESPNCricketSeries(seriesKey, `Series ${seriesKey}`);
+  }
+  
+  return await fetchESPNCricketSeries(series.id, series.name);
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -266,19 +219,18 @@ serve(async (req) => {
     
     if (seriesId && seriesId !== 'all') {
       // Fetch specific series
-      matches = await fetchESPNSeriesSchedule(seriesId);
+      matches = await fetchSpecificSeries(seriesId);
     } else {
       // Fetch all live/upcoming matches from all known series
-      matches = await fetchESPNCricketScoreboard();
+      matches = await fetchAllCricketMatches();
     }
-    
-    console.log(`Total cricket matches found: ${matches.length}`);
     
     return new Response(
       JSON.stringify({ 
         matches,
         count: matches.length,
         source: seriesId || 'all',
+        availableSeries: Object.keys(ESPN_CRICKET_SERIES),
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
