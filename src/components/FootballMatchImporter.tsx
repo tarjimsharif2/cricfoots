@@ -43,13 +43,58 @@ interface FootballMatchImporterProps {
 }
 
 const ESPN_LEAGUES = [
+  // Top 5 European Leagues
   { value: 'epl', label: 'Premier League' },
   { value: 'laliga', label: 'La Liga' },
   { value: 'bundesliga', label: 'Bundesliga' },
   { value: 'seriea', label: 'Serie A' },
   { value: 'ligue1', label: 'Ligue 1' },
+  // UEFA Competitions
   { value: 'ucl', label: 'UEFA Champions League' },
   { value: 'uel', label: 'UEFA Europa League' },
+  { value: 'uecl', label: 'UEFA Conference League' },
+  { value: 'euros', label: 'UEFA Euro Championship' },
+  { value: 'nations', label: 'UEFA Nations League' },
+  // World Competitions
+  { value: 'fifa.world', label: 'FIFA World Cup' },
+  { value: 'fifa.world.u20', label: 'FIFA U-20 World Cup' },
+  { value: 'fifa.world.u17', label: 'FIFA U-17 World Cup' },
+  { value: 'fifa.cwc', label: 'FIFA Club World Cup' },
+  { value: 'fifa.friendly', label: 'International Friendly' },
+  { value: 'conmebol.america', label: 'Copa America' },
+  { value: 'concacaf.gold', label: 'CONCACAF Gold Cup' },
+  { value: 'afc.asian.cup', label: 'AFC Asian Cup' },
+  { value: 'caf.nations', label: 'Africa Cup of Nations' },
+  // Other European Leagues
+  { value: 'ned.1', label: 'Eredivisie (Netherlands)' },
+  { value: 'por.1', label: 'Primeira Liga (Portugal)' },
+  { value: 'tur.1', label: 'Süper Lig (Turkey)' },
+  { value: 'bel.1', label: 'Pro League (Belgium)' },
+  { value: 'sco.1', label: 'Scottish Premiership' },
+  { value: 'rus.1', label: 'Russian Premier League' },
+  { value: 'ukr.1', label: 'Ukrainian Premier League' },
+  // Americas
+  { value: 'bra.1', label: 'Brasileirão (Brazil)' },
+  { value: 'arg.1', label: 'Liga Profesional (Argentina)' },
+  { value: 'mex.1', label: 'Liga MX (Mexico)' },
+  { value: 'usa.1', label: 'MLS (USA)' },
+  // Asia & Others
+  { value: 'aus.1', label: 'A-League (Australia)' },
+  { value: 'jpn.1', label: 'J1 League (Japan)' },
+  { value: 'chn.1', label: 'Chinese Super League' },
+  { value: 'ind.1', label: 'Indian Super League' },
+  { value: 'sau.1', label: 'Saudi Pro League' },
+  // English Lower Divisions & Cups
+  { value: 'eng.2', label: 'EFL Championship' },
+  { value: 'eng.3', label: 'EFL League One' },
+  { value: 'eng.4', label: 'EFL League Two' },
+  { value: 'eng.fa', label: 'FA Cup' },
+  { value: 'eng.league_cup', label: 'EFL Cup (Carabao)' },
+  // Spanish & Italian Cups
+  { value: 'esp.copa_del_rey', label: 'Copa del Rey' },
+  { value: 'ita.coppa_italia', label: 'Coppa Italia' },
+  { value: 'ger.dfb_pokal', label: 'DFB-Pokal' },
+  { value: 'fra.coupe_de_france', label: 'Coupe de France' },
 ];
 
 export default function FootballMatchImporter({ onImportComplete }: FootballMatchImporterProps) {
