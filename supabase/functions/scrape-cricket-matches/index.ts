@@ -143,14 +143,58 @@ function parseMatchData(event: Record<string, unknown>, seriesName: string): Cri
   };
 }
 
-// Fetch matches for a specific series (without date range - ESPN cricket doesn't support it)
+// Fetch matches for a specific series using multiple endpoints
 async function fetchESPNCricketSeries(seriesId: string, seriesName: string): Promise<CricketMatch[]> {
   const matches: CricketMatch[] = [];
+  const seenEventIds = new Set<string>();
   
+  // Try Cricinfo web API first (more complete fixture data)
   try {
-    // ESPN Cricket API doesn't support date range like football - use simple scoreboard endpoint
+    // Try the series fixtures page API
+    const fixturesUrl = `https://hs-consumer-api.espncricinfo.com/v1/pages/series/schedule?seriesId=${seriesId}&lang=en`;
+    console.log(`Trying Cricinfo fixtures API: ${fixturesUrl}`);
+    
+    const fixturesResponse = await fetch(fixturesUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin': 'https://www.espncricinfo.com',
+        'Referer': 'https://www.espncricinfo.com/',
+      },
+    });
+    
+    if (fixturesResponse.ok) {
+      const fixturesData = await fixturesResponse.json();
+      console.log(`Cricinfo fixtures API response keys: ${Object.keys(fixturesData).join(', ')}`);
+      
+      // Parse Cricinfo schedule data
+      const matchSchedule = fixturesData.content?.matches || fixturesData.matches || [];
+      console.log(`Cricinfo fixtures: ${matchSchedule.length} matches found`);
+      
+      for (const matchData of matchSchedule) {
+        const match = parseCricinfoMatch(matchData, seriesName);
+        if (match && match.homeTeam !== 'Unknown') {
+          if (match.eventId && seenEventIds.has(match.eventId)) continue;
+          if (match.eventId) seenEventIds.add(match.eventId);
+          matches.push(match);
+        }
+      }
+      
+      if (matches.length > 0) {
+        console.log(`${seriesName}: Got ${matches.length} matches from Cricinfo API`);
+        return matches;
+      }
+    } else {
+      console.log(`Cricinfo fixtures API: HTTP ${fixturesResponse.status}`);
+    }
+  } catch (error) {
+    console.error(`Cricinfo fixtures API error:`, error);
+  }
+  
+  // Fallback to ESPN scoreboard API
+  try {
     const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/cricket/${seriesId}/scoreboard`;
-    console.log(`Fetching: ${apiUrl}`);
+    console.log(`Fallback to ESPN scoreboard: ${apiUrl}`);
     
     const response = await fetch(apiUrl, {
       headers: {
@@ -159,26 +203,100 @@ async function fetchESPNCricketSeries(seriesId: string, seriesName: string): Pro
       },
     });
     
-    if (!response.ok) {
-      console.log(`${seriesName}: HTTP ${response.status}`);
-      return matches;
-    }
-    
-    const data = await response.json();
-    const events = data.events || [];
-    console.log(`${seriesName}: ${events.length} events found`);
-    
-    for (const event of events) {
-      const match = parseMatchData(event, seriesName);
-      if (match && match.homeTeam !== 'Unknown') {
-        matches.push(match);
+    if (response.ok) {
+      const data = await response.json();
+      const events = data.events || [];
+      console.log(`ESPN scoreboard: ${events.length} events found`);
+      
+      for (const event of events) {
+        const eventId = event.id as string;
+        if (eventId && seenEventIds.has(eventId)) continue;
+        if (eventId) seenEventIds.add(eventId);
+        
+        const match = parseMatchData(event, seriesName);
+        if (match && match.homeTeam !== 'Unknown') {
+          matches.push(match);
+        }
       }
     }
   } catch (error) {
-    console.error(`Error fetching ${seriesName}:`, error);
+    console.error(`ESPN scoreboard error:`, error);
   }
   
+  console.log(`${seriesName}: Total ${matches.length} matches`);
   return matches;
+}
+
+// Parse Cricinfo match data format
+function parseCricinfoMatch(matchData: Record<string, unknown>, seriesName: string): CricketMatch | null {
+  try {
+    const teams = (matchData.teams as Record<string, unknown>[]) || [];
+    const team1 = teams[0] || {};
+    const team2 = teams[1] || {};
+    
+    const team1Info = team1.team as Record<string, unknown> || {};
+    const team2Info = team2.team as Record<string, unknown> || {};
+    
+    // Determine status
+    let status = 'Scheduled';
+    const matchState = (matchData.state as string)?.toLowerCase() || '';
+    const stageValue = (matchData.stage as string)?.toLowerCase() || '';
+    
+    if (matchState.includes('live') || stageValue.includes('running')) {
+      status = 'Live';
+    } else if (matchState.includes('complete') || matchState.includes('result') || stageValue.includes('finished')) {
+      status = 'Completed';
+    }
+    
+    // Filter out completed matches
+    if (status === 'Completed') {
+      return null;
+    }
+    
+    // Filter out old matches
+    const startTime = (matchData.startDate as string) || (matchData.startTime as string) || '';
+    if (startTime) {
+      const matchDate = new Date(startTime);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      if (matchDate < sevenDaysAgo) {
+        return null;
+      }
+    }
+    
+    // Get match format
+    let matchFormat = 'T20';
+    const formatStr = ((matchData.format as string) || '').toLowerCase();
+    if (formatStr.includes('test')) matchFormat = 'Test';
+    else if (formatStr.includes('odi')) matchFormat = 'ODI';
+    
+    // Get match number/title
+    let matchNumber: string | null = null;
+    const title = (matchData.title as string) || '';
+    const titleMatch = title.match(/(\d+)(st|nd|rd|th)\s*(t20|odi|test|match)/i);
+    if (titleMatch) matchNumber = `Match ${titleMatch[1]}`;
+    
+    return {
+      homeTeam: (team1Info.longName as string) || (team1Info.name as string) || 'Unknown',
+      awayTeam: (team2Info.longName as string) || (team2Info.name as string) || 'Unknown',
+      homeScore: (team1.score as string) || null,
+      awayScore: (team2.score as string) || null,
+      status,
+      matchFormat,
+      competition: seriesName,
+      matchUrl: matchData.slug ? `https://www.espncricinfo.com/series/${seriesName.toLowerCase().replace(/\s+/g, '-')}/${matchData.slug}` : null,
+      startTime: startTime || null,
+      venue: ((matchData.ground as Record<string, unknown>)?.name as string) || null,
+      eventId: (matchData.objectId as string) || (matchData.id as string) || undefined,
+      matchNumber,
+      seriesName,
+      homeTeamLogo: (team1Info.image as Record<string, unknown>)?.url as string || null,
+      awayTeamLogo: (team2Info.image as Record<string, unknown>)?.url as string || null,
+    };
+  } catch (error) {
+    console.error('Error parsing Cricinfo match:', error);
+    return null;
+  }
 }
 
 // Fetch all cricket matches from multiple series (like football fetchESPNScores)
