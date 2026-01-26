@@ -45,6 +45,7 @@ interface CricketMatchImporterProps {
 
 const ESPN_CRICKET_SERIES = [
   { value: 'all', label: 'All Live/Upcoming Matches' },
+  { value: 'custom', label: '🔍 Custom Series ID' },
   // Domestic T20 Leagues
   { value: 'ipl', label: 'IPL' },
   { value: 'bpl', label: 'BPL' },
@@ -78,6 +79,8 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
 
   const [open, setOpen] = useState(false);
   const [selectedSeries, setSelectedSeries] = useState('all');
+  const [customSeriesId, setCustomSeriesId] = useState('');
+  const [seriesSearch, setSeriesSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [apiMatches, setApiMatches] = useState<MatchToImport[]>([]);
@@ -118,10 +121,22 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
   };
 
   const fetchMatches = async () => {
+    // Determine which series ID to use
+    const seriesIdToFetch = selectedSeries === 'custom' ? customSeriesId.trim() : selectedSeries;
+    
+    if (selectedSeries === 'custom' && !customSeriesId.trim()) {
+      toast({
+        title: "Custom Series ID Required",
+        description: "Please enter an ESPN series ID",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('scrape-cricket-matches', {
-        body: { seriesId: selectedSeries }
+        body: { seriesId: seriesIdToFetch }
       });
 
       if (error) throw error;
@@ -435,49 +450,102 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
         
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
           {/* Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Series/Source</Label>
-              <Select value={selectedSeries} onValueChange={setSelectedSeries}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ESPN_CRICKET_SERIES.map(series => (
-                    <SelectItem key={series.value} value={series.value}>
-                      {series.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="space-y-4">
+            {/* Series Selection with Search */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Series/Source</Label>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Search series..."
+                    value={seriesSearch}
+                    onChange={(e) => setSeriesSearch(e.target.value)}
+                    className="h-9"
+                  />
+                  <Select value={selectedSeries} onValueChange={setSelectedSeries}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {ESPN_CRICKET_SERIES
+                        .filter(series => 
+                          seriesSearch === '' || 
+                          series.label.toLowerCase().includes(seriesSearch.toLowerCase())
+                        )
+                        .map(series => (
+                          <SelectItem key={series.value} value={series.value}>
+                            {series.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {selectedSeries === 'custom' && (
+                <div className="space-y-2">
+                  <Label>ESPN Series ID</Label>
+                  <Input
+                    placeholder="e.g., 1477604 or 23220"
+                    value={customSeriesId}
+                    onChange={(e) => setCustomSeriesId(e.target.value)}
+                    className="h-10"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Find ID from ESPN Cricinfo URL: espn.in/cricket/series/<strong>SERIES_ID</strong>/...
+                  </p>
+                </div>
+              )}
+              
+              {selectedSeries !== 'custom' && (
+                <div className="space-y-2">
+                  <Label>Default Tournament (SEO source)</Label>
+                  <SearchableSelect
+                    options={[
+                      { value: 'none', label: 'No Tournament' },
+                      ...(tournaments?.filter(t => !t.is_completed).map((t) => ({
+                        value: t.id,
+                        label: t.name,
+                        sublabel: t.season,
+                        imageUrl: t.logo_url,
+                      })) || [])
+                    ]}
+                    value={defaultTournamentId || 'none'}
+                    onValueChange={(v) => setDefaultTournamentId(v === 'none' ? null : v)}
+                    placeholder="Select tournament"
+                    searchPlaceholder="Search..."
+                    emptyText="No tournaments"
+                  />
+                </div>
+              )}
             </div>
+
+            {selectedSeries === 'custom' && (
+              <div className="space-y-2">
+                <Label>Default Tournament (SEO source)</Label>
+                <SearchableSelect
+                  options={[
+                    { value: 'none', label: 'No Tournament' },
+                    ...(tournaments?.filter(t => !t.is_completed).map((t) => ({
+                      value: t.id,
+                      label: t.name,
+                      sublabel: t.season,
+                      imageUrl: t.logo_url,
+                    })) || [])
+                  ]}
+                  value={defaultTournamentId || 'none'}
+                  onValueChange={(v) => setDefaultTournamentId(v === 'none' ? null : v)}
+                  placeholder="Select tournament"
+                  searchPlaceholder="Search..."
+                  emptyText="No tournaments"
+                />
+              </div>
+            )}
             
-            <div className="space-y-2">
-              <Label>Default Tournament (SEO source)</Label>
-              <SearchableSelect
-                options={[
-                  { value: 'none', label: 'No Tournament' },
-                  ...(tournaments?.filter(t => !t.is_completed).map((t) => ({
-                    value: t.id,
-                    label: t.name,
-                    sublabel: t.season,
-                    imageUrl: t.logo_url,
-                  })) || [])
-                ]}
-                value={defaultTournamentId || 'none'}
-                onValueChange={(v) => setDefaultTournamentId(v === 'none' ? null : v)}
-                placeholder="Select tournament"
-                searchPlaceholder="Search..."
-                emptyText="No tournaments"
-              />
-            </div>
-            
-            <div className="flex items-end">
-              <Button onClick={fetchMatches} disabled={loading} className="w-full gap-2">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                Fetch Matches
-              </Button>
-            </div>
+            <Button onClick={fetchMatches} disabled={loading} className="w-full gap-2">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Fetch Matches
+            </Button>
           </div>
 
           {/* Match List */}
