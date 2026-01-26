@@ -405,31 +405,50 @@ async function findESPNMatch(teamAName: string, teamBName: string, matchDate: st
       console.log(`[ESPN Cricket] Date parse error, using today: ${dateStr}`);
     }
     
-    // ESPN cricket scoreboard endpoint
-    const url = `https://site.api.espn.com/apis/site/v2/sports/cricket/8676/scoreboard?dates=${dateStr}-${nextDateStr}`;
+    // Check if U19 teams - use U19 World Cup league ID
+    const isU19Match = teamAName.toLowerCase().includes('u19') || 
+                       teamAName.toLowerCase().includes('under-19') ||
+                       teamBName.toLowerCase().includes('u19') || 
+                       teamBName.toLowerCase().includes('under-19');
     
-    console.log(`[ESPN Cricket] Searching for ${teamAName} vs ${teamBName} on ${matchDate}`);
-    console.log(`[ESPN Cricket] URL: ${url}`);
+    // Try multiple ESPN cricket league endpoints
+    const leagueIds = isU19Match 
+      ? ['1479696', '8676', 'icc'] // U19 World Cup 2026 ID first, then fallbacks
+      : ['8676', 'icc', '1479696']; // Standard ICC first
     
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
+    console.log(`[ESPN Cricket] Searching for ${teamAName} vs ${teamBName} on ${matchDate} (U19: ${isU19Match})`);
     
-    if (!response.ok) {
-      console.log(`[ESPN Cricket] Scoreboard request failed: ${response.status}`);
-      return null;
+    let allEvents: any[] = [];
+    
+    for (const leagueId of leagueIds) {
+      const url = `https://site.api.espn.com/apis/site/v2/sports/cricket/${leagueId}/scoreboard?dates=${dateStr}-${nextDateStr}`;
+      console.log(`[ESPN Cricket] Trying URL: ${url}`);
+      
+      try {
+        const response = await fetchWithRetry(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const events = data.events || [];
+          console.log(`[ESPN Cricket] League ${leagueId}: Found ${events.length} events`);
+          allEvents = allEvents.concat(events);
+        } else {
+          console.log(`[ESPN Cricket] League ${leagueId} failed: ${response.status}`);
+        }
+      } catch (e) {
+        console.log(`[ESPN Cricket] League ${leagueId} error: ${e}`);
+      }
     }
     
-    const data = await response.json();
-    const events = data.events || [];
+    console.log(`[ESPN Cricket] Total events found: ${allEvents.length}`);
     
-    console.log(`[ESPN Cricket] Found ${events.length} events`);
-    
-    for (const event of events) {
+    for (const event of allEvents) {
       const competitions = event.competitions || [];
       const competition = competitions[0];
       if (!competition) continue;
@@ -440,6 +459,7 @@ async function findESPNMatch(teamAName: string, teamBName: string, matchDate: st
       const espnHomeTeam = competitors.find((c: any) => c.homeAway === 'home')?.team?.displayName || '';
       const espnAwayTeam = competitors.find((c: any) => c.homeAway === 'away')?.team?.displayName || '';
       
+      console.log(`[ESPN Cricket] Checking: ${espnHomeTeam} vs ${espnAwayTeam}`);
       const teamAMatches = teamsMatch(teamAName, espnHomeTeam) || teamsMatch(teamAName, espnAwayTeam);
       const teamBMatches = teamsMatch(teamBName, espnHomeTeam) || teamsMatch(teamBName, espnAwayTeam);
       
