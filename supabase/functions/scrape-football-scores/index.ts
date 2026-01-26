@@ -304,14 +304,13 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
   const leagueCode = ESPN_LEAGUES[league as keyof typeof ESPN_LEAGUES] || league;
   
   try {
-    // Generate date range: today + next 7 days to get upcoming fixtures
-    const dates: string[] = [];
-    for (let i = 0; i < 8; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      dates.push(date.toISOString().split('T')[0].replace(/-/g, ''));
-    }
-    const dateRange = dates.join('-');
+    // Generate date range: today to 7 days ahead (ESPN format: YYYYMMDD-YYYYMMDD)
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 7);
+    
+    const formatDate = (d: Date) => d.toISOString().split('T')[0].replace(/-/g, '');
+    const dateRange = `${formatDate(today)}-${formatDate(endDate)}`;
     
     const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/scoreboard?dates=${dateRange}`;
     console.log(`Fetching ESPN API: ${apiUrl}`);
