@@ -266,14 +266,14 @@ const MatchPage = () => {
           {/* Sponsor Notice - Before Scoreboard */}
           <SponsorNotice position="before_scoreboard" matchId={match.id} />
 
-          {/* Live Score from API Cricket - Now positioned under server selection */}
-          {match?.api_score_enabled && match.team_a && match.team_b && (
+          {/* Live Score from API Cricket or ESPN - Now positioned under server selection */}
+          {((match as any)?.score_source === 'api_cricket' || (match as any)?.score_source === 'espn' || match?.api_score_enabled) && match.team_a && match.team_b && (
             <ApiCricketLiveScore
               teamAName={match.team_a.name}
               teamBName={match.team_b.name}
               teamALogo={match.team_a.logo_url}
               teamBLogo={match.team_b.logo_url}
-              enabled={match.api_score_enabled}
+              enabled={true}
               matchId={match.id}
               matchStatus={match.status}
             />
@@ -310,8 +310,8 @@ const MatchPage = () => {
           )}
 
           {/* Score Card - Shows innings data (always shown for cricket) */}
-          {/* If API score is enabled, show AFTER points table. Otherwise show here */}
-          {sport?.name?.toLowerCase().includes('cricket') && teamA && teamB && !match.api_score_enabled && (
+          {/* If API score is enabled (via score_source or api_score_enabled), show AFTER points table. Otherwise show here */}
+          {sport?.name?.toLowerCase().includes('cricket') && teamA && teamB && !match.api_score_enabled && (match as any)?.score_source !== 'api_cricket' && (match as any)?.score_source !== 'espn' && (
             <ManualScoreCard 
               matchId={match.id}
               teamAId={teamA.id}

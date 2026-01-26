@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.scrape-cricket-matches]
 verify_jwt = false
+
+[functions.sync-espn-cricket]
+verify_jwt = false
+
+[functions.sync-playing-xi]
+verify_jwt = false

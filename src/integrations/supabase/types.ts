@@ -439,6 +439,7 @@ export type Database = {
           created_at: string
           cricbuzz_match_id: string | null
           day_start_time: string | null
+          espn_event_id: string | null
           goals_team_a: Json | null
           goals_team_b: Json | null
           id: string
@@ -463,6 +464,7 @@ export type Database = {
           result_margin: string | null
           score_a: string | null
           score_b: string | null
+          score_source: string | null
           seo_description: string | null
           seo_keywords: string | null
           seo_title: string | null
@@ -483,6 +485,7 @@ export type Database = {
           created_at?: string
           cricbuzz_match_id?: string | null
           day_start_time?: string | null
+          espn_event_id?: string | null
           goals_team_a?: Json | null
           goals_team_b?: Json | null
           id?: string
@@ -507,6 +510,7 @@ export type Database = {
           result_margin?: string | null
           score_a?: string | null
           score_b?: string | null
+          score_source?: string | null
           seo_description?: string | null
           seo_keywords?: string | null
           seo_title?: string | null
@@ -527,6 +531,7 @@ export type Database = {
           created_at?: string
           cricbuzz_match_id?: string | null
           day_start_time?: string | null
+          espn_event_id?: string | null
           goals_team_a?: Json | null
           goals_team_b?: Json | null
           id?: string
@@ -551,6 +556,7 @@ export type Database = {
           result_margin?: string | null
           score_a?: string | null
           score_b?: string | null
+          score_source?: string | null
           seo_description?: string | null
           seo_keywords?: string | null
           seo_title?: string | null
