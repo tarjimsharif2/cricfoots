@@ -71,6 +71,11 @@ function parseMatchData(event: Record<string, unknown>, seriesName: string): Cri
     status = 'Postponed';
   }
   
+  // Filter out completed matches - only return Live and Upcoming
+  if (status === 'Completed') {
+    return null;
+  }
+  
   // Get match format from event name
   let matchFormat = 'T20';
   const eventName = (event.name as string)?.toLowerCase() || '';
