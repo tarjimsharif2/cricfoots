@@ -197,6 +197,8 @@ const Admin = () => {
     auto_sync_enabled: false,
     cricbuzz_match_id: '' as string | null,
     manual_status_override: false,
+    score_source: 'manual' as 'manual' | 'api_cricket' | 'espn',
+    espn_event_id: '' as string | null,
   });
 
   const [teamForm, setTeamForm] = useState({
@@ -667,6 +669,8 @@ const Admin = () => {
       auto_sync_enabled: (match as any).auto_sync_enabled || false,
       cricbuzz_match_id: match.cricbuzz_match_id || '',
       manual_status_override: (match as any).manual_status_override || false,
+      score_source: (match as any).score_source || 'manual',
+      espn_event_id: (match as any).espn_event_id || '',
     });
     setMatchDialogOpen(true);
   };
@@ -771,6 +775,8 @@ const Admin = () => {
       auto_sync_enabled: false,
       cricbuzz_match_id: '',
       manual_status_override: false,
+      score_source: 'manual',
+      espn_event_id: '',
     });
     setMatchDialogOpen(true);
     toast({ title: "Match copied", description: "Edit the details and save to create a new match." });
@@ -817,6 +823,8 @@ const Admin = () => {
       auto_sync_enabled: false,
       cricbuzz_match_id: '',
       manual_status_override: false,
+      score_source: 'manual',
+      espn_event_id: '',
     });
   };
 
@@ -2297,21 +2305,62 @@ const Admin = () => {
                         </div>
                       )}
 
-                      {/* Live Score API Toggle */}
-                      <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm bg-muted/20">
+                      {/* Cricket Score Source Selection */}
+                      <div className="rounded-lg border p-4 shadow-sm bg-muted/20 space-y-3">
                         <div className="space-y-0.5">
                           <Label className="text-base font-medium flex items-center gap-2">
                             <Radio className="w-4 h-4 text-live" />
-                            Enable API Score Sync
+                            Cricket Score Source
                           </Label>
                           <p className="text-sm text-muted-foreground">
-                            Automatically fetch and display live scores from API (synced every 2 minutes server-side)
+                            Select the data source for live scores, scorecard, and playing XI
                           </p>
                         </div>
-                        <Switch
-                          checked={matchForm.api_score_enabled}
-                          onCheckedChange={(checked) => setMatchForm({ ...matchForm, api_score_enabled: checked })}
-                        />
+                        <Select 
+                          value={matchForm.score_source} 
+                          onValueChange={(value: 'manual' | 'api_cricket' | 'espn') => {
+                            setMatchForm({ 
+                              ...matchForm, 
+                              score_source: value,
+                              api_score_enabled: value === 'api_cricket',
+                            });
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select score source" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manual">Manual Entry Only</SelectItem>
+                            <SelectItem value="api_cricket">API Cricket (RapidAPI)</SelectItem>
+                            <SelectItem value="espn">ESPN Cricinfo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        {matchForm.score_source === 'espn' && (
+                          <div className="space-y-2 pt-2 border-t border-border/50">
+                            <Label className="text-sm">ESPN Event ID (Optional)</Label>
+                            <Input
+                              placeholder="Auto-detected if empty"
+                              value={matchForm.espn_event_id || ''}
+                              onChange={(e) => setMatchForm({ ...matchForm, espn_event_id: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Leave empty to auto-detect from ESPN. Enter manually if auto-detection fails.
+                            </p>
+                          </div>
+                        )}
+                        
+                        {matchForm.score_source === 'api_cricket' && (
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            ✓ Will sync live scores, full scorecard, batsmen & bowlers stats
+                          </p>
+                        )}
+                        
+                        {matchForm.score_source === 'espn' && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            ✓ Will sync live scores, full scorecard, and playing XI from ESPN
+                          </p>
+                        )}
                       </div>
 
                       {/* Football Auto-Sync Toggle */}
