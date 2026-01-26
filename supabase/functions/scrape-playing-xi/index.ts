@@ -25,6 +25,7 @@ function cleanPlayerName(name: string): string {
     .replace(/\s*†\s*/g, '')
     .replace(/\s*\*\s*/g, '')
     .replace(/^\d+\.\s*/, '')
+    .replace(/,\s*$/, '') // Remove trailing comma
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -119,12 +120,25 @@ function isValidPlayerName(name: string): boolean {
   // Reject if contains special navigation characters
   if (/[@#$%^&*()=+\[\]{}|\\<>\/]/.test(cleaned)) return false;
   
-  // Additional validation: Check for common non-name words
+  // Additional validation: Check for common non-name words - EXPANDED
   const lowerCleaned = cleaned.toLowerCase();
-  const garbageWords = ['cricket', 'dream11', 'fantasy', 'prediction', 'tips', 'news', 'update', 'report', 'ranking', 'rankings', 'match', 'today', 'tomorrow', 'live', 'score', 'scores', 'addictor', 'tracker'];
+  const garbageWords = [
+    'cricket', 'dream11', 'fantasy', 'prediction', 'tips', 'news', 'update', 
+    'report', 'ranking', 'rankings', 'match', 'today', 'tomorrow', 'live', 
+    'score', 'scores', 'addictor', 'tracker', 'premium', 'editorials', 
+    'editorial', 'videos', 'video', 'photos', 'photo', 'ads', 'advertisement',
+    'bhogle', 'harsha', 'sanjay', 'manjrekar', 'commentator', 'commentary',
+    'championship', 'tournament', 'series', 'league', 'cup', 'trophy',
+    'cricbuzz', 'espn', 'espncricinfo', 'cricinfo', 'wisden', 'icc',
+    'tv', 'streaming', 'broadcast', 'channel', 'highlights', 'replay',
+    'subscribe', 'download', 'app', 'website', 'official', 'exclusive'
+  ];
   for (const word of garbageWords) {
     if (lowerCleaned.includes(word)) return false;
   }
+  
+  // Reject if name ends with comma (indicates incomplete parsing)
+  if (cleaned.endsWith(',')) return false;
   
   return true;
 }
@@ -311,15 +325,39 @@ async function fetchFromCricbuzzMobileAPI(cricbuzzId: string): Promise<{ teamA: 
   return null;
 }
 
-// Source 2: Cricbuzz HTML Scorecard
+// Source 2: Cricbuzz HTML Scorecard with dedicated Playing XI parsing
 async function fetchFromCricbuzzHtml(cricbuzzId: string): Promise<{ teamA: Player[], teamB: Player[] } | null> {
   console.log(`[Cricbuzz HTML] Trying match ID: ${cricbuzzId}`);
   
+  // Try squads page first - most reliable for playing XI
+  const squadUrl = `https://www.cricbuzz.com/cricket-match-squads/${cricbuzzId}/match`;
+  
+  try {
+    console.log(`[Cricbuzz HTML] Fetching squad page: ${squadUrl}`);
+    const response = await fetch(squadUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      const result = extractCricbuzzSquad(html);
+      if (result && result.teamA.length === 11 && result.teamB.length === 11) {
+        console.log(`[Cricbuzz HTML] Found full squad: ${result.teamA.length} + ${result.teamB.length} players`);
+        return result;
+      }
+    }
+  } catch (error) {
+    console.log(`[Cricbuzz HTML] Squad page error: ${error}`);
+  }
+  
+  // Try scorecard pages
   const urls = [
     `https://www.cricbuzz.com/api/html/cricket-scorecard/${cricbuzzId}`,
     `https://www.cricbuzz.com/live-cricket-scorecard/${cricbuzzId}/match`,
     `https://m.cricbuzz.com/live-cricket-scorecard/${cricbuzzId}/match`,
-    `https://www.cricbuzz.com/cricket-match-squads/${cricbuzzId}/match`,
   ];
   
   for (const url of urls) {
@@ -335,9 +373,9 @@ async function fetchFromCricbuzzHtml(cricbuzzId: string): Promise<{ teamA: Playe
       if (!response.ok) continue;
       
       const html = await response.text();
-      const players = extractPlayersFromHtml(html);
-      if (players.teamA.length >= 5 || players.teamB.length >= 5) {
-        console.log(`[Cricbuzz HTML] Found ${players.teamA.length} + ${players.teamB.length} players`);
+      const players = extractCricbuzzScorecard(html);
+      if (players.teamA.length >= 8 || players.teamB.length >= 8) {
+        console.log(`[Cricbuzz HTML] Found ${players.teamA.length} + ${players.teamB.length} players from scorecard`);
         return players;
       }
     } catch (error) {
@@ -346,6 +384,177 @@ async function fetchFromCricbuzzHtml(cricbuzzId: string): Promise<{ teamA: Playe
   }
   
   return null;
+}
+
+// Dedicated Cricbuzz squad page parser
+function extractCricbuzzSquad(html: string): { teamA: Player[], teamB: Player[] } | null {
+  const teamA: Player[] = [];
+  const teamB: Player[] = [];
+  
+  // Look for Playing XI sections
+  // Cricbuzz typically has "Playing XI" header followed by player list
+  const playingXiSections = html.split(/playing\s*xi|playing\s*11/i);
+  
+  if (playingXiSections.length < 2) {
+    console.log(`[Cricbuzz Squad] No Playing XI sections found`);
+    return null;
+  }
+  
+  // Extract player names from each section
+  for (let i = 1; i < playingXiSections.length && i <= 2; i++) {
+    const section = playingXiSections[i].substring(0, 3000); // Limit to relevant part
+    const players = extractPlayersFromSection(section);
+    
+    if (i === 1 && players.length >= 11) {
+      teamA.push(...players.slice(0, 11));
+    } else if (i === 2 && players.length >= 11) {
+      teamB.push(...players.slice(0, 11));
+    }
+  }
+  
+  if (teamA.length === 11 && teamB.length === 11) {
+    return { teamA, teamB };
+  }
+  
+  return null;
+}
+
+// Extract players from Cricbuzz scorecard HTML
+function extractCricbuzzScorecard(html: string): { teamA: Player[], teamB: Player[] } {
+  const teamA: Player[] = [];
+  const teamB: Player[] = [];
+  const seenNames = new Set<string>();
+  
+  // Pattern for player links in scorecard
+  // Cricbuzz uses: <a class="cb-text-link" href="/profiles/...">Player Name</a>
+  const playerLinkPattern = /<a[^>]*href="\/profiles\/\d+\/[^"]*"[^>]*>([^<]+)<\/a>/gi;
+  
+  let match;
+  let isFirstTeam = true;
+  let playerCount = 0;
+  
+  while ((match = playerLinkPattern.exec(html)) !== null) {
+    const name = match[1].trim();
+    const player = parsePlayerStrict(name);
+    
+    if (player && !seenNames.has(player.name.toLowerCase())) {
+      seenNames.add(player.name.toLowerCase());
+      
+      if (isFirstTeam && teamA.length < 11) {
+        teamA.push(player);
+      } else if (!isFirstTeam && teamB.length < 11) {
+        teamB.push(player);
+      } else if (teamA.length === 11 && teamB.length < 11) {
+        isFirstTeam = false;
+        teamB.push(player);
+      }
+      
+      playerCount++;
+      // After finding 11 players, switch to second team
+      if (playerCount === 11) {
+        isFirstTeam = false;
+      }
+    }
+  }
+  
+  // Also try batsman/bowler cells
+  const batsmanPattern = /<a[^>]*class="[^"]*cb-text-link[^"]*"[^>]*>([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/gi;
+  
+  while ((match = batsmanPattern.exec(html)) !== null) {
+    const name = match[1].trim();
+    const player = parsePlayerStrict(name);
+    
+    if (player && !seenNames.has(player.name.toLowerCase())) {
+      seenNames.add(player.name.toLowerCase());
+      
+      if (teamA.length < 11) {
+        teamA.push(player);
+      } else if (teamB.length < 11) {
+        teamB.push(player);
+      }
+    }
+  }
+  
+  return { teamA, teamB };
+}
+
+// Extract players from a section of HTML
+function extractPlayersFromSection(section: string): Player[] {
+  const players: Player[] = [];
+  const seenNames = new Set<string>();
+  
+  // Multiple patterns to find player names
+  const patterns = [
+    // Player profile links
+    /<a[^>]*href="[^"]*profiles?[^"]*"[^>]*>([^<]+)<\/a>/gi,
+    // Player names in specific classes
+    /<[^>]*class="[^"]*(?:player|batsman|bowler|cb-player)[^"]*"[^>]*>([^<]+)</gi,
+    // Names in divs/spans following specific patterns
+    /<(?:span|div)[^>]*>([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\s*(?:\(c\)|\(wk\))?<\/(?:span|div)>/gi,
+  ];
+  
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(section)) !== null) {
+      const name = match[1].trim();
+      const player = parsePlayerStrict(name);
+      
+      if (player && !seenNames.has(player.name.toLowerCase()) && players.length < 15) {
+        seenNames.add(player.name.toLowerCase());
+        players.push(player);
+      }
+    }
+  }
+  
+  return players;
+}
+
+// Strict player name parser - rejects anything suspicious
+function parsePlayerStrict(text: string): Player | null {
+  if (!text || typeof text !== 'string') return null;
+  
+  const cleaned = text
+    .replace(/\s*\(c\)\s*/gi, '')
+    .replace(/\s*\(wk\)\s*/gi, '')
+    .replace(/\s*\(c & wk\)\s*/gi, '')
+    .replace(/,\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  if (!cleaned || cleaned.length < 4 || cleaned.length > 40) return null;
+  
+  // Must have at least 2 words
+  const words = cleaned.split(' ').filter(w => w.length >= 2);
+  if (words.length < 2) return null;
+  
+  // Must start with uppercase letter
+  if (!/^[A-Z]/.test(cleaned)) return null;
+  
+  // Each word should start with uppercase (proper name format)
+  for (const word of words) {
+    if (!/^[A-Z]/.test(word) && word.length > 2) return null;
+  }
+  
+  // Reject common garbage patterns
+  const garbage = [
+    /cricket/i, /dream/i, /fantasy/i, /prediction/i, /news/i,
+    /video/i, /photo/i, /highlight/i, /premium/i, /editorial/i,
+    /ranking/i, /championship/i, /tournament/i, /series/i,
+    /bhogle/i, /manjrekar/i, /commentat/i, /tv\s*ads/i,
+    /subscribe/i, /download/i, /official/i, /exclusive/i,
+    /^\d+$/, /^vs$/i, /\d{4}/, /^all\s/i, /^icc\s/i,
+    /live\s*score/i, /match\s*preview/i, /squad\s*update/i,
+  ];
+  
+  for (const pattern of garbage) {
+    if (pattern.test(cleaned)) return null;
+  }
+  
+  // Check for (c) and (wk) markers in original
+  const isCaptain = /\(c\)/i.test(text);
+  const isWicketKeeper = /\(wk\)/i.test(text);
+  
+  return { name: cleaned, isCaptain, isWicketKeeper };
 }
 
 // Source 3: CricAPI / Free Cricket APIs
@@ -891,6 +1100,7 @@ serve(async (req) => {
     console.log(`[Scrape Playing XI] Teams: ${tAName} vs ${tBName}, Cricbuzz ID: ${cbzId}`);
 
     let result: { teamA: Player[], teamB: Player[] } | null = null;
+    const sourceResults: { name: string; teamA: number; teamB: number }[] = [];
 
     // Try all sources in sequence - API Scores first (most reliable)
     const sources = [
@@ -904,25 +1114,45 @@ serve(async (req) => {
       { name: 'Google Search', fn: () => fetchViaGoogleSearch(tAName, tBName) },
     ];
 
+    // STRICT MODE: Only accept if we get exactly 11+11 players
     for (const source of sources) {
       console.log(`[Scrape Playing XI] Trying ${source.name}...`);
       try {
-        result = await source.fn();
-        if (result && (result.teamA.length >= 5 || result.teamB.length >= 5)) {
-          console.log(`[Scrape Playing XI] Success with ${source.name}: ${result.teamA.length} + ${result.teamB.length} players`);
-          break;
+        const tempResult = await source.fn();
+        if (tempResult) {
+          console.log(`[Scrape Playing XI] ${source.name} found: ${tempResult.teamA.length} + ${tempResult.teamB.length} players`);
+          sourceResults.push({ name: source.name, teamA: tempResult.teamA.length, teamB: tempResult.teamB.length });
+          
+          // Only accept if BOTH teams have exactly 11 players
+          if (tempResult.teamA.length === 11 && tempResult.teamB.length === 11) {
+            result = tempResult;
+            console.log(`[Scrape Playing XI] ✅ Full 11+11 found with ${source.name}`);
+            break;
+          } else {
+            console.log(`[Scrape Playing XI] ❌ Rejected ${source.name} - need exactly 11+11 players`);
+          }
         }
       } catch (error) {
         console.log(`[Scrape Playing XI] ${source.name} failed: ${error}`);
       }
     }
 
-    if (!result || (result.teamA.length < 3 && result.teamB.length < 3)) {
+    if (!result || result.teamA.length !== 11 || result.teamB.length !== 11) {
+      // Find best partial result for reporting
+      const bestResult = sourceResults.reduce((best, curr) => {
+        const currTotal = curr.teamA + curr.teamB;
+        const bestTotal = best ? best.teamA + best.teamB : 0;
+        return currTotal > bestTotal ? curr : best;
+      }, null as { name: string; teamA: number; teamB: number } | null);
+      
       return new Response(
         JSON.stringify({ 
-          error: 'Could not find Playing XI from any source',
-          triedSources: sources.map(s => s.name),
-          suggestion: 'Please use Bulk Add feature to manually enter players'
+          error: 'সম্পূর্ণ ১১+১১ প্লেয়ার পাওয়া যায়নি',
+          message: bestResult 
+            ? `সর্বোচ্চ ${bestResult.teamA} + ${bestResult.teamB} প্লেয়ার পাওয়া গেছে (${bestResult.name} থেকে)`
+            : 'কোনো source থেকে প্লেয়ার পাওয়া যায়নি',
+          sourceResults,
+          suggestion: 'Playing XI এখনো announce হয়নি অথবা Bulk Add ব্যবহার করুন'
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

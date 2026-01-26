@@ -361,15 +361,39 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
       });
 
       if (response.error) {
-        throw new Error(response.error.message || 'Failed to sync playing XI');
+        // Parse detailed error from scrape function
+        let errorMessage = response.error.message || 'Failed to sync playing XI';
+        try {
+          const errorData = JSON.parse(response.error.message);
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+          if (errorData.sourceResults && Array.isArray(errorData.sourceResults)) {
+            const sourceSummary = errorData.sourceResults
+              .map((s: { name: string; teamA: number; teamB: number }) => `${s.name}: ${s.teamA}+${s.teamB}`)
+              .join(', ');
+            errorMessage = `${errorData.message || errorData.error}\n\nSources: ${sourceSummary}`;
+          }
+        } catch {
+          // Not JSON, use original message
+        }
+        throw new Error(errorMessage);
       }
 
       const result = response.data;
 
       if (!result.success) {
+        // Check if error has sourceResults
+        let description = result.error || result.message;
+        if (result.sourceResults && Array.isArray(result.sourceResults)) {
+          const sourceSummary = result.sourceResults
+            .map((s: { name: string; teamA: number; teamB: number }) => `${s.name}: ${s.teamA}+${s.teamB}`)
+            .join(', ');
+          description = `${result.message || result.error}\n\nSources: ${sourceSummary}\n\n${result.suggestion || ''}`;
+        }
         toast({ 
-          title: result.alreadyExists ? "Already synced" : "Error", 
-          description: result.error || result.message,
+          title: result.alreadyExists ? "Already synced" : "১১+১১ প্লেয়ার পাওয়া যায়নি", 
+          description,
           variant: result.alreadyExists ? "default" : "destructive"
         });
         queryClient.invalidateQueries({ queryKey: ['playing_xi', matchId] });
@@ -381,7 +405,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
 
       toast({ 
         title: "Squad synced!", 
-        description: `${result.playersAdded || 0} players added from ${source === 'espn' ? 'ESPN Cricinfo' : source === 'scrape' ? 'Cricbuzz (Scrape)' : 'Cricbuzz'}`
+        description: `${result.totalPlayers || 0} players added (${result.teamA?.length || 0} + ${result.teamB?.length || 0})`
       });
 
     } catch (err: any) {
