@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Edit2, Trash2, Loader2, Upload, CloudDownload, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Edit2, Trash2, Loader2, Upload, CloudDownload, X, ChevronDown } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Team } from "@/hooks/useSportsData";
@@ -323,7 +324,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
   };
 
   // Fetch squad from RapidAPI (Cricbuzz)
-  const handleFetchSquad = async (forceRefresh = false) => {
+  const handleFetchSquad = async (source: 'cricbuzz' | 'espn', forceRefresh = false) => {
     setFetchingSquad(true);
 
     try {
@@ -339,7 +340,9 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
         }
       }
 
-      const response = await supabase.functions.invoke('sync-playing-xi', {
+      const functionName = source === 'espn' ? 'sync-espn-playing-xi' : 'sync-playing-xi';
+      
+      const response = await supabase.functions.invoke(functionName, {
         body: {
           matchId,
           cricbuzzMatchId,
@@ -373,7 +376,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
 
       toast({ 
         title: "Squad synced!", 
-        description: `${result.playersAdded || 0} players added from API`
+        description: `${result.playersAdded || 0} players added from ${source === 'espn' ? 'ESPN Cricinfo' : 'Cricbuzz'}`
       });
 
     } catch (err: any) {
@@ -518,20 +521,40 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
     <div className="space-y-6">
       {/* Squad Action Buttons */}
       <div className="flex items-center justify-end gap-4 flex-wrap">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleFetchSquad(players && players.length > 0)}
-          disabled={fetchingSquad}
-          className="gap-2"
-        >
-          {fetchingSquad ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <CloudDownload className="w-4 h-4" />
-          )}
-          {players && players.length > 0 ? 'Refresh Squad' : 'Sync from API'}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={fetchingSquad}
+              className="gap-2"
+            >
+              {fetchingSquad ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CloudDownload className="w-4 h-4" />
+              )}
+              {players && players.length > 0 ? 'Refresh Squad' : 'Fetch Squad'}
+              <ChevronDown className="w-3 h-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-background border">
+            <DropdownMenuItem 
+              onClick={() => handleFetchSquad('cricbuzz', players && players.length > 0)}
+              disabled={fetchingSquad}
+            >
+              <CloudDownload className="w-4 h-4 mr-2" />
+              From Cricbuzz
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleFetchSquad('espn', players && players.length > 0)}
+              disabled={fetchingSquad}
+            >
+              <CloudDownload className="w-4 h-4 mr-2" />
+              From ESPN Cricinfo
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {players && players.length > 0 && (
           <Button
             variant="destructive"
