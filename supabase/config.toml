@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.sync-playing-xi]
 verify_jwt = false
+
+[functions.sync-espn-playing-xi]
+verify_jwt = false
