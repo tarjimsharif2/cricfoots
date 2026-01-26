@@ -25,6 +25,7 @@ interface ESPNMatch {
   startTime: string | null;
   venue?: string | null;
   eventId?: string;
+  round?: string | null;
 }
 
 interface MatchToImport extends ESPNMatch {
@@ -347,8 +348,8 @@ export default function FootballMatchImporter({ onImportComplete }: FootballMatc
           auto_sync_enabled: status === 'live' || status === 'upcoming',
           match_start_time: match.startTime ? new Date(match.startTime).toISOString() : null,
           venue: match.venue || null,
-          match_number: null,
-          match_label: match.competition || null,
+          match_number: match.round || null,
+          match_label: null,
           match_duration_minutes: 180,
         };
 
