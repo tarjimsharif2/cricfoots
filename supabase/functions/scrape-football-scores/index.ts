@@ -324,33 +324,56 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
   const leagueCode = ESPN_LEAGUES[league as keyof typeof ESPN_LEAGUES] || league;
   
   try {
-    // Generate date range: today to 7 days ahead (ESPN format: YYYYMMDD-YYYYMMDD)
+    const formatDate = (d: Date) => d.toISOString().split('T')[0].replace(/-/g, '');
     const today = new Date();
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + 7);
-    
-    const formatDate = (d: Date) => d.toISOString().split('T')[0].replace(/-/g, '');
-    const dateRange = `${formatDate(today)}-${formatDate(endDate)}`;
-    
-    const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/scoreboard?dates=${dateRange}`;
-    console.log(`Fetching ESPN API: ${apiUrl}`);
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
-    
-    if (!response.ok) {
-      console.error(`ESPN API error: ${response.status}`);
-      return matches;
+
+    // ESPN behaves inconsistently across competitions for ranged dates.
+    // Strategy:
+    // 1) Try ranged dates (fast)
+    // 2) If it returns 0 events, fall back to per-day calls (reliable, esp. for some UEFA competitions)
+    const rangedUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/scoreboard?dates=${formatDate(today)}-${formatDate(endDate)}`;
+    console.log(`Fetching ESPN API: ${rangedUrl}`);
+
+    const baseHeaders = {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+
+    const fetchEvents = async (url: string): Promise<any[]> => {
+      const res = await fetch(url, { headers: baseHeaders });
+      if (!res.ok) {
+        console.error(`ESPN API error: ${res.status} (${url})`);
+        return [];
+      }
+      const json = await res.json();
+      return json?.events || [];
+    };
+
+    let events = await fetchEvents(rangedUrl);
+    console.log(`ESPN API returned ${events.length} events (ranged)`);
+
+    if (events.length === 0) {
+      const perDayEvents: any[] = [];
+      const start = new Date(today);
+      start.setDate(start.getDate() - 1);
+
+      const cursor = new Date(start);
+      while (cursor <= endDate) {
+        const dateStr = formatDate(cursor);
+        const dayUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/scoreboard?dates=${dateStr}`;
+        const dayEvents = await fetchEvents(dayUrl);
+        if (dayEvents.length) {
+          perDayEvents.push(...dayEvents);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      events = perDayEvents;
+      console.log(`ESPN API returned ${events.length} events (per-day fallback)`);
     }
-    
-    const data = await response.json();
-    console.log(`ESPN API returned ${data.events?.length || 0} events for date range ${dateRange}`);
-    
-    for (const event of data.events || []) {
+
+    for (const event of events) {
       const competition = event.competitions?.[0];
       if (!competition) continue;
       
@@ -523,7 +546,8 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
         awayScore: awayTeam.score?.toString() || null,
         status,
         minute,
-        competition: data.leagues?.[0]?.name || event.name || null,
+        // Competition/league name (varies by endpoint/league)
+        competition: event?.league?.name || event?.season?.name || event?.name || null,
         matchUrl: event.links?.[0]?.href || null,
         startTime: event.date || null,
         venue,
@@ -544,11 +568,12 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
           if (!matchObj.round && matchDetails.round) {
             matchObj.round = matchDetails.round;
           }
-          
-          // Only apply lineup/subs for live/completed matches
+
+          // IMPORTANT: lineups are often available BEFORE kickoff.
+          // Always attach lineups when present; substitutions only make sense once match has started.
+          matchObj.homeLineup = matchDetails.homeLineup;
+          matchObj.awayLineup = matchDetails.awayLineup;
           if (status === 'Live' || status === 'Half Time' || status === 'Completed') {
-            matchObj.homeLineup = matchDetails.homeLineup;
-            matchObj.awayLineup = matchDetails.awayLineup;
             matchObj.homeSubs = matchDetails.homeSubs;
             matchObj.awaySubs = matchDetails.awaySubs;
           }
@@ -568,7 +593,7 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
 // Fetch all major leagues at once
 async function fetchAllLeagues(includeDetails: boolean = false): Promise<FootballMatch[]> {
   const allMatches: FootballMatch[] = [];
-  const leaguesToFetch = ['epl', 'laliga', 'bundesliga', 'seriea', 'ligue1', 'ucl'];
+  const leaguesToFetch = ['epl', 'laliga', 'bundesliga', 'seriea', 'ligue1', 'ucl', 'uel'];
   
   const promises = leaguesToFetch.map(league => fetchESPNScores(league, includeDetails));
   const results = await Promise.all(promises);
