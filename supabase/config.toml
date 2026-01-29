@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.fetch-football-leagues]
 verify_jwt = false
+
+[functions.auto-sync-football]
+verify_jwt = false
