@@ -762,20 +762,32 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
                       />
                     </div>
                     <div className="border rounded-lg max-h-[200px] overflow-y-auto">
-                      {tournaments
-                        ?.filter(t => 
-                          t.sport?.toLowerCase().includes('cricket') &&
-                          (tournamentSearch === '' || 
-                           t.name.toLowerCase().includes(tournamentSearch.toLowerCase()) ||
-                           t.season.toLowerCase().includes(tournamentSearch.toLowerCase()))
-                        )
-                        .sort((a, b) => {
-                          // Sort: active first, then by name
-                          if (a.is_active && !b.is_active) return -1;
-                          if (!a.is_active && b.is_active) return 1;
-                          return a.name.localeCompare(b.name);
-                        })
-                        .map(tournament => (
+                      {(() => {
+                        const syncedTournaments = tournaments
+                          ?.filter(t => 
+                            t.sport?.toLowerCase().includes('cricket') &&
+                            t.series_id && // Only show synced tournaments with series_id
+                            (tournamentSearch === '' || 
+                             t.name.toLowerCase().includes(tournamentSearch.toLowerCase()) ||
+                             t.season.toLowerCase().includes(tournamentSearch.toLowerCase()))
+                          )
+                          .sort((a, b) => {
+                            // Sort: active first, then by name
+                            if (a.is_active && !b.is_active) return -1;
+                            if (!a.is_active && b.is_active) return 1;
+                            return a.name.localeCompare(b.name);
+                          }) || [];
+                        
+                        if (syncedTournaments.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-muted-foreground text-sm space-y-2">
+                              <p>No synced series found</p>
+                              <p className="text-xs">Click "Sync Series" to fetch tournaments from RapidAPI</p>
+                            </div>
+                          );
+                        }
+                        
+                        return syncedTournaments.map(tournament => (
                           <div 
                             key={tournament.id}
                             className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b last:border-b-0 transition-colors ${
@@ -790,28 +802,17 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
                               <div className="font-medium text-sm truncate">{tournament.name}</div>
                               <div className="text-xs text-muted-foreground flex items-center gap-2">
                                 <span>{tournament.season}</span>
-                                {tournament.series_id && (
-                                  <Badge variant="outline" className="text-[10px] px-1 py-0">
-                                    ID: {tournament.series_id}
-                                  </Badge>
-                                )}
-                                {!tournament.series_id && (
-                                  <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                                    No Series ID
-                                  </Badge>
-                                )}
+                                <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                  ID: {tournament.series_id}
+                                </Badge>
                               </div>
                             </div>
                             {rapidApiTournamentId === tournament.id && (
                               <Badge className="bg-primary text-primary-foreground">Selected</Badge>
                             )}
                           </div>
-                        ))}
-                      {(!tournaments || tournaments.filter(t => t.sport?.toLowerCase().includes('cricket')).length === 0) && (
-                        <div className="p-4 text-center text-muted-foreground text-sm">
-                          No cricket tournaments found
-                        </div>
-                      )}
+                        ));
+                      })()}
                     </div>
                   </div>
                 )}
