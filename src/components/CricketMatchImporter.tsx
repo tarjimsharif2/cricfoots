@@ -97,6 +97,34 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
   const [tournamentSearch, setTournamentSearch] = useState('');
   const [rapidApiCustomSeriesId, setRapidApiCustomSeriesId] = useState('');
   const [useCustomSeriesId, setUseCustomSeriesId] = useState(false);
+  const [syncingSeries, setSyncingSeries] = useState(false);
+
+  // Sync cricket series from RapidAPI (Cricbuzz)
+  const syncCricketSeries = async () => {
+    setSyncingSeries(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-cricket-series');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Series Synced",
+        description: `${data.inserted} new, ${data.updated} updated tournaments from Cricbuzz`,
+      });
+      
+      // Refetch tournaments
+      queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+    } catch (err) {
+      console.error('Error syncing series:', err);
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync series from RapidAPI. Check settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingSeries(false);
+    }
+  };
 
   // Get Cricket sport ID
   const cricketSportId = sports?.find(s => 
@@ -683,15 +711,31 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-medium">Step 1: Select Tournament</Label>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="useCustomSeriesId" 
-                      checked={useCustomSeriesId}
-                      onCheckedChange={(checked) => setUseCustomSeriesId(checked === true)}
-                    />
-                    <Label htmlFor="useCustomSeriesId" className="text-xs text-muted-foreground cursor-pointer">
-                      Use custom Series ID
-                    </Label>
+                  <div className="flex items-center gap-3">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={syncCricketSeries}
+                      disabled={syncingSeries}
+                      className="gap-1.5 text-xs"
+                    >
+                      {syncingSeries ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      )}
+                      Sync Series
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        id="useCustomSeriesId" 
+                        checked={useCustomSeriesId}
+                        onCheckedChange={(checked) => setUseCustomSeriesId(checked === true)}
+                      />
+                      <Label htmlFor="useCustomSeriesId" className="text-xs text-muted-foreground cursor-pointer">
+                        Custom ID
+                      </Label>
+                    </div>
                   </div>
                 </div>
 
@@ -709,12 +753,14 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Input
-                      placeholder="Search tournament..."
-                      value={tournamentSearch}
-                      onChange={(e) => setTournamentSearch(e.target.value)}
-                      className="h-9"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Search tournament..."
+                        value={tournamentSearch}
+                        onChange={(e) => setTournamentSearch(e.target.value)}
+                        className="h-9 flex-1"
+                      />
+                    </div>
                     <div className="border rounded-lg max-h-[200px] overflow-y-auto">
                       {tournaments
                         ?.filter(t => 
