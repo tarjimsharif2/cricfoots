@@ -558,7 +558,9 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
         
         const teamAName = teams?.find(t => t.id === teamAId)?.name || match.homeTeam;
         const teamBName = teams?.find(t => t.id === teamBId)?.name || match.awayTeam;
-        const slug = `${teamAName.toLowerCase().replace(/\s+/g, '-')}-vs-${teamBName.toLowerCase().replace(/\s+/g, '-')}-live`;
+        // Generate unique slug with date to avoid duplicates
+        const slugDate = date.replace(/-/g, '');
+        const slug = `${teamAName.toLowerCase().replace(/\s+/g, '-')}-vs-${teamBName.toLowerCase().replace(/\s+/g, '-')}-${slugDate}-live`;
 
         const matchData = {
           team_a_id: teamAId,
