@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Loader2, RefreshCw, Clock, Trophy, Zap, Globe } from "lucide-react";
+import { Download, Loader2, RefreshCw, Clock, Trophy, Zap, Globe, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -950,140 +952,220 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
                 </Badge>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {apiMatches.map((match, index) => (
-                  <div 
-                    key={index} 
-                    className={`p-3 rounded-lg border transition-colors ${
-                      match.selected 
-                        ? 'border-primary bg-primary/5' 
-                        : 'border-border hover:border-muted-foreground/50'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={match.selected}
-                        onCheckedChange={() => toggleMatchSelection(index)}
-                        className="mt-1"
-                      />
-                      
-                      <div className="flex-1 space-y-2">
-                        {/* Match Header */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            {match.homeTeamLogo && (
-                              <img src={match.homeTeamLogo} alt="" className="w-5 h-5 object-contain" />
-                            )}
-                            <span className="font-medium">{match.homeTeam}</span>
-                            <span className="text-muted-foreground">vs</span>
-                            <span className="font-medium">{match.awayTeam}</span>
-                            {match.awayTeamLogo && (
-                              <img src={match.awayTeamLogo} alt="" className="w-5 h-5 object-contain" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className={getFormatBadgeColor(match.matchFormat)}>
-                              {match.matchFormat || 'T20'}
-                            </Badge>
-                            <Badge variant={match.status === 'Live' ? 'destructive' : 'secondary'}>
-                              {match.status}
-                            </Badge>
-                          </div>
-                        </div>
+              <ScrollArea className="h-[300px] sm:h-[350px] pr-2">
+                <div className="space-y-2">
+                  {apiMatches.map((match, index) => (
+                    <div 
+                      key={index} 
+                      className={`p-2 sm:p-3 rounded-lg border transition-colors ${
+                        match.selected 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2 sm:gap-3">
+                        <Checkbox
+                          checked={match.selected}
+                          onCheckedChange={() => toggleMatchSelection(index)}
+                          className="mt-0.5"
+                        />
                         
-                        {/* Match Info */}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                          {match.startTime && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {format(new Date(match.startTime), 'dd MMM, HH:mm')}
-                            </span>
-                          )}
-                          {match.venue && (
-                            <span className="truncate max-w-[200px]">{match.venue}</span>
-                          )}
-                          {match.seriesName && (
-                            <span className="truncate max-w-[200px]">{match.seriesName}</span>
-                          )}
-                        </div>
-                        
-                        {/* Team Mapping */}
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Home Team</Label>
-                            <SearchableSelect
-                              options={[
-                                { value: 'auto', label: `🆕 ${match.homeTeam}`, sublabel: 'Create new' },
-                                ...(teams?.map((t) => ({
-                                  value: t.id,
-                                  label: t.name,
-                                  sublabel: t.short_name,
-                                  imageUrl: t.logo_url,
-                                })) || [])
-                              ]}
-                              value={match.teamAId || 'auto'}
-                              onValueChange={(v) => updateMatchTeam(index, 'teamAId', v === 'auto' ? null : v)}
-                              placeholder="Map team"
-                              searchPlaceholder="Search..."
-                              emptyText="No teams"
-                            />
+                        <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
+                          {/* Match Header - Compact on mobile */}
+                          <div className="flex items-center justify-between gap-1 sm:gap-2 flex-wrap">
+                            <div className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base min-w-0 flex-1">
+                              {match.homeTeamLogo && (
+                                <img src={match.homeTeamLogo} alt="" className="w-4 h-4 sm:w-5 sm:h-5 object-contain shrink-0" />
+                              )}
+                              <span className="font-medium truncate">{match.homeTeam}</span>
+                              <span className="text-muted-foreground shrink-0">vs</span>
+                              <span className="font-medium truncate">{match.awayTeam}</span>
+                              {match.awayTeamLogo && (
+                                <img src={match.awayTeamLogo} alt="" className="w-4 h-4 sm:w-5 sm:h-5 object-contain shrink-0" />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Badge className={`${getFormatBadgeColor(match.matchFormat)} text-[10px] sm:text-xs px-1.5`}>
+                                {match.matchFormat || 'T20'}
+                              </Badge>
+                              <Badge variant={match.status === 'Live' ? 'destructive' : 'secondary'} className="text-[10px] sm:text-xs px-1.5">
+                                {match.status}
+                              </Badge>
+                            </div>
                           </div>
                           
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Away Team</Label>
-                            <SearchableSelect
-                              options={[
-                                { value: 'auto', label: `🆕 ${match.awayTeam}`, sublabel: 'Create new' },
-                                ...(teams?.map((t) => ({
-                                  value: t.id,
-                                  label: t.name,
-                                  sublabel: t.short_name,
-                                  imageUrl: t.logo_url,
-                                })) || [])
-                              ]}
-                              value={match.teamBId || 'auto'}
-                              onValueChange={(v) => updateMatchTeam(index, 'teamBId', v === 'auto' ? null : v)}
-                              placeholder="Map team"
-                              searchPlaceholder="Search..."
-                              emptyText="No teams"
-                            />
+                          {/* Match Info - Compact */}
+                          <div className="flex items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
+                            {match.startTime && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {format(new Date(match.startTime), 'dd MMM, HH:mm')}
+                              </span>
+                            )}
+                            {match.venue && (
+                              <span className="truncate max-w-[120px] sm:max-w-[200px]">{match.venue}</span>
+                            )}
                           </div>
                           
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Tournament (SEO)</Label>
-                            <SearchableSelect
-                              options={[
-                                { value: 'none', label: 'No Tournament' },
-                                ...(tournaments?.filter(t => !t.is_completed).map((t) => ({
-                                  value: t.id,
-                                  label: t.name,
-                                  sublabel: t.season,
-                                  imageUrl: t.logo_url,
-                                })) || [])
-                              ]}
-                              value={match.tournamentId || 'none'}
-                              onValueChange={(v) => updateMatchTournament(index, v === 'none' ? null : v)}
-                              placeholder="Tournament"
-                              searchPlaceholder="Search..."
-                              emptyText="No tournaments"
-                            />
-                          </div>
+                          {/* Team Mapping - Collapsible on mobile */}
+                          <Collapsible>
+                            <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground sm:hidden w-full justify-center py-1">
+                              <ChevronDown className="w-3 h-3" />
+                              <span>Team & Tournament Mapping</span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="sm:!hidden">
+                              <div className="grid grid-cols-2 gap-2 pt-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Home</Label>
+                                  <SearchableSelect
+                                    options={[
+                                      { value: 'auto', label: `🆕 ${match.homeTeam}`, sublabel: 'New' },
+                                      ...(teams?.map((t) => ({
+                                        value: t.id,
+                                        label: t.name,
+                                        sublabel: t.short_name,
+                                        imageUrl: t.logo_url,
+                                      })) || [])
+                                    ]}
+                                    value={match.teamAId || 'auto'}
+                                    onValueChange={(v) => updateMatchTeam(index, 'teamAId', v === 'auto' ? null : v)}
+                                    placeholder="Team"
+                                    searchPlaceholder="Search..."
+                                    emptyText="No teams"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Away</Label>
+                                  <SearchableSelect
+                                    options={[
+                                      { value: 'auto', label: `🆕 ${match.awayTeam}`, sublabel: 'New' },
+                                      ...(teams?.map((t) => ({
+                                        value: t.id,
+                                        label: t.name,
+                                        sublabel: t.short_name,
+                                        imageUrl: t.logo_url,
+                                      })) || [])
+                                    ]}
+                                    value={match.teamBId || 'auto'}
+                                    onValueChange={(v) => updateMatchTeam(index, 'teamBId', v === 'auto' ? null : v)}
+                                    placeholder="Team"
+                                    searchPlaceholder="Search..."
+                                    emptyText="No teams"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Tournament</Label>
+                                  <SearchableSelect
+                                    options={[
+                                      { value: 'none', label: 'None' },
+                                      ...(tournaments?.filter(t => !t.is_completed).map((t) => ({
+                                        value: t.id,
+                                        label: t.name,
+                                        sublabel: t.season,
+                                        imageUrl: t.logo_url,
+                                      })) || [])
+                                    ]}
+                                    value={match.tournamentId || 'none'}
+                                    onValueChange={(v) => updateMatchTournament(index, v === 'none' ? null : v)}
+                                    placeholder="Tournament"
+                                    searchPlaceholder="Search..."
+                                    emptyText="No tournaments"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Match #</Label>
+                                  <Input
+                                    value={match.matchNumber || ''}
+                                    onChange={(e) => updateMatchNumber(index, e.target.value)}
+                                    placeholder="Match 5"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                           
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Match Number</Label>
-                            <Input
-                              value={match.matchNumber || ''}
-                              onChange={(e) => updateMatchNumber(index, e.target.value)}
-                              placeholder="e.g., Match 5, Final"
-                              className="h-9"
-                            />
+                          {/* Desktop Team Mapping */}
+                          <div className="hidden sm:grid grid-cols-4 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Home Team</Label>
+                              <SearchableSelect
+                                options={[
+                                  { value: 'auto', label: `🆕 ${match.homeTeam}`, sublabel: 'Create new' },
+                                  ...(teams?.map((t) => ({
+                                    value: t.id,
+                                    label: t.name,
+                                    sublabel: t.short_name,
+                                    imageUrl: t.logo_url,
+                                  })) || [])
+                                ]}
+                                value={match.teamAId || 'auto'}
+                                onValueChange={(v) => updateMatchTeam(index, 'teamAId', v === 'auto' ? null : v)}
+                                placeholder="Map team"
+                                searchPlaceholder="Search..."
+                                emptyText="No teams"
+                              />
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Away Team</Label>
+                              <SearchableSelect
+                                options={[
+                                  { value: 'auto', label: `🆕 ${match.awayTeam}`, sublabel: 'Create new' },
+                                  ...(teams?.map((t) => ({
+                                    value: t.id,
+                                    label: t.name,
+                                    sublabel: t.short_name,
+                                    imageUrl: t.logo_url,
+                                  })) || [])
+                                ]}
+                                value={match.teamBId || 'auto'}
+                                onValueChange={(v) => updateMatchTeam(index, 'teamBId', v === 'auto' ? null : v)}
+                                placeholder="Map team"
+                                searchPlaceholder="Search..."
+                                emptyText="No teams"
+                              />
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Tournament (SEO)</Label>
+                              <SearchableSelect
+                                options={[
+                                  { value: 'none', label: 'No Tournament' },
+                                  ...(tournaments?.filter(t => !t.is_completed).map((t) => ({
+                                    value: t.id,
+                                    label: t.name,
+                                    sublabel: t.season,
+                                    imageUrl: t.logo_url,
+                                  })) || [])
+                                ]}
+                                value={match.tournamentId || 'none'}
+                                onValueChange={(v) => updateMatchTournament(index, v === 'none' ? null : v)}
+                                placeholder="Tournament"
+                                searchPlaceholder="Search..."
+                                emptyText="No tournaments"
+                              />
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Match Number</Label>
+                              <Input
+                                value={match.matchNumber || ''}
+                                onChange={(e) => updateMatchNumber(index, e.target.value)}
+                                placeholder="e.g., Match 5, Final"
+                                className="h-9"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </ScrollArea>
 
               {/* Import Button */}
               <div className="pt-4 border-t">
