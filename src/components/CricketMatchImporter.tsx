@@ -301,6 +301,7 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
         // Filter to keep only upcoming and live matches
         const filteredMatches = data.matches.filter((m: ESPNCricketMatch) => {
           const status = m.status?.toLowerCase() || '';
+          
           // Check for completed match indicators
           const isCompleted = status.includes('complete') || 
             status.includes(' won ') || 
@@ -310,11 +311,12 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
             status.includes('match tied') ||
             (status.includes('result') && !status.includes('no result'));
           
-          // Also check if it's explicitly upcoming/scheduled
+          // Explicitly allow these statuses from RapidAPI
           const isUpcoming = status.includes('upcoming') || 
             status.includes('scheduled') || 
             status.includes('starts') || 
             status.includes('match starts') ||
+            status.includes('preview') ||  // Cricbuzz "Preview" status
             status === '' ||
             !status;
             
@@ -323,6 +325,7 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
             status.includes('innings') ||
             status.includes('batting');
           
+          // Return true if not completed OR explicitly upcoming/live
           return !isCompleted || isUpcoming || isLive;
         });
 
