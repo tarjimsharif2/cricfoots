@@ -516,12 +516,29 @@ const ApiCricketLiveScore = ({
                         </div>
                         {team.batsmen.length > 0 ? (
                           (() => {
-                            // Calculate totals
-                            const totalRuns = team.batsmen.reduce((sum, b) => sum + (parseInt(b.runs) || 0), 0);
-                            const totalBalls = team.batsmen.reduce((sum, b) => sum + (parseInt(b.balls) || 0), 0);
-                            const totalFours = team.batsmen.reduce((sum, b) => sum + (parseInt(b.fours) || 0), 0);
-                            const totalSixes = team.batsmen.reduce((sum, b) => sum + (parseInt(b.sixes) || 0), 0);
-                            const wickets = team.batsmen.filter(b => b.how_out && b.how_out !== 'not out').length;
+                            // Separate batsmen who actually batted vs those who didn't bat
+                            // A player batted if: balls > 0 OR runs > 0 OR they were dismissed
+                            const actualBatsmen = team.batsmen.filter(b => {
+                              const balls = parseInt(b.balls) || 0;
+                              const runs = parseInt(b.runs) || 0;
+                              const wasOut = b.how_out && b.how_out.toLowerCase() !== 'not out';
+                              return balls > 0 || runs > 0 || wasOut;
+                            });
+                            
+                            // Players who didn't bat (0 balls faced, 0 runs, and "not out")
+                            const didNotBat = team.batsmen.filter(b => {
+                              const balls = parseInt(b.balls) || 0;
+                              const runs = parseInt(b.runs) || 0;
+                              const wasOut = b.how_out && b.how_out.toLowerCase() !== 'not out';
+                              return balls === 0 && runs === 0 && !wasOut;
+                            });
+                            
+                            // Calculate totals from actual batsmen only
+                            const totalRuns = actualBatsmen.reduce((sum, b) => sum + (parseInt(b.runs) || 0), 0);
+                            const totalBalls = actualBatsmen.reduce((sum, b) => sum + (parseInt(b.balls) || 0), 0);
+                            const totalFours = actualBatsmen.reduce((sum, b) => sum + (parseInt(b.fours) || 0), 0);
+                            const totalSixes = actualBatsmen.reduce((sum, b) => sum + (parseInt(b.sixes) || 0), 0);
+                            const wickets = actualBatsmen.filter(b => b.how_out && b.how_out !== 'not out').length;
                             const overs = (totalBalls / 6).toFixed(1);
                             
                             // Get extras data from scoreData - match by innings name or team name
@@ -544,49 +561,61 @@ const ApiCricketLiveScore = ({
                             const extrasTotal = extras.total || (extras.wides + extras.noballs + extras.byes + extras.legbyes);
 
                             return (
-                              <div className="rounded-lg border overflow-x-auto">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="bg-muted/50">
-                                      <TableHead className="font-semibold text-xs whitespace-nowrap min-w-[100px]">Batter</TableHead>
-                                      <TableHead className="text-right font-semibold text-xs px-1 w-8">R</TableHead>
-                                      <TableHead className="text-right font-semibold text-xs px-1 w-8">B</TableHead>
-                                      <TableHead className="text-right font-semibold text-xs px-1 w-8">4s</TableHead>
-                                      <TableHead className="text-right font-semibold text-xs px-1 w-8">6s</TableHead>
-                                      <TableHead className="text-right font-semibold text-xs px-1 w-10">SR</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {team.batsmen.map((batsman, bIdx) => (
-                                      <TableRow key={bIdx}>
-                                        <TableCell className="py-2 px-2">
-                                          <div className="flex flex-col">
-                                            <span className="text-xs font-medium truncate max-w-[100px]">{batsman.player}</span>
-                                            {batsman.how_out && batsman.how_out !== 'not out' && (
-                                              <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">{batsman.how_out}</span>
-                                            )}
-                                            {batsman.how_out === 'not out' && (
-                                              <span className="text-[10px] text-green-500">not out</span>
-                                            )}
-                                          </div>
-                                        </TableCell>
-                                        <TableCell className="text-right font-semibold text-xs py-2 px-1">{batsman.runs}</TableCell>
-                                        <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.balls}</TableCell>
-                                        <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.fours}</TableCell>
-                                        <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.sixes}</TableCell>
-                                        <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.sr}</TableCell>
+                              <div className="space-y-3">
+                                <div className="rounded-lg border overflow-x-auto">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="bg-muted/50">
+                                        <TableHead className="font-semibold text-xs whitespace-nowrap min-w-[100px]">Batter</TableHead>
+                                        <TableHead className="text-right font-semibold text-xs px-1 w-8">R</TableHead>
+                                        <TableHead className="text-right font-semibold text-xs px-1 w-8">B</TableHead>
+                                        <TableHead className="text-right font-semibold text-xs px-1 w-8">4s</TableHead>
+                                        <TableHead className="text-right font-semibold text-xs px-1 w-8">6s</TableHead>
+                                        <TableHead className="text-right font-semibold text-xs px-1 w-10">SR</TableHead>
                                       </TableRow>
-                                    ))}
-                                    {/* Extras Row */}
-                                    <TableRow className="bg-muted/30 border-t">
-                                      <TableCell className="py-2 px-2">
-                                        <span className="text-xs font-medium">Extras</span>
-                                      </TableCell>
-                                      <TableCell className="text-right font-semibold text-xs py-2 px-1">{extrasTotal}</TableCell>
-                                      <TableCell className="text-right text-muted-foreground text-xs py-2 px-1" colSpan={4}></TableCell>
-                                    </TableRow>
-                                  </TableBody>
-                                </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {actualBatsmen.map((batsman, bIdx) => (
+                                        <TableRow key={bIdx}>
+                                          <TableCell className="py-2 px-2">
+                                            <div className="flex flex-col">
+                                              <span className="text-xs font-medium truncate max-w-[100px]">{batsman.player}</span>
+                                              {batsman.how_out && batsman.how_out !== 'not out' && (
+                                                <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">{batsman.how_out}</span>
+                                              )}
+                                              {batsman.how_out === 'not out' && (
+                                                <span className="text-[10px] text-green-500">not out</span>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="text-right font-semibold text-xs py-2 px-1">{batsman.runs}</TableCell>
+                                          <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.balls}</TableCell>
+                                          <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.fours}</TableCell>
+                                          <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.sixes}</TableCell>
+                                          <TableCell className="text-right text-muted-foreground text-xs py-2 px-1">{batsman.sr}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                      {/* Extras Row */}
+                                      <TableRow className="bg-muted/30 border-t">
+                                        <TableCell className="py-2 px-2">
+                                          <span className="text-xs font-medium">Extras</span>
+                                        </TableCell>
+                                        <TableCell className="text-right font-semibold text-xs py-2 px-1">{extrasTotal}</TableCell>
+                                        <TableCell className="text-right text-muted-foreground text-xs py-2 px-1" colSpan={4}></TableCell>
+                                      </TableRow>
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                                
+                                {/* Did Not Bat Section */}
+                                {didNotBat.length > 0 && (
+                                  <div className="px-2 py-2 bg-muted/20 rounded-lg">
+                                    <span className="text-xs text-muted-foreground font-medium">Did Not Bat: </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {didNotBat.map(b => b.player).join(', ')}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             );
                           })()
