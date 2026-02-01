@@ -231,50 +231,89 @@ const ApiCricketLiveScore = ({
     return score?.replace(/\s*\(\d+\.?\d*\s*ov\)/, '').trim() || '';
   };
 
-  // Get scores for display - match team names directly, not by home/away position
+  // Get scores for display - based on batsmen team data, not home/away position
   const getDisplayScores = () => {
-    // Build a map of team name -> score from API response
-    // scoreData contains: homeTeam, awayTeam, homeScore, awayScore (from the hook)
-    // The hook already maps these to teamA/teamB names
+    // Step 1: Build a map of team names to their scores from the API data
+    // Use batsmen data to identify which teams are in the match
+    const teamScoreMap: Record<string, { score: string; overs: string | null }> = {};
     
-    // First, try to find scores by matching team names directly from the API data
-    // This uses the team names in the API response, not positional home/away
-    const apiTeamScores: Record<string, { score: string; overs: string | null }> = {};
+    // First, extract scores from extras data (has team name + total_runs + total_overs)
+    if (scoreData?.extras && Array.isArray(scoreData.extras)) {
+      for (const extra of scoreData.extras as any[]) {
+        if (extra.team && (extra.total_runs !== undefined || extra.total_runs !== null)) {
+          const teamName = normalizeTeamName(extra.team);
+          const existingScore = teamScoreMap[teamName];
+          const runs = extra.total_runs || 0;
+          const overs = extra.total_overs || null;
+          
+          // If we already have a score for this team, it could be multi-innings
+          // Keep the most complete/latest score
+          if (!existingScore || runs > parseInt(existingScore.score.split('/')[0] || '0')) {
+            teamScoreMap[teamName] = {
+              score: `${runs}`,
+              overs: overs,
+            };
+          }
+        }
+      }
+    }
     
+    // Step 2: Extract unique teams from batsmen data
+    const batsmenTeams = new Set<string>();
+    if (scoreData?.batsmen && Array.isArray(scoreData.batsmen)) {
+      for (const batsman of scoreData.batsmen) {
+        if (batsman.team) {
+          batsmenTeams.add(batsman.team);
+        }
+      }
+    }
+    
+    // Step 3: Build complete score map from homeScore/awayScore + homeTeam/awayTeam
+    // Map the API team names to their scores
     if (scoreData?.homeTeam && scoreData?.homeScore) {
-      apiTeamScores[normalizeTeamName(scoreData.homeTeam)] = {
+      const normalizedHome = normalizeTeamName(scoreData.homeTeam);
+      teamScoreMap[normalizedHome] = {
         score: scoreData.homeScore,
         overs: parseScoreOvers(scoreData.homeScore) || scoreData.homeOvers || null,
       };
     }
     if (scoreData?.awayTeam && scoreData?.awayScore) {
-      apiTeamScores[normalizeTeamName(scoreData.awayTeam)] = {
+      const normalizedAway = normalizeTeamName(scoreData.awayTeam);
+      teamScoreMap[normalizedAway] = {
         score: scoreData.awayScore,
         overs: parseScoreOvers(scoreData.awayScore) || scoreData.awayOvers || null,
       };
     }
     
-    // Helper to find score for a team by name matching
-    const findScoreByTeamName = (teamName: string): { score: string | null; overs: string | null } => {
-      const normalizedName = normalizeTeamName(teamName);
+    // Step 4: Find score for each team by matching names
+    const findScoreForTeam = (dbTeamName: string): { score: string | null; overs: string | null } => {
+      const normalizedDbName = normalizeTeamName(dbTeamName);
       
-      // Direct match
-      if (apiTeamScores[normalizedName]) {
-        const data = apiTeamScores[normalizedName];
+      // Direct match first
+      if (teamScoreMap[normalizedDbName]) {
+        const data = teamScoreMap[normalizedDbName];
         return { score: cleanScore(data.score), overs: data.overs };
       }
       
       // Fuzzy match using teamsMatch
-      for (const [apiTeam, data] of Object.entries(apiTeamScores)) {
-        if (teamsMatch(teamName, apiTeam) || teamsMatch(normalizedName, apiTeam)) {
+      for (const [apiTeamName, data] of Object.entries(teamScoreMap)) {
+        // Check if the DB team name matches any API team name
+        if (teamsMatch(dbTeamName, apiTeamName)) {
           return { score: cleanScore(data.score), overs: data.overs };
+        }
+        
+        // Also check against batsmen teams
+        for (const batsmenTeam of batsmenTeams) {
+          if (teamsMatch(dbTeamName, batsmenTeam) && teamsMatch(batsmenTeam, apiTeamName)) {
+            return { score: cleanScore(data.score), overs: data.overs };
+          }
         }
       }
       
       return { score: null, overs: null };
     };
     
-    // Get scores from innings data (batsmen) if available
+    // Get scores from innings data as fallback
     let teamAFromInnings = { score: null as string | null, overs: null as string | null, allScores: [] as string[] };
     let teamBFromInnings = { score: null as string | null, overs: null as string | null, allScores: [] as string[] };
     
@@ -283,21 +322,21 @@ const ApiCricketLiveScore = ({
       teamBFromInnings = getTeamScoreFromInnings(teamBName);
     }
     
-    // Get scores from API by team name
-    const teamAFromApi = findScoreByTeamName(teamAName);
-    const teamBFromApi = findScoreByTeamName(teamBName);
+    // Get scores by team name matching
+    const teamAScore = findScoreForTeam(teamAName);
+    const teamBScore = findScoreForTeam(teamBName);
     
-    // Priority: API team-matched score > innings calculated score > dash
+    // Priority: Direct team-name matched score > innings calculated score > dash
     return {
       teamA: {
-        score: teamAFromApi.score || teamAFromInnings.score || '-',
-        overs: teamAFromApi.overs || teamAFromInnings.overs,
-        allScores: teamAFromApi.score ? [teamAFromApi.score] : teamAFromInnings.allScores,
+        score: teamAScore.score || teamAFromInnings.score || '-',
+        overs: teamAScore.overs || teamAFromInnings.overs,
+        allScores: teamAScore.score ? [teamAScore.score] : teamAFromInnings.allScores,
       },
       teamB: {
-        score: teamBFromApi.score || teamBFromInnings.score || '-',
-        overs: teamBFromApi.overs || teamBFromInnings.overs,
-        allScores: teamBFromApi.score ? [teamBFromApi.score] : teamBFromInnings.allScores,
+        score: teamBScore.score || teamBFromInnings.score || '-',
+        overs: teamBScore.overs || teamBFromInnings.overs,
+        allScores: teamBScore.score ? [teamBScore.score] : teamBFromInnings.allScores,
       },
     };
   };
