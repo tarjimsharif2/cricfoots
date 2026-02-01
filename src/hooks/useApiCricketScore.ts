@@ -245,6 +245,24 @@ export const useApiCricketScore = ({
           teamBOvers = apiScores.away_overs || null;
         }
 
+        // IMPORTANT: If API scores are missing but matches table has scores, use those as fallback
+        // This happens when API only syncs one team's innings (e.g., bowling team batted second)
+        if (!teamAScore && match.score_a) {
+          teamAScore = match.score_a;
+          // Extract overs from score_a if present (format: "126/5 (18.4 ov)")
+          const oversMatch = match.score_a.match(/\((\d+\.?\d*)\s*ov\)/);
+          if (oversMatch) {
+            teamAOvers = oversMatch[1];
+          }
+        }
+        if (!teamBScore && match.score_b) {
+          teamBScore = match.score_b;
+          const oversMatch = match.score_b.match(/\((\d+\.?\d*)\s*ov\)/);
+          if (oversMatch) {
+            teamBOvers = oversMatch[1];
+          }
+        }
+
         return {
           // Return with teamA/teamB naming for consistency
           homeTeam: teamAInfo?.name || teamAName,
