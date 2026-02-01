@@ -35,6 +35,17 @@ export interface ExtrasData {
   innings?: string;
 }
 
+export interface PlayingXIPlayer {
+  id: string;
+  player_name: string;
+  player_role: string | null;
+  is_captain: boolean;
+  is_vice_captain: boolean;
+  is_wicket_keeper: boolean;
+  batting_order: number | null;
+  team_id: string;
+}
+
 export interface ApiCricketScoreData {
   homeTeam: string;
   awayTeam: string;
@@ -59,6 +70,12 @@ export interface ApiCricketScoreData {
   bowlers?: BowlerData[];
   scorecard?: any[];
   extras?: ExtrasData[];
+  playingXI?: {
+    teamA: PlayingXIPlayer[];
+    teamB: PlayingXIPlayer[];
+  };
+  teamAId?: string;
+  teamBId?: string;
 }
 
 interface UseApiCricketScoreOptions {
@@ -193,7 +210,7 @@ export const useApiCricketScore = ({
         console.error('Error fetching API scores:', apiScoresError);
       }
 
-      // Also get basic match info
+      // Also get basic match info with team IDs
       const { data: match, error: matchError } = await supabase
         .from('matches')
         .select(`
@@ -201,8 +218,10 @@ export const useApiCricketScore = ({
           score_b,
           status,
           last_api_sync,
-          team_a:teams!matches_team_a_id_fkey(name, short_name, logo_url),
-          team_b:teams!matches_team_b_id_fkey(name, short_name, logo_url)
+          team_a_id,
+          team_b_id,
+          team_a:teams!matches_team_a_id_fkey(id, name, short_name, logo_url),
+          team_b:teams!matches_team_b_id_fkey(id, name, short_name, logo_url)
         `)
         .eq('id', matchId)
         .maybeSingle();
@@ -211,6 +230,20 @@ export const useApiCricketScore = ({
 
       const teamAInfo = match.team_a as any;
       const teamBInfo = match.team_b as any;
+      const teamAId = match.team_a_id;
+      const teamBId = match.team_b_id;
+
+      // Fetch Playing XI from database
+      const { data: playingXIData } = await supabase
+        .from('match_playing_xi')
+        .select('*')
+        .eq('match_id', matchId)
+        .order('batting_order', { ascending: true, nullsFirst: false });
+
+      const playingXI = {
+        teamA: (playingXIData || []).filter(p => p.team_id === teamAId) as PlayingXIPlayer[],
+        teamB: (playingXIData || []).filter(p => p.team_id === teamBId) as PlayingXIPlayer[],
+      };
 
       // If we have detailed API scores, use them with correct team mapping
       if (apiScores) {
@@ -293,6 +326,9 @@ export const useApiCricketScore = ({
           batsmen: (apiScores.batsmen as unknown as BatsmanData[]) || [],
           bowlers: (apiScores.bowlers as unknown as BowlerData[]) || [],
           extras: (apiScores.extras as unknown as ExtrasData[]) || [],
+          playingXI,
+          teamAId,
+          teamBId,
         } as ApiCricketScoreData;
       }
 
@@ -310,6 +346,9 @@ export const useApiCricketScore = ({
         eventLive: match.status === 'live',
         lastUpdated: match.last_api_sync ? new Date(match.last_api_sync) : new Date(),
         fromDatabase: true,
+        playingXI,
+        teamAId,
+        teamBId,
       } as ApiCricketScoreData;
     } catch (err) {
       console.error('Error fetching from database:', err);

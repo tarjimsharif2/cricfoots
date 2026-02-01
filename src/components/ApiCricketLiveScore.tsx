@@ -525,13 +525,65 @@ const ApiCricketLiveScore = ({
                               return balls > 0 || runs > 0 || wasOut;
                             });
                             
-                            // Players who didn't bat (0 balls faced, 0 runs, and "not out")
-                            const didNotBat = team.batsmen.filter(b => {
-                              const balls = parseInt(b.balls) || 0;
-                              const runs = parseInt(b.runs) || 0;
-                              const wasOut = b.how_out && b.how_out.toLowerCase() !== 'not out';
-                              return balls === 0 && runs === 0 && !wasOut;
-                            });
+                            // Get Playing XI from database for this team
+                            // Match team name from innings to find correct Playing XI
+                            const playingXI = (() => {
+                              if (!scoreData?.playingXI) return [];
+                              
+                              // Match by team name
+                              if (teamsMatch(team.name, scoreData.homeTeam || '')) {
+                                return scoreData.playingXI.teamA || [];
+                              }
+                              if (teamsMatch(team.name, scoreData.awayTeam || '')) {
+                                return scoreData.playingXI.teamB || [];
+                              }
+                              
+                              // Fallback: check all players in both teams
+                              const teamANames = (scoreData.playingXI.teamA || []).map(p => normalizeTeamName(p.player_name));
+                              const teamBNames = (scoreData.playingXI.teamB || []).map(p => normalizeTeamName(p.player_name));
+                              
+                              // Check if any batsmen from this innings match teamA or teamB
+                              const batsmenNames = actualBatsmen.map(b => normalizeTeamName(b.player));
+                              const matchesTeamA = batsmenNames.some(name => teamANames.some(pn => pn.includes(name) || name.includes(pn)));
+                              const matchesTeamB = batsmenNames.some(name => teamBNames.some(pn => pn.includes(name) || name.includes(pn)));
+                              
+                              if (matchesTeamA) return scoreData.playingXI.teamA || [];
+                              if (matchesTeamB) return scoreData.playingXI.teamB || [];
+                              
+                              return [];
+                            })();
+                            
+                            // Get "Did Not Bat" players from Playing XI who didn't appear in actual batsmen
+                            const didNotBat = (() => {
+                              if (playingXI.length === 0) {
+                                // Fallback to API data if no Playing XI in database
+                                return team.batsmen.filter(b => {
+                                  const balls = parseInt(b.balls) || 0;
+                                  const runs = parseInt(b.runs) || 0;
+                                  const wasOut = b.how_out && b.how_out.toLowerCase() !== 'not out';
+                                  return balls === 0 && runs === 0 && !wasOut;
+                                }).map(b => b.player);
+                              }
+                              
+                              // Get all player names who actually batted (normalized for comparison)
+                              const battedNames = actualBatsmen.map(b => normalizeTeamName(b.player));
+                              
+                              // Find players in Playing XI who didn't bat
+                              return playingXI
+                                .filter(p => {
+                                  const normalizedName = normalizeTeamName(p.player_name);
+                                  // Check if this player is NOT in the batted list
+                                  return !battedNames.some(bn => {
+                                    // Match by first name or last name
+                                    const bnParts = bn.split(' ');
+                                    const pnParts = normalizedName.split(' ');
+                                    return bn === normalizedName || 
+                                      bnParts[bnParts.length - 1] === pnParts[pnParts.length - 1] ||
+                                      (bnParts[0] === pnParts[0] && bnParts.length > 1 && pnParts.length > 1);
+                                  });
+                                })
+                                .map(p => p.player_name);
+                            })();
                             
                             // Calculate totals from actual batsmen only
                             const totalRuns = actualBatsmen.reduce((sum, b) => sum + (parseInt(b.runs) || 0), 0);
@@ -607,12 +659,12 @@ const ApiCricketLiveScore = ({
                                   </Table>
                                 </div>
                                 
-                                {/* Did Not Bat Section */}
+                                {/* Did Not Bat Section - Uses Playing XI from database */}
                                 {didNotBat.length > 0 && (
                                   <div className="px-2 py-2 bg-muted/20 rounded-lg">
                                     <span className="text-xs text-muted-foreground font-medium">Did Not Bat: </span>
                                     <span className="text-xs text-muted-foreground">
-                                      {didNotBat.map(b => b.player).join(', ')}
+                                      {didNotBat.join(', ')}
                                     </span>
                                   </div>
                                 )}
