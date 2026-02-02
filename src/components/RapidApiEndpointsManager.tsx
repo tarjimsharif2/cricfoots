@@ -11,6 +11,12 @@ interface RapidApiEndpoints {
   // Hosts
   cricbuzz_host: string;
   cricketapi_live_host: string;
+  cricbuzz_image_host?: string;
+  // Series list endpoints
+  series_international_endpoint?: string;
+  series_league_endpoint?: string;
+  series_domestic_endpoint?: string;
+  series_matches_endpoint?: string;
   // Endpoints
   points_table_endpoint: string;
   squad_endpoint: string;
@@ -35,6 +41,13 @@ interface Props {
 const defaultEndpoints: RapidApiEndpoints = {
   cricbuzz_host: 'cricbuzz-cricket.p.rapidapi.com',
   cricketapi_live_host: 'cricketapi-live.p.rapidapi.com',
+  cricbuzz_image_host: 'cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c',
+  // Series list endpoints
+  series_international_endpoint: '/series/v1/international',
+  series_league_endpoint: '/series/v1/league',
+  series_domestic_endpoint: '/series/v1/domestic',
+  series_matches_endpoint: '/series/v1/{series_id}',
+  // Match endpoints
   points_table_endpoint: '/stats/v1/series/{series_id}/points-table',
   squad_endpoint: '/mcenter/v1/{match_id}/hsquad',
   scorecard_endpoint: '/mcenter/v1/{match_id}/scard',
@@ -93,7 +106,7 @@ export default function RapidApiEndpointsManager({ value, onChange }: Props) {
             <div className="flex items-center gap-2">
               <Link2 className="w-4 h-4" />
               <span>API Hosts</span>
-              <Badge variant="secondary" className="ml-2">2</Badge>
+              <Badge variant="secondary" className="ml-2">3</Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
@@ -127,16 +140,93 @@ export default function RapidApiEndpointsManager({ value, onChange }: Props) {
                   Used for: Live Matches, Squad scraping
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  Cricbuzz Image Host
+                  <Badge variant="outline" className="text-xs">Images</Badge>
+                </Label>
+                <Input
+                  value={endpoints.cricbuzz_image_host || ''}
+                  onChange={(e) => handleChange('cricbuzz_image_host', e.target.value)}
+                  placeholder="cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for: Team logos - Format: {'{host}'}{'{imageId}'}/i.jpg
+                </p>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
 
-        {/* Cricbuzz Endpoints */}
+        {/* Series Endpoints */}
+        <AccordionItem value="series">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-purple-500" />
+              <span>Series Endpoints</span>
+              <Badge variant="secondary" className="ml-2">4</Badge>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-4">
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label>International Series Endpoint</Label>
+                <Input
+                  value={endpoints.series_international_endpoint || ''}
+                  onChange={(e) => handleChange('series_international_endpoint', e.target.value)}
+                  placeholder="/series/v1/international"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for: Fetching international series list
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>League Series Endpoint</Label>
+                <Input
+                  value={endpoints.series_league_endpoint || ''}
+                  onChange={(e) => handleChange('series_league_endpoint', e.target.value)}
+                  placeholder="/series/v1/league"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for: Fetching franchise/league series list
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Domestic Series Endpoint</Label>
+                <Input
+                  value={endpoints.series_domestic_endpoint || ''}
+                  onChange={(e) => handleChange('series_domestic_endpoint', e.target.value)}
+                  placeholder="/series/v1/domestic"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for: Fetching domestic series list
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Series Matches Endpoint</Label>
+                <Input
+                  value={endpoints.series_matches_endpoint || ''}
+                  onChange={(e) => handleChange('series_matches_endpoint', e.target.value)}
+                  placeholder="/series/v1/{series_id}"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Placeholder: {'{series_id}'} → Series ID for fetching matches
+                </p>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Cricbuzz Match Endpoints */}
         <AccordionItem value="cricbuzz">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-green-500" />
-              <span>Cricbuzz Endpoints</span>
+              <span>Match & Squad Endpoints</span>
               <Badge variant="secondary" className="ml-2">10</Badge>
             </div>
           </AccordionTrigger>

@@ -42,15 +42,20 @@ Deno.serve(async (req) => {
     const endpoints = settings.rapidapi_endpoints as Record<string, string> || {};
     const cricbuzzHost = endpoints.cricbuzz_host || 'cricbuzz-cricket.p.rapidapi.com';
     
+    // Get configurable series list endpoints
+    const seriesInternationalPath = endpoints.series_international_endpoint || '/series/v1/international';
+    const seriesLeaguePath = endpoints.series_league_endpoint || '/series/v1/league';
+    const seriesDomesticPath = endpoints.series_domestic_endpoint || '/series/v1/domestic';
+    
     console.log(`[fetch-cricket-series] Using host: ${cricbuzzHost}`);
     
     const allSeries: SeriesInfo[] = [];
     
-    // Fetch from multiple endpoints to get comprehensive series list
+    // Fetch from multiple endpoints to get comprehensive series list - use configurable paths
     const fetchEndpoints = [
-      '/series/v1/international',
-      '/series/v1/league',
-      '/series/v1/domestic',
+      seriesInternationalPath,
+      seriesLeaguePath,
+      seriesDomesticPath,
     ];
 
     for (const endpoint of fetchEndpoints) {

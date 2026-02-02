@@ -3,8 +3,16 @@ import { supabase } from '@/integrations/supabase/client';
 
 // RapidAPI Endpoints configuration
 export interface RapidApiEndpoints {
+  // Hosts
   cricbuzz_host: string;
   cricketapi_live_host: string;
+  cricbuzz_image_host?: string;
+  // Series list endpoints
+  series_international_endpoint?: string;
+  series_league_endpoint?: string;
+  series_domestic_endpoint?: string;
+  series_matches_endpoint?: string;
+  // Match endpoints
   points_table_endpoint: string;
   squad_endpoint: string;
   scorecard_endpoint: string;
