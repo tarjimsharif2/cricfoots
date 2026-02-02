@@ -974,9 +974,11 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
                           {match.homeTeam} vs {match.awayTeam}
                         </div>
                         <div className="flex gap-1">
-                          <Badge className={`${getFormatBadgeColor(match.matchFormat)} text-[9px] px-1 h-4`}>
-                            {match.matchFormat || 'T20'}
-                          </Badge>
+                          {match.matchFormat && (
+                            <Badge className={`${getFormatBadgeColor(match.matchFormat)} text-[9px] px-1 h-4`}>
+                              {match.matchFormat}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       
