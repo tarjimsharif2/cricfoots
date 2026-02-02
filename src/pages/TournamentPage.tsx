@@ -121,7 +121,7 @@ const TournamentPage = () => {
   const showParticipatingTeams = tournament?.show_participating_teams !== false && participatingTeams.length > 0;
   const teamsPosition = tournament?.participating_teams_position || 'before_matches';
 
-  // Participating Teams Component
+  // Participating Teams Component - Compact version
   const ParticipatingTeamsSection = () => {
     if (!showParticipatingTeams) return null;
     
@@ -130,27 +130,27 @@ const TournamentPage = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="mb-8"
+        className="mb-6"
       >
         <Card className="border-border/50 bg-card/80 backdrop-blur">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="w-5 h-5 text-primary" />
-              <h2 className="font-display text-xl text-gradient">Participating Teams</h2>
-              <Badge variant="secondary" className="ml-2">{tournament?.total_teams ?? participatingTeams.length} Teams</Badge>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-primary" />
+              <h2 className="font-display text-lg text-gradient">Participating Teams</h2>
+              <Badge variant="secondary" className="ml-auto text-[10px] px-1.5">{tournament?.total_teams ?? participatingTeams.length}</Badge>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
               {participatingTeams.map((team, index) => (
                 <motion.div
                   key={team.id}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="flex flex-col items-center p-3 rounded-xl bg-background/50 border border-border/30 hover:border-primary/50 transition-colors"
+                  transition={{ delay: index * 0.02 }}
+                  className="flex flex-col items-center p-2 rounded-lg bg-background/50 border border-border/30 hover:border-primary/50 transition-colors"
                 >
                   {team.logo_url ? (
                     <div 
-                      className="w-14 h-14 rounded-xl p-1.5 mb-2 border border-border/20"
+                      className="w-8 h-8 rounded-lg p-0.5 mb-1 border border-border/20"
                       style={{ backgroundColor: (tournament as any)?.logo_background_color || 'transparent' }}
                     >
                       <img 
@@ -160,11 +160,11 @@ const TournamentPage = () => {
                       />
                     </div>
                   ) : (
-                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-2">
-                      <span className="text-lg font-bold text-primary">{team.short_name.charAt(0)}</span>
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-1">
+                      <span className="text-xs font-bold text-primary">{team.short_name.charAt(0)}</span>
                     </div>
                   )}
-                  <span className="text-xs font-medium text-center text-foreground">{team.name}</span>
+                  <span className="text-[10px] font-medium text-center text-foreground leading-tight line-clamp-1">{team.short_name}</span>
                 </motion.div>
               ))}
             </div>
