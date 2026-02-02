@@ -573,7 +573,7 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
           score_a: match.homeScore || null,
           score_b: match.awayScore || null,
           is_active: true,
-          page_type: 'match_page',
+          page_type: 'seo_match_page',
           slug,
           seo_title: seoTitle,
           seo_description: seoDescription,

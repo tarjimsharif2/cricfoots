@@ -427,7 +427,7 @@ export default function FootballMatchImporter({ onImportComplete }: FootballMatc
           score_b: match.awayScore || null,
           match_minute: match.minute ? parseInt(match.minute.replace(/'/g, '')) || null : null,
           is_active: true,
-          page_type: 'match_page',
+          page_type: 'seo_match_page',
           slug,
           seo_title: seoTitle,
           seo_description: seoDescription,
