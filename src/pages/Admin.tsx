@@ -268,6 +268,7 @@ const Admin = () => {
     og_image_url: '',
     footer_text: '',
     disclaimer_text: '',
+    show_disclaimer: true,
     google_analytics_id: '',
     // Ad settings
     ads_enabled: false,
@@ -323,6 +324,7 @@ const Admin = () => {
         og_image_url: siteSettings.og_image_url || '',
         footer_text: siteSettings.footer_text || '',
         disclaimer_text: (siteSettings as any).disclaimer_text || '',
+        show_disclaimer: (siteSettings as any).show_disclaimer !== false,
         google_analytics_id: siteSettings.google_analytics_id || '',
         ads_enabled: siteSettings.ads_enabled || false,
         google_adsense_id: siteSettings.google_adsense_id || '',
@@ -1552,6 +1554,7 @@ const Admin = () => {
         og_image_url: siteSettingsForm.og_image_url || null,
         footer_text: siteSettingsForm.footer_text || null,
         disclaimer_text: siteSettingsForm.disclaimer_text || null,
+        show_disclaimer: siteSettingsForm.show_disclaimer,
         google_analytics_id: siteSettingsForm.google_analytics_id || null,
         // Ad settings
         ads_enabled: siteSettingsForm.ads_enabled,
@@ -4213,16 +4216,30 @@ const Admin = () => {
                         </div>
                       </div>
 
-                      {/* Disclaimer Text */}
-                      <div className="space-y-2">
-                        <Label>Disclaimer Text</Label>
-                        <Textarea 
-                          placeholder="All content displayed here is from publicly available sources on the internet. We do not own or claim ownership of any cricket matches, streams, or highlights. This platform is for informational purposes only."
-                          value={siteSettingsForm.disclaimer_text} 
-                          onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, disclaimer_text: e.target.value })}
-                          rows={3}
-                        />
-                        <p className="text-xs text-muted-foreground">This text will appear in the footer disclaimer section</p>
+                      {/* Disclaimer Section */}
+                      <div className="space-y-4 p-4 border border-border rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base font-medium">Show Disclaimer</Label>
+                            <p className="text-xs text-muted-foreground">Display disclaimer section in footer</p>
+                          </div>
+                          <Switch
+                            checked={siteSettingsForm.show_disclaimer}
+                            onCheckedChange={(checked) => setSiteSettingsForm({ ...siteSettingsForm, show_disclaimer: checked })}
+                          />
+                        </div>
+                        
+                        {siteSettingsForm.show_disclaimer && (
+                          <div className="space-y-2 pt-2 border-t border-border">
+                            <Label>Disclaimer Text</Label>
+                            <Textarea 
+                              placeholder="All content displayed here is from publicly available sources on the internet. We do not own or claim ownership of any cricket matches, streams, or highlights. This platform is for informational purposes only."
+                              value={siteSettingsForm.disclaimer_text} 
+                              onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, disclaimer_text: e.target.value })}
+                              rows={3}
+                            />
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
