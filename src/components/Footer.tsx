@@ -13,6 +13,7 @@ const Footer = () => {
   const siteName = settings?.site_name || "LIVE SPORTS";
   const footerText = settings?.footer_text || `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`;
   const disclaimerText = (settings as any)?.disclaimer_text || "All content displayed here is from publicly available sources on the internet. We do not own or claim ownership of any cricket matches, streams, or highlights. This platform is for informational purposes only.";
+  const showDisclaimer = (settings as any)?.show_disclaimer !== false;
   const telegramLink = settings?.telegram_link || "#";
   // Only show tournaments that have show_in_menu enabled (same setting as header)
   const activeTournaments = tournaments?.filter(t => t.is_active && t.show_in_menu && !t.is_completed) || [];
@@ -142,19 +143,21 @@ const Footer = () => {
         </div>
 
         {/* Disclaimer Section */}
-        <div className="mt-8 pt-6 border-t border-border">
-          <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/5 to-transparent p-5 md:p-6">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-primary" />
-              <h3 className="font-display text-lg font-semibold text-primary tracking-wide uppercase">
-                Important Disclaimer
-              </h3>
+        {showDisclaimer && (
+          <div className="mt-8 pt-6 border-t border-border">
+            <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/5 to-transparent p-5 md:p-6">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5 text-primary" />
+                <h3 className="font-display text-lg font-semibold text-primary tracking-wide uppercase">
+                  Important Disclaimer
+                </h3>
+              </div>
+              <p className="text-sm text-muted-foreground text-center leading-relaxed max-w-3xl mx-auto">
+                {disclaimerText}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground text-center leading-relaxed max-w-3xl mx-auto">
-              {disclaimerText}
-            </p>
           </div>
-        </div>
+        )}
 
         <div className="mt-6 pt-6 border-t border-border text-center text-sm text-muted-foreground">
           <p>{footerText}</p>

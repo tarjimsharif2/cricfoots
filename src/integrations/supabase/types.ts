@@ -861,6 +861,7 @@ export type Database = {
           rapidapi_key: string | null
           robots_txt: string | null
           schema_org_enabled: boolean | null
+          show_disclaimer: boolean | null
           sidebar_ad_code: string | null
           site_description: string | null
           site_keywords: string | null
@@ -921,6 +922,7 @@ export type Database = {
           rapidapi_key?: string | null
           robots_txt?: string | null
           schema_org_enabled?: boolean | null
+          show_disclaimer?: boolean | null
           sidebar_ad_code?: string | null
           site_description?: string | null
           site_keywords?: string | null
@@ -981,6 +983,7 @@ export type Database = {
           rapidapi_key?: string | null
           robots_txt?: string | null
           schema_org_enabled?: boolean | null
+          show_disclaimer?: boolean | null
           sidebar_ad_code?: string | null
           site_description?: string | null
           site_keywords?: string | null
@@ -1041,6 +1044,7 @@ export type Database = {
           rapidapi_endpoints: Json | null
           robots_txt: string | null
           schema_org_enabled: boolean | null
+          show_disclaimer: boolean | null
           sidebar_ad_code: string | null
           site_description: string | null
           site_keywords: string | null
@@ -1091,6 +1095,7 @@ export type Database = {
           rapidapi_endpoints?: Json | null
           robots_txt?: string | null
           schema_org_enabled?: boolean | null
+          show_disclaimer?: boolean | null
           sidebar_ad_code?: string | null
           site_description?: string | null
           site_keywords?: string | null
@@ -1141,6 +1146,7 @@ export type Database = {
           rapidapi_endpoints?: Json | null
           robots_txt?: string | null
           schema_org_enabled?: boolean | null
+          show_disclaimer?: boolean | null
           sidebar_ad_code?: string | null
           site_description?: string | null
           site_keywords?: string | null
