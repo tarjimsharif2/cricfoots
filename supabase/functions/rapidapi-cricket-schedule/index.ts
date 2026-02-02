@@ -121,14 +121,15 @@ Deno.serve(async (req) => {
     const rapidApiKey = settings.rapidapi_key;
     const endpoints = settings.rapidapi_endpoints || {};
     const cricbuzzHost = endpoints.cricbuzz_host || 'cricbuzz-cricket.p.rapidapi.com';
+    const cricbuzzImageHost = endpoints.cricbuzz_image_host || 'cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c';
 
     // Get endpoint paths with proper defaults
     const liveMatchesPath = endpoints.live_matches_endpoint || '/matches/v1/live';
     const recentMatchesPath = endpoints.recent_matches_endpoint || '/matches/v1/recent';
     const schedulePath = endpoints.schedule_endpoint || '/schedule/v1/all';
-    const seriesMatchesPath = endpoints.series_matches_endpoint || '/series/v1/{series_id}/matches';
+    const seriesMatchesPath = endpoints.series_matches_endpoint || '/series/v1/{series_id}';
 
-    console.log(`[rapidapi-cricket-schedule] Using host: ${cricbuzzHost}`);
+    console.log(`[rapidapi-cricket-schedule] Using host: ${cricbuzzHost}, imageHost: ${cricbuzzImageHost}`);
     console.log(`[rapidapi-cricket-schedule] Endpoints - live: ${liveMatchesPath}, recent: ${recentMatchesPath}, schedule: ${schedulePath}`);
 
     let allMatches: CricbuzzMatch[] = [];
@@ -234,8 +235,8 @@ Deno.serve(async (req) => {
                 eventId: matchId,
                 matchNumber: matchInfo.matchDesc || null,
                 seriesName: typeof seriesInfo === 'string' ? seriesInfo : (seriesInfo.seriesName || ''),
-                homeTeamLogo: team1.imageId ? `https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c${team1.imageId}/i.jpg` : null,
-                awayTeamLogo: team2.imageId ? `https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c${team2.imageId}/i.jpg` : null,
+                homeTeamLogo: team1.imageId ? `https://${cricbuzzImageHost}${team1.imageId}/i.jpg` : null,
+                awayTeamLogo: team2.imageId ? `https://${cricbuzzImageHost}${team2.imageId}/i.jpg` : null,
                 cricbuzzMatchId: matchId,
                 seriesId: seriesId || matchInfo.seriesId?.toString() || null,
               };
@@ -276,8 +277,8 @@ Deno.serve(async (req) => {
                   eventId: matchId,
                   matchNumber: matchInfo.matchDesc || null,
                   seriesName: series,
-                  homeTeamLogo: team1.imageId ? `https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c${team1.imageId}/i.jpg` : null,
-                  awayTeamLogo: team2.imageId ? `https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c${team2.imageId}/i.jpg` : null,
+                  homeTeamLogo: team1.imageId ? `https://${cricbuzzImageHost}${team1.imageId}/i.jpg` : null,
+                  awayTeamLogo: team2.imageId ? `https://${cricbuzzImageHost}${team2.imageId}/i.jpg` : null,
                   cricbuzzMatchId: matchId,
                   seriesId: matchInfo.seriesId?.toString() || null,
                 };
@@ -333,8 +334,8 @@ Deno.serve(async (req) => {
                   eventId: matchId,
                   matchNumber: matchInfo.matchDesc || null,
                   seriesName: seriesName,
-                  homeTeamLogo: team1.imageId ? `https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c${team1.imageId}/i.jpg` : null,
-                  awayTeamLogo: team2.imageId ? `https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c${team2.imageId}/i.jpg` : null,
+                  homeTeamLogo: team1.imageId ? `https://${cricbuzzImageHost}${team1.imageId}/i.jpg` : null,
+                  awayTeamLogo: team2.imageId ? `https://${cricbuzzImageHost}${team2.imageId}/i.jpg` : null,
                   cricbuzzMatchId: matchId,
                   seriesId: sId,
                 };
