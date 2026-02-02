@@ -55,8 +55,17 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
   throw lastError || new Error('Failed to fetch after retries');
 }
 
-// Extract match format from match description or type
-function getMatchFormat(matchDesc: string, matchType: string): string | null {
+// Extract match format from match description, type, or direct matchFormat field
+function getMatchFormat(matchDesc: string, matchType: string, matchFormatDirect?: string): string | null {
+  // First check if matchFormat is directly provided by API
+  if (matchFormatDirect) {
+    const direct = matchFormatDirect.toLowerCase();
+    if (direct === 'test') return 'Test';
+    if (direct === 'odi') return 'ODI';
+    if (direct === 't20' || direct === 't20i') return 'T20';
+    if (direct === 't10') return 'T10';
+  }
+  
   const desc = (matchDesc || matchType || '').toLowerCase();
   if (desc.includes('test')) return 'Test';
   if (desc.includes('odi') || desc.includes('one day') || desc.includes('one-day')) return 'ODI';
@@ -217,7 +226,7 @@ Deno.serve(async (req) => {
                 homeScore: team1Score,
                 awayScore: team2Score,
                 status: matchInfo.state || matchInfo.status || 'Upcoming',
-                matchFormat: getMatchFormat(matchInfo.matchDesc || '', matchInfo.matchFormat || ''),
+                matchFormat: getMatchFormat(matchInfo.matchDesc || '', matchInfo.matchType || '', matchInfo.matchFormat),
                 competition: typeof seriesInfo === 'string' ? seriesInfo : (seriesInfo.seriesName || matchInfo.seriesName || ''),
                 matchUrl: null,
                 startTime: epochToIso(matchInfo.startDate),
@@ -259,7 +268,7 @@ Deno.serve(async (req) => {
                   homeScore: null,
                   awayScore: null,
                   status: matchInfo.state || matchInfo.status || 'Upcoming',
-                  matchFormat: getMatchFormat(matchInfo.matchDesc || '', matchInfo.matchType || ''),
+                  matchFormat: getMatchFormat(matchInfo.matchDesc || '', matchInfo.matchType || '', matchInfo.matchFormat),
                   competition: series,
                   matchUrl: null,
                   startTime: epochToIso(matchInfo.startDate),
@@ -316,7 +325,7 @@ Deno.serve(async (req) => {
                   homeScore: team1Score,
                   awayScore: team2Score,
                   status: matchInfo.state || matchInfo.status || 'Upcoming',
-                  matchFormat: getMatchFormat(matchInfo.matchDesc || '', matchInfo.matchType || ''),
+                  matchFormat: getMatchFormat(matchInfo.matchDesc || '', matchInfo.matchType || '', matchInfo.matchFormat),
                   competition: seriesName,
                   matchUrl: null,
                   startTime: epochToIso(matchInfo.startDate),
