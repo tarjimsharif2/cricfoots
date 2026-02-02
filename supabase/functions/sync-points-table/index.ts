@@ -155,10 +155,41 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get all teams in the system
+    // Get teams that are participating in this tournament (from matches)
+    const { data: tournamentMatches, error: matchesError } = await supabase
+      .from('matches')
+      .select('team_a_id, team_b_id')
+      .eq('tournament_id', tournamentId);
+
+    if (matchesError) {
+      console.error('[sync-points-table] Failed to fetch tournament matches:', matchesError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to fetch tournament matches' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Extract unique team IDs from this tournament's matches
+    const participatingTeamIds = new Set<string>();
+    for (const match of tournamentMatches || []) {
+      if (match.team_a_id) participatingTeamIds.add(match.team_a_id);
+      if (match.team_b_id) participatingTeamIds.add(match.team_b_id);
+    }
+
+    console.log(`[sync-points-table] Found ${participatingTeamIds.size} participating teams in tournament`);
+
+    if (participatingTeamIds.size === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No matches found for this tournament. Please add matches first before syncing points table.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get only teams that are participating in this tournament
     const { data: teams, error: teamsError } = await supabase
       .from('teams')
-      .select('id, name, short_name');
+      .select('id, name, short_name')
+      .in('id', Array.from(participatingTeamIds));
 
     if (teamsError || !teams) {
       return new Response(
@@ -166,6 +197,8 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`[sync-points-table] Tournament participating teams: ${teams.map(t => t.short_name).join(', ')}`)
 
     // If no seriesId provided, we need to ask user for it
     if (!seriesId) {
