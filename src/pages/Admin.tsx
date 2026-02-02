@@ -1608,6 +1608,7 @@ const Admin = () => {
         // RapidAPI settings (Cricbuzz)
         rapidapi_key: siteSettingsForm.rapidapi_key || null,
         rapidapi_enabled: siteSettingsForm.rapidapi_enabled,
+        rapidapi_endpoints: siteSettingsForm.rapidapi_endpoints || null,
         // Ads.txt
         ads_txt_content: siteSettingsForm.ads_txt_content || null,
         // Custom code injection
