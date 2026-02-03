@@ -348,7 +348,94 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!foundData || (teamAPlayers.length < 11 && teamBPlayers.length < 11)) {
+    // Endpoint 5: Try liveScore endpoint to get current players on field
+    if (foundData && (teamAPlayers.length < 11 || teamBPlayers.length < 11)) {
+      const liveScoreUrl = `https://${cricbuzzHost}/mcenter/v1/${cbMatchId}/liveScore`;
+      
+      console.log(`[sync-rapidapi-playing-xi] Trying liveScore endpoint for additional players: ${liveScoreUrl}`);
+      
+      try {
+        const response = await fetch(liveScoreUrl, {
+          method: 'GET',
+          headers: {
+            'X-RapidAPI-Key': settings.rapidapi_key,
+            'X-RapidAPI-Host': cricbuzzHost,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[sync-rapidapi-playing-xi] LiveScore response keys:`, Object.keys(data).join(', '));
+          
+          // Extract additional players from liveScore data
+          const additionalPlayers = extractPlayersFromLiveScore(data);
+          console.log(`[sync-rapidapi-playing-xi] Found ${additionalPlayers.length} additional players from liveScore`);
+          
+          // Add missing players
+          const seenA = new Set(teamAPlayers.map(p => p.name.toLowerCase()));
+          const seenB = new Set(teamBPlayers.map(p => p.name.toLowerCase()));
+          
+          for (const player of additionalPlayers) {
+            if (teamAPlayers.length < 11 && !seenA.has(player.name.toLowerCase())) {
+              seenA.add(player.name.toLowerCase());
+              teamAPlayers.push(player);
+            } else if (teamBPlayers.length < 11 && !seenB.has(player.name.toLowerCase())) {
+              seenB.add(player.name.toLowerCase());
+              teamBPlayers.push(player);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[sync-rapidapi-playing-xi] LiveScore endpoint error:`, error);
+      }
+    }
+
+    // If still incomplete, try commentary endpoint to extract more player names
+    if (foundData && (teamAPlayers.length < 11 || teamBPlayers.length < 11)) {
+      const commUrl = `https://${cricbuzzHost}/mcenter/v1/${cbMatchId}/comm`;
+      
+      console.log(`[sync-rapidapi-playing-xi] Trying commentary endpoint for additional players`);
+      
+      try {
+        const response = await fetch(commUrl, {
+          method: 'GET',
+          headers: {
+            'X-RapidAPI-Key': settings.rapidapi_key,
+            'X-RapidAPI-Host': cricbuzzHost,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Extract players from commentary
+          const additionalPlayers = extractPlayersFromCommentary(data);
+          console.log(`[sync-rapidapi-playing-xi] Found ${additionalPlayers.length} players from commentary`);
+          
+          // Add missing players
+          const seenA = new Set(teamAPlayers.map(p => p.name.toLowerCase()));
+          const seenB = new Set(teamBPlayers.map(p => p.name.toLowerCase()));
+          
+          for (const player of additionalPlayers) {
+            if (teamAPlayers.length < 11 && !seenA.has(player.name.toLowerCase())) {
+              seenA.add(player.name.toLowerCase());
+              teamAPlayers.push(player);
+            } else if (teamBPlayers.length < 11 && !seenB.has(player.name.toLowerCase())) {
+              seenB.add(player.name.toLowerCase());
+              teamBPlayers.push(player);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[sync-rapidapi-playing-xi] Commentary endpoint error:`, error);
+      }
+    }
+
+    // Check final status
+    const totalPlayers = teamAPlayers.length + teamBPlayers.length;
+    console.log(`[sync-rapidapi-playing-xi] Final player count: TeamA=${teamAPlayers.length}, TeamB=${teamBPlayers.length}`);
+
+    if (!foundData || totalPlayers < 5) {
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -357,6 +444,12 @@ Deno.serve(async (req) => {
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Warn if incomplete but still save what we have
+    const isIncomplete = teamAPlayers.length < 11 || teamBPlayers.length < 11;
+    if (isIncomplete) {
+      console.log(`[sync-rapidapi-playing-xi] Warning: Incomplete data - match may still be in progress. Saving ${teamAPlayers.length}+${teamBPlayers.length} players.`);
     }
 
     // Delete existing incomplete data
@@ -926,4 +1019,110 @@ function cleanPlayerName(name: string): string {
     .replace(/^\d+\.\s*/, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Extract players from liveScore endpoint data
+function extractPlayersFromLiveScore(data: any): Player[] {
+  const players: Player[] = [];
+  const seen = new Set<string>();
+  
+  // Try to find batsmen on crease
+  const batsmenOnCrease = data.batsmenStriker || data.batsmenNonStriker || 
+                          data.batsman || data.batsmanStriker || data.batsmanNonStriker;
+  
+  if (batsmenOnCrease) {
+    const arr = Array.isArray(batsmenOnCrease) ? batsmenOnCrease : [batsmenOnCrease];
+    for (const b of arr) {
+      if (b && b.batName) {
+        const name = cleanPlayerName(b.batName);
+        if (name && !seen.has(name.toLowerCase())) {
+          seen.add(name.toLowerCase());
+          players.push({ name, isCaptain: false, isWicketKeeper: false, isViceCaptain: false, role: null });
+        }
+      }
+    }
+  }
+  
+  // Try to find current bowler
+  const bowler = data.bowlerStriker || data.bowler;
+  if (bowler && bowler.bowlName) {
+    const name = cleanPlayerName(bowler.bowlName);
+    if (name && !seen.has(name.toLowerCase())) {
+      seen.add(name.toLowerCase());
+      players.push({ name, isCaptain: false, isWicketKeeper: false, isViceCaptain: false, role: null });
+    }
+  }
+  
+  // Try various player arrays
+  const playerArrays = [
+    data.batTeam?.batsmen,
+    data.bowlTeam?.bowlers,
+    data.overSummaryList,
+  ];
+  
+  for (const arr of playerArrays) {
+    if (Array.isArray(arr)) {
+      for (const item of arr) {
+        const name = cleanPlayerName(item.batName || item.bowlName || item.name || '');
+        if (name && !seen.has(name.toLowerCase())) {
+          seen.add(name.toLowerCase());
+          players.push({ name, isCaptain: false, isWicketKeeper: false, isViceCaptain: false, role: null });
+        }
+      }
+    }
+  }
+  
+  return players;
+}
+
+// Extract players from commentary endpoint data
+function extractPlayersFromCommentary(data: any): Player[] {
+  const players: Player[] = [];
+  const seen = new Set<string>();
+  
+  // Try to find players in commentary lines
+  const commLines = data.commentaryList || data.commentary || data.comms || [];
+  
+  for (const comm of (Array.isArray(commLines) ? commLines : [])) {
+    // Extract batsman name
+    const batsmanName = comm.batsmanName || comm.batName || comm.striker || '';
+    if (batsmanName) {
+      const name = cleanPlayerName(batsmanName);
+      if (name && name.length >= 3 && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        players.push({ name, isCaptain: false, isWicketKeeper: false, isViceCaptain: false, role: null });
+      }
+    }
+    
+    // Extract bowler name
+    const bowlerName = comm.bowlerName || comm.bowlName || comm.bowler || '';
+    if (bowlerName) {
+      const name = cleanPlayerName(bowlerName);
+      if (name && name.length >= 3 && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        players.push({ name, isCaptain: false, isWicketKeeper: false, isViceCaptain: false, role: null });
+      }
+    }
+  }
+  
+  // Also check for players in match header info
+  const matchHeader = data.matchHeader || data.header || {};
+  const playerArrays = [
+    matchHeader.playingXI?.team1,
+    matchHeader.playingXI?.team2,
+  ];
+  
+  for (const arr of playerArrays) {
+    if (Array.isArray(arr)) {
+      for (const item of arr) {
+        const name = cleanPlayerName(typeof item === 'string' ? item : (item.name || item.fullName || ''));
+        if (name && name.length >= 3 && !seen.has(name.toLowerCase())) {
+          seen.add(name.toLowerCase());
+          players.push({ name, isCaptain: false, isWicketKeeper: false, isViceCaptain: false, role: null });
+        }
+      }
+    }
+  }
+  
+  return players;
 }
