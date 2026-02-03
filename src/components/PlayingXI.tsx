@@ -228,10 +228,10 @@ const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo,
         )}
       </div>
       
-      {/* Player role badge - short abbreviation */}
+      {/* Player role badge - full name */}
       {player.player_role && (
-        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ml-1 whitespace-nowrap ${getRoleBadgeColor(player.player_role)}`}>
-          {getShortRoleName(player.player_role)}
+        <span className={`text-[8px] px-1 py-0.5 rounded font-medium flex-shrink-0 ml-1 whitespace-nowrap ${getRoleBadgeColor(player.player_role)}`}>
+          {player.player_role}
         </span>
       )}
     </motion.div>
