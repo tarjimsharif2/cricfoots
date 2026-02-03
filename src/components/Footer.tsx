@@ -1,4 +1,4 @@
-import { MessageCircle, Trophy, AlertTriangle } from "lucide-react";
+import { Tv, MessageCircle, Trophy, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import { usePublicSiteSettings } from "@/hooks/usePublicSiteSettings";
@@ -42,11 +42,14 @@ const Footer = () => {
                 <img 
                   src={settings.logo_url} 
                   alt={siteName}
-                  className="h-12 w-auto max-w-[160px] object-contain"
+                  className="w-8 h-8 rounded-lg object-contain"
                 />
               ) : (
-                <span className="font-display text-xl tracking-wider text-gradient">{siteName}</span>
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-pink-500 flex items-center justify-center">
+                  <Tv className="w-4 h-4 text-primary-foreground" />
+                </div>
               )}
+              <span className="font-display text-lg tracking-wider text-gradient">{siteName}</span>
             </Link>
             <p className="text-sm text-muted-foreground mb-4">
               Watch live sports matches online. Get live scores, schedules and streaming links.
