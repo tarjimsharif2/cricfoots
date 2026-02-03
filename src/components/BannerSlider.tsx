@@ -138,13 +138,13 @@ const BannerSlider = () => {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
           onClick={() => handleClick(currentBanner)}
-          className="relative aspect-[16/9] sm:aspect-[2/1] md:aspect-[21/9] cursor-pointer group bg-card"
+          className="relative aspect-[16/9] cursor-pointer group"
         >
-          {/* Background Image - object-contain shows full image within fixed container */}
+          {/* Background Image - object-cover fills container, aspect-16/9 is balanced for most images */}
           <img
             src={currentBanner.image_url}
             alt={currentBanner.title}
-            className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
           
           {/* Gradient Overlays - subtle for text readability */}
