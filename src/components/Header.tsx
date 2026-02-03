@@ -13,7 +13,7 @@ const Header = () => {
   const [isTournamentOpen, setIsTournamentOpen] = useState(false);
   const [isMobileTournamentOpen, setIsMobileTournamentOpen] = useState(false);
   const location = useLocation();
-  const { data: settings } = usePublicSiteSettings();
+  const { data: settings, isLoading: settingsLoading } = usePublicSiteSettings();
   const { data: headerPages } = useHeaderPages();
   const { data: tournaments } = useTournaments();
 
@@ -43,14 +43,16 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center group">
-            {settings?.logo_url ? (
+            {settingsLoading ? (
+              <div className="h-10 w-32 bg-muted/50 rounded animate-pulse" />
+            ) : settings?.logo_url ? (
               <img 
                 src={settings.logo_url} 
                 alt={siteName} 
-                className="h-16 sm:h-[72px] w-auto max-w-[220px] object-contain" 
+                className="h-10 sm:h-12 w-auto max-w-[200px] object-contain" 
               />
             ) : (
               <span className="font-display text-2xl sm:text-3xl tracking-wide text-gradient">{siteName}</span>
