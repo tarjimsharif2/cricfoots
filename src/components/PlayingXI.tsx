@@ -208,8 +208,8 @@ const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo,
           {getRoleIcon(player.player_role, player.is_wicket_keeper)}
         </div>
         
-        {/* Player name - strikethrough for OUT players */}
-        <span className={`text-xs font-medium truncate ${isBench ? 'text-muted-foreground' : ''} ${player.change_status === 'out' ? 'line-through text-muted-foreground' : ''}`}>
+        {/* Player name */}
+        <span className={`text-xs font-medium truncate ${isBench ? 'text-muted-foreground' : ''}`}>
           {player.player_name}
         </span>
         
