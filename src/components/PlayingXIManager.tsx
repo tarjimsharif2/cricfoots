@@ -181,6 +181,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
   const [savingChanges, setSavingChanges] = useState(false);
   const [importingSquad, setImportingSquad] = useState(false);
   const [selectedPreviousMatch, setSelectedPreviousMatch] = useState<string | null>(null);
+  const [importForTeam, setImportForTeam] = useState<string | null>(null);
   
   // Pending changes state - tracks local is_bench changes before saving
   const [pendingChanges, setPendingChanges] = useState<Record<string, boolean>>({});
@@ -443,58 +444,80 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
     setDialogOpen(true);
   };
 
-  // Import squad from previous match
+  // Import squad from previous match - for a specific team
   const handleImportFromPreviousMatch = async () => {
-    if (!selectedPreviousMatch || !previousMatchPlayers || previousMatchPlayers.length === 0) {
-      toast({ title: "Error", description: "No players to import", variant: "destructive" });
+    if (!selectedPreviousMatch || !previousMatchPlayers || previousMatchPlayers.length === 0 || !importForTeam) {
+      toast({ title: "Error", description: "Select a team and match to import", variant: "destructive" });
       return;
     }
 
     setImportingSquad(true);
 
     try {
-      // Clear existing players first
-      if (players && players.length > 0) {
+      const selectedMatch = previousMatches?.find(m => m.id === selectedPreviousMatch);
+      if (!selectedMatch) throw new Error("Match not found");
+
+      // Find which team from previous match maps to our target team
+      let sourceTeamId: string | null = null;
+      
+      // Check if importForTeam was team_a or team_b in the previous match
+      if (selectedMatch.team_a_id === importForTeam) {
+        sourceTeamId = selectedMatch.team_a_id;
+      } else if (selectedMatch.team_b_id === importForTeam) {
+        sourceTeamId = selectedMatch.team_b_id;
+      } else {
+        // The team might have played in the other position (team_a played as team_b)
+        // Check if the team we're importing for played in this match
+        if (selectedMatch.team_a_id === teamA.id || selectedMatch.team_a_id === teamB.id) {
+          if (importForTeam === teamA.id && selectedMatch.team_a_id === teamA.id) sourceTeamId = selectedMatch.team_a_id;
+          if (importForTeam === teamB.id && selectedMatch.team_a_id === teamB.id) sourceTeamId = selectedMatch.team_a_id;
+        }
+        if (selectedMatch.team_b_id === teamA.id || selectedMatch.team_b_id === teamB.id) {
+          if (importForTeam === teamA.id && selectedMatch.team_b_id === teamA.id) sourceTeamId = selectedMatch.team_b_id;
+          if (importForTeam === teamB.id && selectedMatch.team_b_id === teamB.id) sourceTeamId = selectedMatch.team_b_id;
+        }
+      }
+
+      if (!sourceTeamId) {
+        toast({ title: "Error", description: "Selected team did not play in this match", variant: "destructive" });
+        setImportingSquad(false);
+        return;
+      }
+
+      // Filter players from that team only
+      const teamPlayersFromPrevious = previousMatchPlayers.filter(p => p.team_id === sourceTeamId);
+
+      if (teamPlayersFromPrevious.length === 0) {
+        toast({ title: "Error", description: "No players found for this team in selected match", variant: "destructive" });
+        setImportingSquad(false);
+        return;
+      }
+
+      // Clear existing players for this team only
+      const existingTeamPlayers = players?.filter(p => p.team_id === importForTeam) || [];
+      if (existingTeamPlayers.length > 0) {
         const { error: deleteError } = await supabase
           .from('match_playing_xi')
           .delete()
-          .eq('match_id', matchId);
+          .eq('match_id', matchId)
+          .eq('team_id', importForTeam);
         
         if (deleteError) throw deleteError;
       }
 
-      // Map team IDs from previous match to current match
-      const selectedMatch = previousMatches?.find(m => m.id === selectedPreviousMatch);
-      
-      const playersToAdd = previousMatchPlayers.map(p => {
-        // Map team_id correctly
-        let targetTeamId = p.team_id;
-        if (selectedMatch) {
-          if (p.team_id === selectedMatch.team_a_id) {
-            // Check if team_a of previous match is team_a or team_b of current match
-            targetTeamId = teamA.id === selectedMatch.team_a_id || teamB.id === selectedMatch.team_a_id
-              ? (teamA.id === selectedMatch.team_a_id ? teamA.id : teamB.id)
-              : p.team_id;
-          } else if (p.team_id === selectedMatch.team_b_id) {
-            targetTeamId = teamA.id === selectedMatch.team_b_id || teamB.id === selectedMatch.team_b_id
-              ? (teamA.id === selectedMatch.team_b_id ? teamA.id : teamB.id)
-              : p.team_id;
-          }
-        }
-        
-        return {
-          match_id: matchId,
-          team_id: targetTeamId,
-          player_name: p.player_name,
-          player_role: p.player_role,
-          is_captain: p.is_captain,
-          is_vice_captain: p.is_vice_captain,
-          is_wicket_keeper: p.is_wicket_keeper,
-          batting_order: p.batting_order,
-          is_bench: p.is_bench ?? false,
-          change_status: null, // Reset change status for imported players
-        };
-      });
+      // Add players with correct team_id for current match
+      const playersToAdd = teamPlayersFromPrevious.map(p => ({
+        match_id: matchId,
+        team_id: importForTeam,
+        player_name: p.player_name,
+        player_role: p.player_role,
+        is_captain: p.is_captain,
+        is_vice_captain: p.is_vice_captain,
+        is_wicket_keeper: p.is_wicket_keeper,
+        batting_order: p.batting_order,
+        is_bench: p.is_bench ?? false,
+        change_status: null,
+      }));
 
       const { error } = await supabase
         .from('match_playing_xi')
@@ -505,7 +528,10 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
       queryClient.invalidateQueries({ queryKey: ['playing_xi', matchId] });
       setImportDialogOpen(false);
       setSelectedPreviousMatch(null);
-      toast({ title: "Squad imported!", description: `${playersToAdd.length} players imported successfully` });
+      setImportForTeam(null);
+      
+      const teamName = importForTeam === teamA.id ? teamA.short_name : teamB.short_name;
+      toast({ title: "Squad imported!", description: `${playersToAdd.length} players imported for ${teamName}` });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -1332,7 +1358,10 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
       {/* Import from Previous Match Dialog */}
       <Dialog open={importDialogOpen} onOpenChange={(open) => {
         setImportDialogOpen(open);
-        if (!open) setSelectedPreviousMatch(null);
+        if (!open) {
+          setSelectedPreviousMatch(null);
+          setImportForTeam(null);
+        }
       }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -1342,64 +1371,101 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {loadingPreviousMatches ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            {/* Team Selector */}
+            <div className="space-y-2">
+              <Label>Import for Team</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={importForTeam === teamA.id ? "default" : "outline"}
+                  className="w-full"
+                  onClick={() => setImportForTeam(teamA.id)}
+                >
+                  {teamA.short_name || teamA.name}
+                </Button>
+                <Button
+                  variant={importForTeam === teamB.id ? "default" : "outline"}
+                  className="w-full"
+                  onClick={() => setImportForTeam(teamB.id)}
+                >
+                  {teamB.short_name || teamB.name}
+                </Button>
               </div>
-            ) : previousMatches && previousMatches.length > 0 ? (
-              <div className="space-y-3">
-                <Label>Select Match</Label>
-                <div className="max-h-64 overflow-y-auto space-y-2">
-                  {previousMatches.map(match => (
-                    <Card 
-                      key={match.id}
-                      className={`cursor-pointer transition-all hover:border-primary/50 ${
-                        selectedPreviousMatch === match.id ? 'ring-2 ring-primary border-primary' : ''
-                      }`}
-                      onClick={() => setSelectedPreviousMatch(match.id)}
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-sm">
-                              {match.team_a?.short_name || match.team_a?.name} vs {match.team_b?.short_name || match.team_b?.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {match.match_date} {match.tournament?.name ? `• ${match.tournament.name}` : ''}
-                            </p>
+            </div>
+
+            {importForTeam && (
+              <>
+                {loadingPreviousMatches ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : previousMatches && previousMatches.length > 0 ? (
+                  <div className="space-y-3">
+                    <Label>Select Match</Label>
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                      {previousMatches
+                        .filter(match => 
+                          match.team_a_id === importForTeam || match.team_b_id === importForTeam
+                        )
+                        .map(match => (
+                        <Card 
+                          key={match.id}
+                          className={`cursor-pointer transition-all hover:border-primary/50 ${
+                            selectedPreviousMatch === match.id ? 'ring-2 ring-primary border-primary' : ''
+                          }`}
+                          onClick={() => setSelectedPreviousMatch(match.id)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {match.team_a?.short_name || match.team_a?.name} vs {match.team_b?.short_name || match.team_b?.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {match.match_date} {match.tournament?.name ? `• ${match.tournament.name}` : ''}
+                                </p>
+                              </div>
+                              {selectedPreviousMatch === match.id && (
+                                <Check className="w-4 h-4 text-primary" />
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                    
+                    {selectedPreviousMatch && (
+                      <div className="pt-2 border-t">
+                        {loadingPreviousPlayers ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading players...
                           </div>
-                          {selectedPreviousMatch === match.id && (
-                            <Check className="w-4 h-4 text-primary" />
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                
-                {selectedPreviousMatch && (
-                  <div className="pt-2 border-t">
-                    {loadingPreviousPlayers ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading players...
-                      </div>
-                    ) : previousMatchPlayers && previousMatchPlayers.length > 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        <span className="text-foreground font-medium">{previousMatchPlayers.length}</span> players found
-                      </div>
-                    ) : (
-                      <div className="text-sm text-destructive">
-                        No players found in this match
+                        ) : previousMatchPlayers && previousMatchPlayers.length > 0 ? (
+                          <div className="text-sm text-muted-foreground">
+                            <span className="text-foreground font-medium">
+                              {previousMatchPlayers.filter(p => p.team_id === importForTeam).length}
+                            </span> players found for {importForTeam === teamA.id ? teamA.short_name : teamB.short_name}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-destructive">
+                            No players found in this match
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No previous matches found for this team</p>
+                  </div>
                 )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No previous matches found for these teams</p>
+              </>
+            )}
+
+            {!importForTeam && (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                Select a team above to see their previous matches
               </div>
             )}
           </div>
@@ -1407,12 +1473,13 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
             <Button variant="outline" onClick={() => {
               setImportDialogOpen(false);
               setSelectedPreviousMatch(null);
+              setImportForTeam(null);
             }}>
               Cancel
             </Button>
             <Button 
               onClick={handleImportFromPreviousMatch}
-              disabled={!selectedPreviousMatch || importingSquad || (previousMatchPlayers?.length === 0)}
+              disabled={!selectedPreviousMatch || !importForTeam || importingSquad || (previousMatchPlayers?.filter(p => p.team_id === importForTeam).length === 0)}
             >
               {importingSquad ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
