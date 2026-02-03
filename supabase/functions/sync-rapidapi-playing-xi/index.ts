@@ -507,10 +507,76 @@ Deno.serve(async (req) => {
       }
     }
 
-    // FALLBACK 5: Scorecard extraction - DISABLED
-    // The scorecard fallback has been disabled as per user request.
-    // Squad data from series/team endpoints is preferred.
-    console.log(`[sync-rapidapi-playing-xi] Scorecard fallback is disabled. Using squad data only.`);
+    // FALLBACK 5: Try COMMENTARY endpoint to extract squads from text
+    // Commentary often contains squad announcements like "Team Squad: Player1, Player2(c), Player3(w)..."
+    if (!foundData && (teamAPlayers.length < 11 || teamBPlayers.length < 11)) {
+      console.log(`[sync-rapidapi-playing-xi] Trying COMMENTARY fallback for squad extraction...`);
+      
+      try {
+        // Try both hcomm (highlights) and comm (full) endpoints
+        const commEndpoints = [
+          `/mcenter/v1/${cbMatchId}/hcomm`,
+          `/mcenter/v1/${cbMatchId}/comm`
+        ];
+        
+        for (const commPath of commEndpoints) {
+          if (foundData || (teamAPlayers.length >= 11 && teamBPlayers.length >= 11)) break;
+          
+          const commUrl = `https://${cricbuzzHost}${commPath}`;
+          console.log(`[sync-rapidapi-playing-xi] Fetching commentary: ${commUrl}`);
+          
+          const commResponse = await fetch(commUrl, {
+            method: 'GET',
+            headers: {
+              'X-RapidAPI-Key': settings.rapidapi_key,
+              'X-RapidAPI-Host': cricbuzzHost,
+            },
+          });
+          
+          if (commResponse.ok) {
+            const commData = await commResponse.json();
+            
+            // Extract all commentary text
+            let allCommText = '';
+            
+            // Handle different commentary structures
+            const commentaryList = commData.commentaryList || commData.commentary || [];
+            for (const comm of commentaryList) {
+              if (comm.commText) allCommText += ' ' + comm.commText;
+              if (comm.commentary) allCommText += ' ' + comm.commentary;
+              if (comm.text) allCommText += ' ' + comm.text;
+            }
+            
+            // Also check matchHeader or other fields
+            if (commData.matchHeader?.status) allCommText += ' ' + commData.matchHeader.status;
+            
+            console.log(`[sync-rapidapi-playing-xi] Commentary text length: ${allCommText.length}`);
+            
+            if (allCommText.length > 100) {
+              // Parse squad patterns from commentary
+              // Pattern: "TeamName Squad: Player1, Player2(c), Player3(w), ..."
+              const result = parseCommentarySquads(allCommText, teamAName, teamAShortName, teamBName, teamBShortName);
+              
+              if (result.teamA.length > 0 || result.teamB.length > 0) {
+                console.log(`[sync-rapidapi-playing-xi] Found from commentary: TeamA=${result.teamA.length}, TeamB=${result.teamB.length}`);
+                
+                if (result.teamA.length > teamAPlayers.length) teamAPlayers = result.teamA;
+                if (result.teamB.length > teamBPlayers.length) teamBPlayers = result.teamB;
+                
+                if (teamAPlayers.length >= 11 && teamBPlayers.length >= 11) {
+                  foundData = true;
+                  console.log(`[sync-rapidapi-playing-xi] Found complete squad from commentary!`);
+                }
+              }
+            }
+          } else {
+            console.log(`[sync-rapidapi-playing-xi] Commentary endpoint ${commPath} returned: ${commResponse.status}`);
+          }
+        }
+      } catch (error) {
+        console.error(`[sync-rapidapi-playing-xi] Commentary parsing error:`, error);
+      }
+    }
 
     // Check final status
     const totalPlayers = teamAPlayers.length + teamBPlayers.length;
@@ -1545,4 +1611,132 @@ function extractTeamNameFromSquadDetail(data: any): string {
   }
   
   return '';
+}
+
+// Parse squad information from commentary text
+// Pattern: "TeamName Squad: Player1, Player2(c), Player3(w), Player4(w/c), ..."
+function parseCommentarySquads(
+  text: string, 
+  teamAName: string, 
+  teamAShort: string, 
+  teamBName: string, 
+  teamBShort: string
+): { teamA: Player[]; teamB: Player[] } {
+  const teamA: Player[] = [];
+  const teamB: Player[] = [];
+  
+  const normalizeTeam = (name: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const teamANorm = normalizeTeam(teamAName);
+  const teamAShortNorm = normalizeTeam(teamAShort);
+  const teamBNorm = normalizeTeam(teamBName);
+  const teamBShortNorm = normalizeTeam(teamBShort);
+  
+  console.log(`[parseCommentarySquads] Looking for teams: "${teamAName}" and "${teamBName}"`);
+  
+  // Multiple patterns to find squad text
+  // Pattern 1: "TeamName Squad: Player1, Player2(c), ..."
+  // Pattern 2: "TeamName: Player1, Player2(c), ..."
+  // Pattern 3: "TeamName Playing XI: Player1, Player2, ..."
+  const squadPatterns = [
+    /([A-Za-z][A-Za-z0-9\s\-]+(?:U19|U-19)?)\s*(?:Squad|Playing\s*XI|XI|Playing\s*11|11|Team)[:;]\s*([^\.]+(?:,\s*[A-Za-z][A-Za-z'\s\-]+(?:\([cwCW\/]+\))?)+)/gi,
+    /([A-Za-z][A-Za-z0-9\s\-]+(?:U19|U-19)?)\s+Squad[:;]?\s*([A-Za-z][A-Za-z'\s\-]+(?:\([cwCW\/]+\))?,\s*(?:[A-Za-z][A-Za-z'\s\-]+(?:\([cwCW\/]+\))?,?\s*)+)/gi,
+  ];
+  
+  for (const pattern of squadPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const matchedTeamName = match[1].trim();
+      const playersText = match[2].trim();
+      const teamNorm = normalizeTeam(matchedTeamName);
+      
+      console.log(`[parseCommentarySquads] Found squad: "${matchedTeamName}" with players text length: ${playersText.length}`);
+      
+      // Determine which team this belongs to
+      const isTeamA = teamNorm.includes(teamANorm) || teamANorm.includes(teamNorm) ||
+                      teamNorm.includes(teamAShortNorm) || teamAShortNorm.includes(teamNorm) ||
+                      teamNorm === teamAShortNorm;
+      const isTeamB = teamNorm.includes(teamBNorm) || teamBNorm.includes(teamNorm) ||
+                      teamNorm.includes(teamBShortNorm) || teamBShortNorm.includes(teamNorm) ||
+                      teamNorm === teamBShortNorm;
+      
+      // Parse players from comma-separated list
+      const players = parseCommentaryPlayerList(playersText);
+      console.log(`[parseCommentarySquads] Parsed ${players.length} players for "${matchedTeamName}"`);
+      
+      if (isTeamA && teamA.length === 0 && players.length > 0) {
+        teamA.push(...players);
+      } else if (isTeamB && teamB.length === 0 && players.length > 0) {
+        teamB.push(...players);
+      } else if (teamA.length === 0 && players.length > 0) {
+        // First unidentified squad goes to team A
+        teamA.push(...players);
+      } else if (teamB.length === 0 && players.length > 0) {
+        // Second unidentified squad goes to team B
+        teamB.push(...players);
+      }
+    }
+  }
+  
+  return { teamA, teamB };
+}
+
+// Parse comma-separated player list from commentary
+// Handles patterns like: "Player1, Player2(c), Player3(w), Player4(w/c)"
+function parseCommentaryPlayerList(text: string): Player[] {
+  const players: Player[] = [];
+  const seen = new Set<string>();
+  
+  // Split by comma
+  const parts = text.split(/,\s*/);
+  
+  for (const part of parts) {
+    let name = part.trim();
+    if (!name || name.length < 3) continue;
+    
+    // Skip if it looks like a sentence or description
+    if (name.split(' ').length > 4) continue;
+    if (/\b(and|the|with|from|for|are|is|has|have|been)\b/i.test(name)) continue;
+    
+    let isCaptain = false;
+    let isWicketKeeper = false;
+    let isViceCaptain = false;
+    
+    // Check for role markers
+    // (c) = captain, (w) = wicket keeper, (w/c) or (c/w) = both
+    if (/\(w\/c\)/i.test(name) || /\(c\/w\)/i.test(name)) {
+      isCaptain = true;
+      isWicketKeeper = true;
+      name = name.replace(/\s*\([wc]\/[wc]\)\s*/gi, '').trim();
+    } else if (/\(c\)/i.test(name)) {
+      isCaptain = true;
+      name = name.replace(/\s*\(c\)\s*/gi, '').trim();
+    } else if (/\(w\)/i.test(name) || /\(wk\)/i.test(name)) {
+      isWicketKeeper = true;
+      name = name.replace(/\s*\(w(?:k)?\)\s*/gi, '').trim();
+    } else if (/\(vc\)/i.test(name)) {
+      isViceCaptain = true;
+      name = name.replace(/\s*\(vc\)\s*/gi, '').trim();
+    }
+    
+    // Clean up name - remove any remaining parentheses content
+    name = name.replace(/\s*\([^)]*\)\s*/g, '').trim();
+    
+    // Skip invalid names
+    if (!name || name.length < 3) continue;
+    if (!/^[A-Za-z]/.test(name)) continue; // Must start with letter
+    
+    const normName = name.toLowerCase();
+    if (seen.has(normName)) continue;
+    seen.add(normName);
+    
+    players.push({
+      name,
+      isCaptain,
+      isWicketKeeper,
+      isViceCaptain,
+      role: null,
+    });
+  }
+  
+  return players;
 }
