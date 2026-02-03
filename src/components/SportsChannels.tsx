@@ -1,10 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useChannels } from '@/hooks/useChannels';
-import { Tv, Radio, Loader2 } from 'lucide-react';
+import { usePublicSiteSettings } from '@/hooks/usePublicSiteSettings';
+import { Tv, Radio, Loader2, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const SportsChannels = () => {
   const { data: channels, isLoading } = useChannels();
+  const { data: settings } = usePublicSiteSettings();
+
+  const channelsLimit = settings?.homepage_channels_limit || 8;
 
   if (isLoading) {
     return (
@@ -18,17 +22,32 @@ const SportsChannels = () => {
     return null;
   }
 
+  const displayedChannels = channels.slice(0, channelsLimit);
+  const hasMore = channels.length > channelsLimit;
+
   return (
     <section className="py-6">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20">
-          <Radio className="w-4 h-4 text-primary" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20">
+            <Radio className="w-4 h-4 text-primary" />
+          </div>
+          <h2 className="font-display text-xl text-gradient">Sports Channels</h2>
         </div>
-        <h2 className="font-display text-xl text-gradient">Sports Channels</h2>
+        
+        {hasMore && (
+          <Link 
+            to="/channels" 
+            className="flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            View All
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {channels.map((channel, index) => (
+        {displayedChannels.map((channel, index) => (
           <motion.div
             key={channel.id}
             initial={{ opacity: 0, scale: 0.9 }}
