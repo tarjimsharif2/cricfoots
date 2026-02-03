@@ -507,47 +507,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // FALLBACK 5: Try scorecard for LIVE/COMPLETED matches (when squad endpoints fail)
-    // This can extract players from batting/bowling data
-    if (!foundData && (teamAPlayers.length < 11 || teamBPlayers.length < 11)) {
-      const scorecardUrl = `https://${cricbuzzHost}/mcenter/v1/${cbMatchId}/scard`;
-      
-      console.log(`[sync-rapidapi-playing-xi] Trying FALLBACK scorecard endpoint: ${scorecardUrl}`);
-      
-      try {
-        const response = await fetch(scorecardUrl, {
-          method: 'GET',
-          headers: {
-            'X-RapidAPI-Key': settings.rapidapi_key,
-            'X-RapidAPI-Host': cricbuzzHost,
-          },
-        });
-
-        console.log(`[sync-rapidapi-playing-xi] scorecard endpoint returned: ${response.status}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`[sync-rapidapi-playing-xi] scorecard keys:`, Object.keys(data).join(', '));
-          
-          const result = parseScorecardPlayers(data, teamAName, teamAShortName, teamBName, teamBShortName);
-          console.log(`[sync-rapidapi-playing-xi] scorecard parsed: TeamA=${result.teamA.length}, TeamB=${result.teamB.length}`);
-          
-          if (result.teamA.length >= 11 && result.teamB.length >= 11) {
-            teamAPlayers = result.teamA;
-            teamBPlayers = result.teamB;
-            foundData = true;
-            console.log(`[sync-rapidapi-playing-xi] Found ${teamAPlayers.length}+${teamBPlayers.length} from scorecard`);
-          } else if (result.teamA.length > teamAPlayers.length || result.teamB.length > teamBPlayers.length) {
-            // Merge with existing partial data
-            if (result.teamA.length > teamAPlayers.length) teamAPlayers = result.teamA;
-            if (result.teamB.length > teamBPlayers.length) teamBPlayers = result.teamB;
-            console.log(`[sync-rapidapi-playing-xi] Scorecard partial: TeamA=${teamAPlayers.length}, TeamB=${teamBPlayers.length}`);
-          }
-        }
-      } catch (error) {
-        console.error(`[sync-rapidapi-playing-xi] scorecard endpoint error:`, error);
-      }
-    }
+    // FALLBACK 5: Scorecard extraction - DISABLED
+    // The scorecard fallback has been disabled as per user request.
+    // Squad data from series/team endpoints is preferred.
+    console.log(`[sync-rapidapi-playing-xi] Scorecard fallback is disabled. Using squad data only.`);
 
     // Check final status
     const totalPlayers = teamAPlayers.length + teamBPlayers.length;
@@ -567,43 +530,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Try to get actual Playing XI from scorecard to identify bench players
-    let scorecardTeamA: Player[] = [];
-    let scorecardTeamB: Player[] = [];
-    
-    const scorecardUrl = `https://${cricbuzzHost}/mcenter/v1/${cbMatchId}/scard`;
-    try {
-      const scorecardResponse = await fetch(scorecardUrl, {
-        method: 'GET',
-        headers: {
-          'X-RapidAPI-Key': settings.rapidapi_key,
-          'X-RapidAPI-Host': cricbuzzHost,
-        },
-      });
-      
-      if (scorecardResponse.ok) {
-        const scorecardData = await scorecardResponse.json();
-        const scorecardResult = parseScorecardPlayers(scorecardData, teamAName, teamAShortName, teamBName, teamBShortName);
-        scorecardTeamA = scorecardResult.teamA;
-        scorecardTeamB = scorecardResult.teamB;
-        console.log(`[sync-rapidapi-playing-xi] Scorecard players for bench detection: TeamA=${scorecardTeamA.length}, TeamB=${scorecardTeamB.length}`);
-      }
-    } catch (err) {
-      console.log(`[sync-rapidapi-playing-xi] Could not fetch scorecard for bench detection`);
-    }
-
-    // Helper to check if player is in scorecard (actual Playing XI)
-    const normalizePlayerName = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '');
-    const isInScorecard = (playerName: string, scorecardPlayers: Player[]) => {
-      const normName = normalizePlayerName(playerName);
-      return scorecardPlayers.some(sp => {
-        const normScName = normalizePlayerName(sp.name);
-        return normScName === normName || 
-               normScName.includes(normName) || 
-               normName.includes(normScName) ||
-               normScName.split(' ').pop() === normName.split(' ').pop(); // Match by surname
-      });
-    };
+    // Bench detection: First 11 players are Playing XI, rest are Bench
+    // Scorecard-based detection is DISABLED - using simple position-based logic
+    console.log(`[sync-rapidapi-playing-xi] Using position-based bench detection (first 11 = Playing XI)`);
 
     // Delete existing incomplete data
     if (existingPlayers && existingPlayers.length > 0) {
@@ -614,15 +543,12 @@ Deno.serve(async (req) => {
         .eq('match_id', matchId);
     }
 
-    // Add Team A players - first 11 or those in scorecard as Playing XI, rest as Bench
+    // Add Team A players - first 11 as Playing XI, rest as Bench
     let battingOrder = 1;
     let benchOrder = 100;
     
-    // If we have scorecard data, use it to determine Playing XI vs Bench
-    const hasScorecard = scorecardTeamA.length >= 8; // At least 8 players from scorecard
-    
     for (const player of teamAPlayers) {
-      const isBench = hasScorecard ? !isInScorecard(player.name, scorecardTeamA) : battingOrder > 11;
+      const isBench = battingOrder > 11;
       
       playersToAdd.push({
         match_id: matchId,
@@ -637,13 +563,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Add Team B players
+    // Add Team B players - first 11 as Playing XI, rest as Bench
     battingOrder = 1;
     benchOrder = 100;
-    const hasScorecard2 = scorecardTeamB.length >= 8;
     
     for (const player of teamBPlayers) {
-      const isBench = hasScorecard2 ? !isInScorecard(player.name, scorecardTeamB) : battingOrder > 11;
+      const isBench = battingOrder > 11;
       
       playersToAdd.push({
         match_id: matchId,
