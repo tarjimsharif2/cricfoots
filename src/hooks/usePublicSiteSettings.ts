@@ -57,6 +57,7 @@ export interface PublicSiteSettings {
   maintenance_social_message: string | null;
   // Homepage settings
   homepage_completed_days: number | null;
+  homepage_channels_limit: number | null;
 }
 
 export const usePublicSiteSettings = () => {

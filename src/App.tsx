@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import MatchPage from "./pages/MatchPage";
 import TournamentPage from "./pages/TournamentPage";
 import ChannelPage from "./pages/ChannelPage";
+import ChannelsPage from "./pages/ChannelsPage";
 import DynamicPage from "./pages/DynamicPage";
 import AdsTxt from "./pages/AdsTxt";
 import Sitemap from "./pages/Sitemap";
@@ -165,6 +166,7 @@ const App = () => (
                   <Route path="/match/:slug" element={<MatchPage />} />
                   <Route path="/tournament/:slug" element={<TournamentPage />} />
                   <Route path="/channel/:slug" element={<ChannelPage />} />
+                  <Route path="/channels" element={<ChannelsPage />} />
                   <Route path="/page/:slug" element={<DynamicPage />} />
                   {/* Handle both /ads.txt and /ads.txt/ */}
                   <Route path="/ads.txt/*" element={<AdsTxt />} />
