@@ -536,19 +536,29 @@ Deno.serve(async (req) => {
           if (commResponse.ok) {
             const commData = await commResponse.json();
             
-            // Extract all commentary text
+            // Extract all commentary text from correct structure
             let allCommText = '';
             
-            // Handle different commentary structures
-            const commentaryList = commData.commentaryList || commData.commentary || [];
-            for (const comm of commentaryList) {
-              if (comm.commText) allCommText += ' ' + comm.commText;
-              if (comm.commentary) allCommText += ' ' + comm.commentary;
-              if (comm.text) allCommText += ' ' + comm.text;
+            // comwrapper is an array of commentary items
+            const comwrapper = commData.comwrapper || [];
+            if (Array.isArray(comwrapper)) {
+              for (const item of comwrapper) {
+                // Each item has commentary.commtxt
+                if (item?.commentary?.commtxt) {
+                  allCommText += ' ' + item.commentary.commtxt;
+                }
+              }
             }
             
-            // Also check matchHeader or other fields
-            if (commData.matchHeader?.status) allCommText += ' ' + commData.matchHeader.status;
+            // Also try older structure for backward compatibility
+            const commentaryList = commData.commentaryList || commData.commentary || [];
+            if (Array.isArray(commentaryList)) {
+              for (const comm of commentaryList) {
+                if (comm.commText) allCommText += ' ' + comm.commText;
+                if (comm.commtxt) allCommText += ' ' + comm.commtxt;
+                if (comm.commentary?.commtxt) allCommText += ' ' + comm.commentary.commtxt;
+              }
+            }
             
             console.log(`[sync-rapidapi-playing-xi] Commentary text length: ${allCommText.length}`);
             
