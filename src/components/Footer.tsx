@@ -6,7 +6,7 @@ import { useFooterPages } from "@/hooks/useDynamicPages";
 import { useTournaments } from "@/hooks/useSportsData";
 
 const Footer = () => {
-  const { data: settings } = usePublicSiteSettings();
+  const { data: settings, isLoading: settingsLoading } = usePublicSiteSettings();
   const { data: footerPages } = useFooterPages();
   const { data: tournaments } = useTournaments();
 
@@ -38,11 +38,13 @@ const Footer = () => {
           {/* Logo & Description */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              {settings?.logo_url ? (
+              {settingsLoading ? (
+                <div className="h-10 w-28 bg-muted/50 rounded animate-pulse" />
+              ) : settings?.logo_url ? (
                 <img 
                   src={settings.logo_url} 
                   alt={siteName}
-                  className="h-12 w-auto max-w-[160px] object-contain"
+                  className="h-10 w-auto max-w-[160px] object-contain"
                 />
               ) : (
                 <span className="font-display text-xl tracking-wider text-gradient">{siteName}</span>
