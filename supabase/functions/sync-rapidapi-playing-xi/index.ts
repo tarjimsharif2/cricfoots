@@ -268,7 +268,40 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Endpoint 3: Try scorecard as fallback
+    // Endpoint 3: Try match info endpoint for squad data (works before match starts)
+    if (!foundData) {
+      const matchInfoEndpoint = endpoints.match_info_endpoint || '/mcenter/v1/{match_id}';
+      const matchInfoUrl = `https://${cricbuzzHost}${matchInfoEndpoint.replace('{match_id}', cbMatchId)}`;
+      
+      console.log(`[sync-rapidapi-playing-xi] Trying match info endpoint: ${matchInfoUrl}`);
+      
+      try {
+        const response = await fetch(matchInfoUrl, {
+          method: 'GET',
+          headers: {
+            'X-RapidAPI-Key': settings.rapidapi_key,
+            'X-RapidAPI-Host': cricbuzzHost,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[sync-rapidapi-playing-xi] Match info response keys:`, Object.keys(data).join(', '));
+          
+          const result = parseMatchInfoPlayers(data, teamAName, teamAShortName, teamBName, teamBShortName);
+          if (result.teamA.length >= 11 && result.teamB.length >= 11) {
+            teamAPlayers = result.teamA;
+            teamBPlayers = result.teamB;
+            foundData = true;
+            console.log(`[sync-rapidapi-playing-xi] Found ${teamAPlayers.length}+${teamBPlayers.length} from match info`);
+          }
+        }
+      } catch (error) {
+        console.error(`[sync-rapidapi-playing-xi] Match info endpoint error:`, error);
+      }
+    }
+
+    // Endpoint 4: Try scorecard as fallback
     if (!foundData) {
       const scardEndpoint = endpoints.scorecard_endpoint || '/mcenter/v1/{match_id}/scard';
       const scardUrl = `https://${cricbuzzHost}${scardEndpoint.replace('{match_id}', cbMatchId)}`;
@@ -603,6 +636,89 @@ function parseScorecardPlayers(data: any, teamAName: string, teamAShort: string,
   }
   
   return { teamA, teamB };
+}
+
+// Parse match info endpoint data for playing XI
+function parseMatchInfoPlayers(data: any, teamAName: string, teamAShort: string, teamBName: string, teamBShort: string): { teamA: Player[], teamB: Player[] } {
+  const teamA: Player[] = [];
+  const teamB: Player[] = [];
+  
+  const normalizeTeam = (name: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const teamANorm = normalizeTeam(teamAName);
+  const teamAShortNorm = normalizeTeam(teamAShort);
+  const teamBNorm = normalizeTeam(teamBName);
+  const teamBShortNorm = normalizeTeam(teamBShort);
+
+  // Try matchInfo structure
+  const matchInfo = data.matchInfo || data.match || data;
+  
+  // Check for team1/team2 with players/squads
+  const team1Data = matchInfo.team1 || data.team1;
+  const team2Data = matchInfo.team2 || data.team2;
+  
+  if (team1Data && team2Data) {
+    const team1Name = normalizeTeam(team1Data.teamName || team1Data.name || '');
+    const team2Name = normalizeTeam(team2Data.teamName || team2Data.name || '');
+    
+    // Determine which is teamA and which is teamB
+    const team1IsTeamA = team1Name.includes(teamANorm) || teamANorm.includes(team1Name) ||
+                         team1Name === teamAShortNorm || teamAShortNorm === team1Name.replace('u19', '');
+    
+    const team1Players = extractPlayersFromTeam(team1Data);
+    const team2Players = extractPlayersFromTeam(team2Data);
+    
+    console.log(`[parseMatchInfoPlayers] team1: ${team1Name} (${team1Players.length} players), team2: ${team2Name} (${team2Players.length} players)`);
+    
+    if (team1IsTeamA) {
+      teamA.push(...team1Players);
+      teamB.push(...team2Players);
+    } else {
+      teamB.push(...team1Players);
+      teamA.push(...team2Players);
+    }
+  }
+
+  // Also try to find players in various other locations
+  const possiblePlayerLocations = [
+    data.players,
+    data.playingXI,
+    matchInfo.players,
+    matchInfo.playingXI,
+    data.squad,
+    matchInfo.squad,
+  ];
+
+  for (const location of possiblePlayerLocations) {
+    if (location && (teamA.length < 11 || teamB.length < 11)) {
+      // Handle team1/team2 structure within
+      if (location.team1 || location.team2) {
+        const t1 = extractPlayersFromTeam(location.team1);
+        const t2 = extractPlayersFromTeam(location.team2);
+        if (teamA.length < 11) teamA.push(...t1.slice(0, 11 - teamA.length));
+        if (teamB.length < 11) teamB.push(...t2.slice(0, 11 - teamB.length));
+      }
+      
+      // Handle array of players
+      if (Array.isArray(location)) {
+        for (const p of location) {
+          const player = extractPlayerInfo(p);
+          if (player) {
+            const pTeamName = normalizeTeam(p.teamName || p.team || '');
+            const isTeamA = pTeamName.includes(teamANorm) || teamANorm.includes(pTeamName) ||
+                           pTeamName === teamAShortNorm;
+            
+            if (isTeamA && teamA.length < 11) {
+              teamA.push(player);
+            } else if (!isTeamA && teamB.length < 11) {
+              teamB.push(player);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { teamA: teamA.slice(0, 11), teamB: teamB.slice(0, 11) };
 }
 
 // Clean player name
