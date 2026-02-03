@@ -305,6 +305,8 @@ const Admin = () => {
     slider_duration_seconds: 6,
     // Homepage completed matches days
     homepage_completed_days: 2,
+    // Homepage channels limit
+    homepage_channels_limit: 8,
     // Admin slug
     admin_slug: 'admin',
   });
@@ -354,6 +356,7 @@ const Admin = () => {
         custom_footer_code: siteSettings.custom_footer_code || '',
         slider_duration_seconds: (siteSettings as any).slider_duration_seconds || 6,
         homepage_completed_days: (siteSettings as any).homepage_completed_days || 2,
+        homepage_channels_limit: (siteSettings as any).homepage_channels_limit || 8,
         admin_slug: (siteSettings as any).admin_slug || 'admin',
       });
     }
@@ -1627,6 +1630,8 @@ const Admin = () => {
         slider_duration_seconds: siteSettingsForm.slider_duration_seconds || 6,
         // Homepage completed matches days
         homepage_completed_days: (siteSettingsForm as any).homepage_completed_days || 2,
+        // Homepage channels limit
+        homepage_channels_limit: (siteSettingsForm as any).homepage_channels_limit || 8,
       } as any);
       toast({ title: "Site settings updated successfully" });
     } catch (error: any) {
@@ -4338,6 +4343,19 @@ const Admin = () => {
                             onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, homepage_completed_days: parseInt(e.target.value) || 2 } as any)} 
                           />
                           <p className="text-xs text-muted-foreground">Show completed matches from last N days on homepage</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Homepage Channels Limit</Label>
+                          <Input 
+                            type="number"
+                            min={1}
+                            max={50}
+                            placeholder="8" 
+                            value={(siteSettingsForm as any).homepage_channels_limit || 8} 
+                            onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, homepage_channels_limit: parseInt(e.target.value) || 8 } as any)} 
+                          />
+                          <p className="text-xs text-muted-foreground">Maximum channels to show on homepage (View All link appears if more)</p>
                         </div>
                       </div>
 
