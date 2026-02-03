@@ -59,8 +59,8 @@ const SportsChannels = () => {
                 </span>
 
                 {/* Watch Badge */}
-                <span className="flex items-center gap-1.5 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="flex items-center gap-1 text-[10px] font-medium text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded-full animate-pulse">
+                  <span className="w-1 h-1 bg-red-500 rounded-full" />
                   Watch
                 </span>
               </div>
