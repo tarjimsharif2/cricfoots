@@ -789,6 +789,11 @@ function parseTeamEndpointData(data: any): Player[] {
 function extractPlayerInfoV2(p: any): Player | null {
   if (!p) return null;
   
+  // IMPORTANT: Skip header items like "BATTERS", "ALL ROUNDERS", "WICKET KEEPERS"
+  if (p.isHeader === true || p.isHeader === 'true') {
+    return null;
+  }
+  
   let name = '';
   let isCaptain = false;
   let isWicketKeeper = false;
@@ -800,6 +805,12 @@ function extractPlayerInfoV2(p: any): Player | null {
   } else if (typeof p === 'object') {
     // Try various name fields
     name = p.name || p.fullName || p.nickName || p.shortName || p.playerName || p.displayName || '';
+    
+    // Skip if this looks like a header (all caps category names)
+    const headerPatterns = ['BATTERS', 'BATSMAN', 'BOWLERS', 'ALL ROUNDERS', 'ALLROUNDERS', 'WICKET KEEPERS', 'WICKETKEEPERS', 'ALL-ROUNDERS'];
+    if (headerPatterns.some(h => name.toUpperCase() === h || name.toUpperCase().replace(/\s+/g, '') === h.replace(/\s+/g, ''))) {
+      return null;
+    }
     
     // Captain detection
     isCaptain = p.isCaptain === true || p.captain === true || p.isC === true ||
