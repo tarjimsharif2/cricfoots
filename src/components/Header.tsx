@@ -43,17 +43,17 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" className="flex items-center group">
             {settings?.logo_url ? (
               <img 
                 src={settings.logo_url} 
                 alt={siteName} 
-                className="h-14 sm:h-16 w-auto max-w-[200px] object-contain" 
+                className="h-16 sm:h-[72px] w-auto max-w-[220px] object-contain" 
               />
             ) : (
-              <span className="font-display text-xl sm:text-2xl tracking-wide text-gradient">{siteName}</span>
+              <span className="font-display text-2xl sm:text-3xl tracking-wide text-gradient">{siteName}</span>
             )}
           </Link>
 
