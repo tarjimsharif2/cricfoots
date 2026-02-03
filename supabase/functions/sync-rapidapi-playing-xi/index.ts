@@ -228,11 +228,12 @@ Deno.serve(async (req) => {
       console.error(`[sync-rapidapi-playing-xi] Squad endpoint error:`, error);
     }
 
-    // Endpoint 2: Try team-specific endpoints if hsquad failed
+    // Endpoint 2: Try team-specific endpoints /mcenter/v1/{match_id}/team/1 and /mcenter/v1/{match_id}/team/2
     if (!foundData) {
+      console.log(`[sync-rapidapi-playing-xi] Trying team-specific endpoints...`);
+      
       for (let teamNum = 1; teamNum <= 2; teamNum++) {
-        const teamEndpoint = endpoints.team_squad_endpoint || '/mcenter/v1/{match_id}/team/{team_num}';
-        const teamUrl = `https://${cricbuzzHost}${teamEndpoint.replace('{match_id}', cbMatchId).replace('{team_num}', String(teamNum))}`;
+        const teamUrl = `https://${cricbuzzHost}/mcenter/v1/${cbMatchId}/team/${teamNum}`;
         
         console.log(`[sync-rapidapi-playing-xi] Trying team endpoint: ${teamUrl}`);
         
@@ -247,16 +248,28 @@ Deno.serve(async (req) => {
 
           if (response.ok) {
             const data = await response.json();
-            console.log(`[sync-rapidapi-playing-xi] Team ${teamNum} response:`, JSON.stringify(data).substring(0, 500));
+            console.log(`[sync-rapidapi-playing-xi] Team ${teamNum} response keys:`, Object.keys(data).join(', '));
+            console.log(`[sync-rapidapi-playing-xi] Team ${teamNum} response sample:`, JSON.stringify(data).substring(0, 800));
             
-            const players = parseTeamPlayers(data);
+            const players = parseTeamEndpointData(data);
+            console.log(`[sync-rapidapi-playing-xi] Team ${teamNum} parsed ${players.length} players`);
+            
             if (players.length >= 11) {
               if (teamNum === 1) {
                 teamAPlayers = players.slice(0, 11);
               } else {
                 teamBPlayers = players.slice(0, 11);
               }
+            } else if (players.length > 0) {
+              // Still save partial data
+              if (teamNum === 1 && teamAPlayers.length === 0) {
+                teamAPlayers = players;
+              } else if (teamNum === 2 && teamBPlayers.length === 0) {
+                teamBPlayers = players;
+              }
             }
+          } else {
+            console.log(`[sync-rapidapi-playing-xi] Team ${teamNum} endpoint returned: ${response.status}`);
           }
         } catch (error) {
           console.error(`[sync-rapidapi-playing-xi] Team ${teamNum} endpoint error:`, error);
@@ -265,6 +278,7 @@ Deno.serve(async (req) => {
 
       if (teamAPlayers.length >= 11 && teamBPlayers.length >= 11) {
         foundData = true;
+        console.log(`[sync-rapidapi-playing-xi] Found data from team endpoints: ${teamAPlayers.length}+${teamBPlayers.length}`);
       }
     }
 
@@ -551,33 +565,157 @@ function extractPlayerInfo(p: any): Player | null {
   return { name, isCaptain, isWicketKeeper, isViceCaptain, role };
 }
 
-// Parse team-specific endpoint data
-function parseTeamPlayers(data: any): Player[] {
+// Parse team-specific endpoint data from /mcenter/v1/{match_id}/team/{num}
+function parseTeamEndpointData(data: any): Player[] {
   const players: Player[] = [];
+  const seen = new Set<string>();
   
-  // Try direct players array
+  // This endpoint returns structure like:
+  // { "player": [ { "id": "xxx", "name": "Player Name", "role": "Batsman", "isCaptain": true, ... } ] }
+  // Or: { "players": [...] }
+  // Or: { "squad": { "player": [...] } }
+  
   const playerArrays = [
+    data.player,           // Most common: { player: [...] }
+    data.players,          // Alternative
     data.playingXI,
     data.playing11,
-    data.players,
-    data.squad,
-    data.team?.playingXI,
+    data.squad?.player,
+    data.squad?.players,
+    data.team?.player,
     data.team?.players,
   ];
   
   for (const arr of playerArrays) {
-    if (Array.isArray(arr)) {
+    if (Array.isArray(arr) && arr.length > 0) {
+      console.log(`[parseTeamEndpointData] Found array with ${arr.length} items`);
+      
       for (const p of arr) {
-        const player = extractPlayerInfo(p);
-        if (player) {
+        const player = extractPlayerInfoV2(p);
+        if (player && !seen.has(player.name.toLowerCase())) {
+          seen.add(player.name.toLowerCase());
           players.push(player);
         }
       }
+      
       if (players.length >= 11) break;
     }
   }
   
+  // If still no players, try to recursively search the response
+  if (players.length === 0) {
+    const foundPlayers = findPlayersInObject(data);
+    for (const p of foundPlayers) {
+      if (!seen.has(p.name.toLowerCase())) {
+        seen.add(p.name.toLowerCase());
+        players.push(p);
+      }
+    }
+  }
+  
   return players;
+}
+
+// Enhanced player info extraction for /team/{num} endpoint
+function extractPlayerInfoV2(p: any): Player | null {
+  if (!p) return null;
+  
+  let name = '';
+  let isCaptain = false;
+  let isWicketKeeper = false;
+  let isViceCaptain = false;
+  let role: string | null = null;
+  
+  if (typeof p === 'string') {
+    name = p;
+  } else if (typeof p === 'object') {
+    // Try various name fields
+    name = p.name || p.fullName || p.nickName || p.shortName || p.playerName || p.displayName || '';
+    
+    // Captain detection
+    isCaptain = p.isCaptain === true || p.captain === true || p.isC === true ||
+                p.isCaptain === 'true' || p.captain === 'true';
+    
+    // Wicket keeper detection
+    isWicketKeeper = p.isKeeper === true || p.isWicketkeeper === true || 
+                     p.isWk === true || p.keeper === true ||
+                     p.isKeeper === 'true' || p.isWk === 'true';
+    
+    // Vice captain detection  
+    isViceCaptain = p.isViceCaptain === true || p.isVc === true ||
+                    p.isViceCaptain === 'true' || p.isVc === 'true';
+    
+    // Role
+    role = p.role || p.playingRole || p.playerRole || null;
+    
+    // Check role string for captain/keeper
+    if (typeof role === 'string') {
+      const roleLower = role.toLowerCase();
+      if (roleLower.includes('captain') || roleLower.includes('(c)')) {
+        isCaptain = true;
+      }
+      if (roleLower.includes('keeper') || roleLower.includes('wicket') || roleLower.includes('(wk)')) {
+        isWicketKeeper = true;
+      }
+    }
+  }
+  
+  // Clean up name
+  name = cleanPlayerName(name);
+  
+  if (!name || name.length < 2) return null;
+  
+  // Check for captain/keeper markers in name
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes('(c)') || nameLower.endsWith(' c')) {
+    isCaptain = true;
+    name = name.replace(/\s*\(c\)\s*/gi, '').replace(/\s+c$/i, '').trim();
+  }
+  if (nameLower.includes('(wk)') || nameLower.endsWith(' wk')) {
+    isWicketKeeper = true;
+    name = name.replace(/\s*\(wk\)\s*/gi, '').replace(/\s+wk$/i, '').trim();
+  }
+  
+  return { name, isCaptain, isWicketKeeper, isViceCaptain, role };
+}
+
+// Recursively find players in a nested object
+function findPlayersInObject(obj: any, depth = 0): Player[] {
+  const players: Player[] = [];
+  if (!obj || depth > 5) return players;
+  
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      // Check if item looks like a player
+      if (item && typeof item === 'object' && (item.name || item.fullName || item.playerName)) {
+        const player = extractPlayerInfoV2(item);
+        if (player) players.push(player);
+      } else {
+        players.push(...findPlayersInObject(item, depth + 1));
+      }
+    }
+  } else if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      if (['player', 'players', 'playingXI', 'squad', 'playing11'].includes(key)) {
+        const arr = obj[key];
+        if (Array.isArray(arr)) {
+          for (const item of arr) {
+            const player = extractPlayerInfoV2(item);
+            if (player) players.push(player);
+          }
+        }
+      } else {
+        players.push(...findPlayersInObject(obj[key], depth + 1));
+      }
+    }
+  }
+  
+  return players;
+}
+
+// Parse team-specific endpoint data (legacy)
+function parseTeamPlayers(data: any): Player[] {
+  return parseTeamEndpointData(data);
 }
 
 // Parse scorecard data to extract players
