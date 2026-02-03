@@ -458,7 +458,48 @@ const IframeToM3U8Player = ({ url, headers, onStreamError, onStreamSuccess }: { 
 const VideoPlayer = ({ url, type, headers, onStreamError, onStreamSuccess }: VideoPlayerProps) => {
   const [useDirectEmbed, setUseDirectEmbed] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [iframeTimedOut, setIframeTimedOut] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const successNotifiedRef = useRef(false);
+
+  // Handle iframe timeout detection
+  useEffect(() => {
+    if (type === 'iframe' || type === 'embed') {
+      // Reset state on URL change
+      setIsIframeLoading(true);
+      setIframeTimedOut(false);
+      successNotifiedRef.current = false;
+
+      // Start 20 second timeout
+      timeoutRef.current = setTimeout(() => {
+        if (isIframeLoading && !successNotifiedRef.current) {
+          setIframeTimedOut(true);
+          setIsIframeLoading(false);
+          if (onStreamError) {
+            onStreamError();
+          }
+        }
+      }, 20000);
+
+      return () => {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+      };
+    }
+  }, [url, type]);
+
+  const handleIframeLoad = () => {
+    setIsIframeLoading(false);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (!successNotifiedRef.current && onStreamSuccess) {
+      successNotifiedRef.current = true;
+      onStreamSuccess();
+    }
+  };
 
   // Validate URL before rendering to prevent XSS attacks
   if (!isValidUrl(url)) {
@@ -497,6 +538,19 @@ const VideoPlayer = ({ url, type, headers, onStreamError, onStreamSuccess }: Vid
   
   const iframeSrc = buildIframeSrc();
 
+  // Show timeout error
+  if (iframeTimedOut) {
+    return (
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex flex-col items-center justify-center gap-3">
+        <AlertCircle className="w-10 h-10 text-destructive" />
+        <p className="text-destructive text-center px-4">Stream failed to load</p>
+        <p className="text-muted-foreground text-xs text-center px-4">
+          Try selecting another server
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden group">
       {/* Loading spinner */}
@@ -518,7 +572,14 @@ const VideoPlayer = ({ url, type, headers, onStreamError, onStreamSuccess }: Vid
           padding: 0,
           overflow: 'hidden'
         }}
-        onLoad={() => setIsIframeLoading(false)}
+        onLoad={handleIframeLoad}
+        onError={() => {
+          setIsIframeLoading(false);
+          setIframeTimedOut(true);
+          if (onStreamError) {
+            onStreamError();
+          }
+        }}
         allowFullScreen
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         frameBorder="0"
