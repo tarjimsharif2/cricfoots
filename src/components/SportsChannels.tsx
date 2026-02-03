@@ -32,20 +32,20 @@ const SportsChannels = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
         {channels.map((channel, index) => (
           <motion.div
             key={channel.id}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
+            transition={{ delay: index * 0.03 }}
           >
             <Link to={`/channel/${channel.slug || channel.id}`}>
-              <Card className="group hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 overflow-hidden h-full">
-                <CardContent className="p-4 flex flex-col items-center text-center gap-3">
+              <Card className="group hover:border-primary/50 transition-all duration-300 hover:shadow-md hover:shadow-primary/10 overflow-hidden">
+                <CardContent className="p-2.5 flex flex-col items-center text-center gap-1.5">
                   {/* Channel Logo */}
                   <div 
-                    className="w-16 h-16 rounded-xl flex items-center justify-center p-2 border border-border/30 group-hover:border-primary/30 transition-colors"
+                    className="w-10 h-10 rounded-lg flex items-center justify-center p-1 border border-border/30 group-hover:border-primary/30 transition-colors"
                     style={{ backgroundColor: channel.logo_background_color || '#1a1a2e' }}
                   >
                     {channel.logo_url ? (
@@ -55,19 +55,19 @@ const SportsChannels = () => {
                         className="w-full h-full object-contain"
                       />
                     ) : (
-                      <Tv className="w-8 h-8 text-muted-foreground" />
+                      <Tv className="w-5 h-5 text-muted-foreground" />
                     )}
                   </div>
 
                   {/* Channel Name */}
-                  <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                  <h3 className="font-medium text-xs line-clamp-1 group-hover:text-primary transition-colors">
                     {channel.name}
                   </h3>
 
                   {/* Live Badge */}
-                  <Badge variant="live" className="text-xs">
-                    <span className="w-1.5 h-1.5 bg-current rounded-full mr-1.5 animate-pulse" />
-                    Watch Live
+                  <Badge variant="live" className="text-[10px] px-1.5 py-0.5">
+                    <span className="w-1 h-1 bg-current rounded-full mr-1 animate-pulse" />
+                    Live
                   </Badge>
                 </CardContent>
               </Card>
