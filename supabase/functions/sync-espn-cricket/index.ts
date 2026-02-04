@@ -698,21 +698,39 @@ Deno.serve(async (req) => {
       }
       
       // Update match_api_scores with detailed data
+      // First, get existing data to preserve non-empty values if new data is empty
+      const { data: existingApiScore } = await supabase
+        .from('match_api_scores')
+        .select('*')
+        .eq('match_id', match.id)
+        .maybeSingle();
+      
+      // Helper function to preserve existing valid data if new data is empty/incomplete
+      const preserveValue = <T>(newVal: T | null, existingVal: T | null): T | null => {
+        // If new value is null/undefined/empty, keep existing
+        if (newVal === null || newVal === undefined) return existingVal;
+        if (typeof newVal === 'string' && newVal.trim() === '') return existingVal;
+        if (Array.isArray(newVal) && newVal.length === 0 && existingVal && Array.isArray(existingVal) && (existingVal as any[]).length > 0) {
+          return existingVal;
+        }
+        return newVal;
+      };
+      
       const apiScoreData = {
         match_id: match.id,
-        home_team: espnData.homeTeam,
-        away_team: espnData.awayTeam,
-        home_score: espnData.homeScore,
-        away_score: espnData.awayScore,
-        status: espnData.status,
-        status_info: espnData.statusInfo,
-        venue: espnData.venue,
-        toss: espnData.toss,
-        event_live: espnData.eventLive,
-        batsmen: espnData.batsmen,
-        bowlers: espnData.bowlers,
-        extras: espnData.extras,
-        scorecard: espnData.scorecard,
+        home_team: preserveValue(espnData.homeTeam, existingApiScore?.home_team),
+        away_team: preserveValue(espnData.awayTeam, existingApiScore?.away_team),
+        home_score: preserveValue(espnData.homeScore, existingApiScore?.home_score),
+        away_score: preserveValue(espnData.awayScore, existingApiScore?.away_score),
+        status: espnData.status, // Always update status
+        status_info: preserveValue(espnData.statusInfo, existingApiScore?.status_info),
+        venue: preserveValue(espnData.venue, existingApiScore?.venue),
+        toss: preserveValue(espnData.toss, existingApiScore?.toss),
+        event_live: espnData.eventLive, // Always update live status
+        batsmen: preserveValue(espnData.batsmen, existingApiScore?.batsmen),
+        bowlers: preserveValue(espnData.bowlers, existingApiScore?.bowlers),
+        extras: preserveValue(espnData.extras, existingApiScore?.extras),
+        scorecard: preserveValue(espnData.scorecard, existingApiScore?.scorecard),
         api_event_key: eventId,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

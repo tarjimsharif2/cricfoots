@@ -987,7 +987,7 @@ Deno.serve(async (req) => {
       // IMPORTANT: Check existing record first to preserve scores when API returns NULL
       const { data: existingApiScores } = await supabase
         .from('match_api_scores')
-        .select('home_score, away_score')
+        .select('*')
         .eq('match_id', match.id)
         .maybeSingle();
       
@@ -995,6 +995,16 @@ Deno.serve(async (req) => {
       // This happens when API only syncs one innings (e.g., second team batted but first team's data dropped)
       const finalScoreA = scoreA || existingApiScores?.home_score || match.score_a || null;
       const finalScoreB = scoreB || existingApiScores?.away_score || match.score_b || null;
+      
+      // Helper function to preserve existing valid data if new data is empty/incomplete
+      const preserveValue = <T>(newVal: T | null | undefined, existingVal: T | null | undefined): T | null => {
+        if (newVal === null || newVal === undefined) return existingVal as T | null;
+        if (typeof newVal === 'string' && newVal.trim() === '') return existingVal as T | null;
+        if (Array.isArray(newVal) && newVal.length === 0 && existingVal && Array.isArray(existingVal) && (existingVal as any[]).length > 0) {
+          return existingVal as T | null;
+        }
+        return newVal;
+      };
       
       console.log(`[sync-api-scores] Score preservation: API scoreA="${scoreA}", existing="${existingApiScores?.home_score}", match="${match.score_a}" -> final="${finalScoreA}"`);
       console.log(`[sync-api-scores] Score preservation: API scoreB="${scoreB}", existing="${existingApiScores?.away_score}", match="${match.score_b}" -> final="${finalScoreB}"`);
@@ -1008,16 +1018,16 @@ Deno.serve(async (req) => {
           away_team: teamBName,
           home_score: finalScoreA,  // team_a's score - preserved if API returns NULL
           away_score: finalScoreB,  // team_b's score - preserved if API returns NULL
-          home_overs: oversA || existingApiScores?.home_score?.match(/\((\d+\.?\d*)\s*ov\)/)?.[1] || null,
-          away_overs: oversB || existingApiScores?.away_score?.match(/\((\d+\.?\d*)\s*ov\)/)?.[1] || null,
+          home_overs: oversA || existingApiScores?.home_overs || null,
+          away_overs: oversB || existingApiScores?.away_overs || null,
           status: detailedEvent.event_status,
-          status_info: detailedEvent.event_status_info,
+          status_info: preserveValue(detailedEvent.event_status_info, existingApiScores?.status_info),
           event_live: detailedEvent.event_live === '1',
-          venue: detailedEvent.event_stadium,
-          toss: detailedEvent.event_toss,
-          batsmen: batsmen,
-          bowlers: bowlers,
-          extras: extras,
+          venue: preserveValue(detailedEvent.event_stadium, existingApiScores?.venue),
+          toss: preserveValue(detailedEvent.event_toss, existingApiScores?.toss),
+          batsmen: preserveValue(batsmen, existingApiScores?.batsmen),
+          bowlers: preserveValue(bowlers, existingApiScores?.bowlers),
+          extras: preserveValue(extras, existingApiScores?.extras),
           api_event_key: detailedEvent.event_key,
           last_synced_at: new Date().toISOString(),
         }, {
