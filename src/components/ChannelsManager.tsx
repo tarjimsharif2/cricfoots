@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,15 @@ const ChannelsManager = () => {
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [channelForm, setChannelForm] = useState<ChannelFormType>({ ...defaultChannelForm });
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const serversPanelRef = useRef<HTMLDivElement>(null);
+
+  const handleSelectChannel = (channel: Channel) => {
+    setSelectedChannel(channel);
+    // Auto scroll to servers panel on mobile
+    setTimeout(() => {
+      serversPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
 
   const resetChannelForm = () => {
     setEditingChannel(null);
@@ -176,7 +185,7 @@ const ChannelsManager = () => {
               <Card 
                 key={channel.id} 
                 className={`cursor-pointer transition-all ${selectedChannel?.id === channel.id ? 'ring-2 ring-primary' : ''} ${!channel.is_active ? 'opacity-60' : ''}`}
-                onClick={() => setSelectedChannel(channel)}
+                onClick={() => handleSelectChannel(channel)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
@@ -212,7 +221,7 @@ const ChannelsManager = () => {
           </div>
 
           {/* Streaming Servers Panel */}
-          <div>
+          <div ref={serversPanelRef}>
             {selectedChannel ? (
               <ChannelServersPanel channel={selectedChannel} />
             ) : (
