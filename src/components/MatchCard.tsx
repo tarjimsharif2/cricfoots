@@ -9,6 +9,7 @@ import InningsDisplay from "@/components/InningsDisplay";
 import FlipClock from "@/components/FlipClock";
 import FootballTimer from "@/components/FootballTimer";
 import { useMatchToss } from "@/hooks/useMatchToss";
+import { formatOvers } from "@/lib/utils";
 
 interface MatchCardProps {
   match: Match;
@@ -646,7 +647,7 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
                     <div className="flex flex-col items-center">
                       <span className="text-lg md:text-xl font-bold text-primary">{scoreA.score}</span>
                       {scoreA.overs && (
-                        <span className="text-xs text-muted-foreground">({scoreA.overs} ov)</span>
+                        <span className="text-xs text-muted-foreground">({formatOvers(scoreA.overs)} ov)</span>
                       )}
                     </div>
                   )}
@@ -697,7 +698,7 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
                     <div className="flex flex-col items-center">
                       <span className="text-lg md:text-xl font-bold text-primary">{scoreB.score}</span>
                       {scoreB.overs && (
-                        <span className="text-xs text-muted-foreground">({scoreB.overs} ov)</span>
+                        <span className="text-xs text-muted-foreground">({formatOvers(scoreB.overs)} ov)</span>
                       )}
                     </div>
                   )}

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Innings } from "@/hooks/useSportsData";
+import { formatOvers } from "@/lib/utils";
 
 interface InningsDisplayProps {
   innings: Innings[];
@@ -113,7 +114,7 @@ const InningsDisplay = ({ innings, teamAId, teamBId, compact = true }: InningsDi
                   {formatScore(inningsData)}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  ({inningsData.overs} ov)
+                  ({formatOvers(inningsData.overs)} ov)
                 </span>
               </div>
             </div>
@@ -147,7 +148,7 @@ const InningsDisplay = ({ innings, teamAId, teamBId, compact = true }: InningsDi
                   {formatScore(inningsData)}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  ({inningsData.overs} ov)
+                  ({formatOvers(inningsData.overs)} ov)
                 </span>
               </div>
             </div>
