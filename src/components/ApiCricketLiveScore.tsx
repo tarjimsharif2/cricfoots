@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useApiCricketScore } from '@/hooks/useApiCricketScore';
 import { Clock, AlertCircle, Trophy, User, Target, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatOvers } from '@/lib/utils';
 
 interface ApiCricketLiveScoreProps {
   teamAName: string;
@@ -344,7 +345,7 @@ const ApiCricketLiveScore = ({
                           </div>
                           <span className="text-sm font-bold text-primary">
                             {cleanScore(team.score || '-')}
-                            {team.overs && ` (${team.overs} ov)`}
+                            {team.overs && ` (${formatOvers(team.overs)} ov)`}
                           </span>
                         </div>
                         {team.batsmen.length > 0 ? (
@@ -458,7 +459,7 @@ const ApiCricketLiveScore = ({
                               <div className="space-y-2">
                                 <div className="text-2xl font-bold text-primary">
                                   {team.score}
-                                  {team.overs && <span className="text-sm font-normal text-muted-foreground ml-2">({team.overs} ov)</span>}
+                                  {team.overs && <span className="text-sm font-normal text-muted-foreground ml-2">({formatOvers(team.overs)} ov)</span>}
                                 </div>
                                 <p className="text-xs">Detailed scorecard not available</p>
                               </div>
@@ -573,7 +574,7 @@ const ApiCricketLiveScore = ({
                   <div className="text-center">
                     <div className="flex items-baseline justify-center gap-1">
                       <span className="text-2xl font-bold text-primary">{teamACalc.score || '-'}</span>
-                      {teamACalc.overs && <span className="text-xs text-muted-foreground">({teamACalc.overs} ov)</span>}
+                      {teamACalc.overs && <span className="text-xs text-muted-foreground">({formatOvers(teamACalc.overs)} ov)</span>}
                     </div>
                   </div>
                 </div>
@@ -586,7 +587,7 @@ const ApiCricketLiveScore = ({
                   <div className="text-center">
                     <div className="flex items-baseline justify-center gap-1">
                       <span className="text-2xl font-bold text-primary">{teamBCalc.score || '-'}</span>
-                      {teamBCalc.overs && <span className="text-xs text-muted-foreground">({teamBCalc.overs} ov)</span>}
+                      {teamBCalc.overs && <span className="text-xs text-muted-foreground">({formatOvers(teamBCalc.overs)} ov)</span>}
                     </div>
                   </div>
                 </div>

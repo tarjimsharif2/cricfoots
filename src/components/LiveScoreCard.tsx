@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useLiveCricketScore } from '@/hooks/useLiveCricketScore';
 import { RefreshCw, Radio, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { formatOvers } from '@/lib/utils';
 
 interface LiveScoreCardProps {
   teamAName: string;
@@ -97,7 +98,7 @@ const LiveScoreCard = ({
                   <div className="text-center">
                     <span className="text-2xl font-bold text-primary">{scoreData.teamA.score}</span>
                     {scoreData.teamA.overs !== '-' && (
-                      <span className="text-sm text-muted-foreground ml-1">({scoreData.teamA.overs} ov)</span>
+                      <span className="text-sm text-muted-foreground ml-1">({formatOvers(scoreData.teamA.overs)} ov)</span>
                     )}
                   </div>
                 </div>
@@ -111,7 +112,7 @@ const LiveScoreCard = ({
                   <div className="text-center">
                     <span className="text-2xl font-bold text-accent">{scoreData.teamB.score}</span>
                     {scoreData.teamB.overs !== '-' && (
-                      <span className="text-sm text-muted-foreground ml-1">({scoreData.teamB.overs} ov)</span>
+                      <span className="text-sm text-muted-foreground ml-1">({formatOvers(scoreData.teamB.overs)} ov)</span>
                     )}
                   </div>
                 </div>
