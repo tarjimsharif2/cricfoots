@@ -996,8 +996,8 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
               {team.logo_url && (
                 <img src={team.logo_url} alt={team.name} className="w-6 h-6 object-contain" />
               )}
-              <h4 className="font-medium text-sm">{team.name}</h4>
-              <Badge variant="secondary" className="text-[10px]">
+              <h4 className="font-medium text-sm text-primary">⚙️ Playing XI</h4>
+              <Badge variant="default" className="text-[10px]">
                 {playingXI.length}/11
               </Badge>
             </div>
@@ -1014,25 +1014,20 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
                   Auto
                 </Button>
               )}
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => {
-                  setActiveTeam(team.id);
-                  handleOpenDialog();
-                }}
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add
-              </Button>
-              <Button 
-                size="sm" 
-                variant="secondary" 
-                onClick={() => handleOpenBulkDialog(team.id)}
-              >
-                <Upload className="w-3 h-3 mr-1" />
-                Bulk Add
-              </Button>
+              {/* Only show Add to XI if not full */}
+              {playingXI.length < 11 && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setActiveTeam(team.id);
+                    handleOpenDialog(undefined, false); // Add to Playing XI
+                  }}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add to XI
+                </Button>
+              )}
             </div>
           </div>
           {playingXI.length > 0 ? (
@@ -1046,25 +1041,52 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
           )}
         </div>
 
-        {/* Full Squad / Bench Section */}
-        {bench.length > 0 && (
-          <div className="space-y-3">
+        {/* Full Squad / Bench Section - Always show with Add buttons */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <h4 className="font-medium text-sm text-muted-foreground">
-                {playingXI.length > 0 ? 'Bench' : 'Full Squad'}
+                🪑 {playingXI.length > 0 ? 'Bench / Squad' : 'Full Squad'}
               </h4>
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="secondary" className="text-[10px]">
                 {bench.length}
               </Badge>
               {selectedForSwap && (
                 <span className="text-xs text-primary animate-pulse">← Tap to swap</span>
               )}
             </div>
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => {
+                  setActiveTeam(team.id);
+                  handleOpenDialog(undefined, true); // Add to Bench
+                }}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add to Bench
+              </Button>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => handleOpenBulkDialog(team.id)}
+              >
+                <Upload className="w-3 h-3 mr-1" />
+                Bulk Add
+              </Button>
+            </div>
+          </div>
+          {bench.length > 0 ? (
             <div className="space-y-2 pl-2 border-l-2 border-border/50">
               {bench.map(p => renderPlayerCard(p, [], false))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-3 border border-dashed rounded-lg">
+              No bench players. Add players to the squad first.
+            </p>
+          )}
+        </div>
       </div>
     );
   };
