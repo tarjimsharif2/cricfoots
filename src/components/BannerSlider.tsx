@@ -161,15 +161,17 @@ const BannerSlider = () => {
   // Get slider duration from settings (default 6 seconds)
   const sliderDuration = ((siteSettings as any)?.slider_duration_seconds || 6) * 1000;
 
+  // Reset timer whenever currentIndex changes (including manual nav)
+  // This ensures the full duration starts AFTER the slide is shown
   useEffect(() => {
     if (!banners || banners.length <= 1) return;
     
-    const interval = setInterval(() => {
+    const timeout = setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % banners.length);
     }, sliderDuration);
 
-    return () => clearInterval(interval);
-  }, [banners, sliderDuration]);
+    return () => clearTimeout(timeout);
+  }, [banners, sliderDuration, currentIndex]);
 
   if (isLoading || !banners || banners.length === 0) {
     return null;
@@ -276,30 +278,39 @@ const BannerSlider = () => {
       }
       case 'watch_now':
         return (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            className="inline-flex"
+          <motion.button
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, delay: 0.4, type: "spring", stiffness: 200 }}
+            whileHover={{ scale: 1.06, x: 4 }}
+            whileTap={{ scale: 0.95 }}
+            className={`group relative flex items-center gap-0 rounded-full overflow-hidden cursor-pointer shadow-xl ${
+              isLive ? 'shadow-destructive/40' : 'shadow-primary/40'
+            }`}
           >
-            <span className={`relative inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold tracking-wide uppercase overflow-hidden transition-all cursor-pointer shadow-lg ${
-              isLive
-                ? 'bg-destructive/90 text-destructive-foreground backdrop-blur-sm border border-destructive/50 shadow-destructive/30'
-                : 'bg-primary/90 text-primary-foreground backdrop-blur-sm border border-primary/50 shadow-primary/30'
+            {/* Icon circle */}
+            <span className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full ${
+              isLive ? 'bg-destructive' : 'bg-primary'
             }`}>
-              {/* Animated shine sweep */}
-              <span className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/25 to-transparent" style={{ backgroundSize: '200% 100%' }} />
-              <span className="relative flex items-center gap-1.5">
-                {isLive ? (
-                  <Zap className="w-3.5 h-3.5 fill-current drop-shadow-sm" />
-                ) : (
-                  <Play className="w-3 h-3 fill-current drop-shadow-sm" />
-                )}
-                Watch Now
-              </span>
+              {isLive ? (
+                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive-foreground fill-current" />
+              ) : (
+                <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary-foreground fill-current ml-0.5" />
+              )}
             </span>
-          </motion.div>
+            {/* Text pill */}
+            <span className={`px-3 sm:px-4 py-1.5 sm:py-2 -ml-1 pl-3 sm:pl-4 text-xs sm:text-sm font-bold tracking-wider uppercase rounded-r-full border-y border-r ${
+              isLive
+                ? 'bg-destructive/20 text-destructive-foreground border-destructive/40 backdrop-blur-md'
+                : 'bg-primary/20 text-primary-foreground border-primary/40 backdrop-blur-md'
+            }`}>
+              Watch Now
+            </span>
+            {/* Glow ring on hover */}
+            <span className={`absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+              isLive ? 'ring-2 ring-destructive/50' : 'ring-2 ring-primary/50'
+            }`} />
+          </motion.button>
         );
       default:
         return null;
