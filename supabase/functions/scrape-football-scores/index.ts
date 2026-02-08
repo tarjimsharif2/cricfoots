@@ -643,10 +643,37 @@ async function fetchESPNScores(league: string = 'epl', includeDetails: boolean =
       const statusType = competition.status?.type?.name || '';
       const statusDetail = competition.status?.type?.detail || '';
       const displayClock = competition.status?.displayClock || '';
+      const statusClock = competition.status?.clock || null;
+      const statusPeriod = competition.status?.period || 0;
       
       if (statusType === 'STATUS_IN_PROGRESS') {
         status = 'Live';
-        minute = displayClock || statusDetail;
+        // Try multiple sources for match minute
+        if (displayClock) {
+          minute = displayClock;
+        } else if (statusDetail) {
+          // statusDetail might be like "69'" or "2nd Half - 69'" or just "2nd Half"
+          const minuteFromDetail = statusDetail.match(/(\d+)/);
+          if (minuteFromDetail) {
+            minute = minuteFromDetail[1] + "'";
+          }
+        }
+        
+        // If still no minute, try to calculate from clock (seconds remaining in half)
+        if (!minute && statusClock !== null && statusClock !== undefined) {
+          const clockSeconds = Number(statusClock);
+          if (!isNaN(clockSeconds)) {
+            // ESPN clock can be seconds elapsed in the current period
+            const periodMinutes = Math.floor(clockSeconds / 60);
+            if (statusPeriod === 2) {
+              minute = String(45 + periodMinutes) + "'";
+            } else {
+              minute = String(periodMinutes) + "'";
+            }
+          }
+        }
+        
+        console.log(`[ESPN] Match minute extraction: displayClock="${displayClock}", statusDetail="${statusDetail}", statusClock=${statusClock}, period=${statusPeriod}, result="${minute}"`);
       } else if (statusType === 'STATUS_HALFTIME') {
         status = 'Half Time';
         minute = 'HT';

@@ -54,9 +54,10 @@ Deno.serve(async (req) => {
     console.log(`[increment-football-timer] Football sport IDs: ${footballSportIds.join(', ')}`);
 
     // Fetch live football matches with a running timer (match_minute is not null and > 0)
+    // SKIP matches with auto_sync_enabled — those get minutes from ESPN via auto-sync-football
     const { data: matches, error: matchesError } = await supabase
       .from('matches')
-      .select('id, match_minute, status, sport_id, match_start_time')
+      .select('id, match_minute, status, sport_id, match_start_time, auto_sync_enabled')
       .eq('status', 'live')
       .in('sport_id', footballSportIds)
       .not('match_minute', 'is', null)
@@ -81,6 +82,13 @@ Deno.serve(async (req) => {
     const updates: { id: string; from: number; to: number | null; paused?: boolean; autoResumed?: boolean }[] = [];
 
     for (const match of matches) {
+      // Skip matches managed by auto-sync-football (ESPN provides the minute)
+      if (match.auto_sync_enabled) {
+        console.log(`[increment-football-timer] Skipping match ${match.id} — auto_sync_enabled, managed by ESPN sync`);
+        updates.push({ id: match.id, from: match.match_minute ?? 0, to: null, paused: true });
+        continue;
+      }
+      
       const currentMinute = match.match_minute ?? 0;
       
       // Pause points where timer should stop temporarily:
