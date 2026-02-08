@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ const Admin = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Check if user has admin panel access (any permission)
   const { hasAccess: hasAdminAccess, isLoading: accessLoading } = useHasAdminAccess();
@@ -3335,16 +3337,6 @@ const Admin = () => {
                               onCheckedChange={(checked) => setTournamentForm({ ...tournamentForm, show_in_homepage: checked })}
                             />
                           </div>
-                          <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm">
-                            <div className="space-y-0.5">
-                              <Label className="text-base font-medium">Show Points Table</Label>
-                              <p className="text-sm text-muted-foreground">Display points table section on tournament page & Points Table manager</p>
-                            </div>
-                            <Switch
-                              checked={tournamentForm.show_points_table}
-                              onCheckedChange={(checked) => setTournamentForm({ ...tournamentForm, show_points_table: checked })}
-                            />
-                          </div>
                           <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm border-orange-500/30 bg-orange-500/5">
                             <div className="space-y-0.5">
                               <Label className="text-base font-medium text-orange-600 dark:text-orange-400">Tournament Completed</Label>
@@ -3729,18 +3721,85 @@ const Admin = () => {
 
               {tournamentsLoading || teamsLoading ? (
                 <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-              ) : tournaments && tournaments.filter(t => !t.is_completed && ((t as any).show_points_table !== false)).length > 0 ? (
+              ) : tournaments && tournaments.filter(t => !t.is_completed).length > 0 ? (
                 <div className="space-y-6">
-                  {tournaments.filter(t => !t.is_completed && ((t as any).show_points_table !== false)).map((tournament) => (
-                    <Card key={tournament.id}>
-                      <CardContent className="p-6">
-                        <PointsTableManager 
-                          tournament={tournament} 
-                          teams={teams || []} 
-                        />
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {tournaments.filter(t => !t.is_completed).map((tournament) => {
+                    const isVisible = (tournament as any).show_points_table !== false;
+                    return (
+                      <Card key={tournament.id} className={!isVisible ? 'opacity-60' : ''}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between flex-wrap gap-3">
+                            <div className="flex items-center gap-3">
+                              {tournament.logo_url && (
+                                <img src={tournament.logo_url} alt="" className="w-8 h-8 object-contain rounded" />
+                              )}
+                              <CardTitle className="text-base">{tournament.name}</CardTitle>
+                            </div>
+                            <div className="flex items-center gap-4 flex-wrap">
+                              {/* Per-tournament sync time */}
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-muted-foreground" />
+                                <Input
+                                  type="time"
+                                  className="w-[120px] h-8 text-xs"
+                                  value={(tournament as any).points_table_sync_time?.split(/[+-]/)?.[0] || ''}
+                                  onChange={async (e) => {
+                                    const timeValue = e.target.value;
+                                    const offset = new Date().getTimezoneOffset();
+                                    const absOffset = Math.abs(offset);
+                                    const sign = offset <= 0 ? '+' : '-';
+                                    const hours = String(Math.floor(absOffset / 60)).padStart(2, '0');
+                                    const mins = String(absOffset % 60).padStart(2, '0');
+                                    const tzString = `${sign}${hours}:${mins}`;
+                                    const fullTime = timeValue ? `${timeValue}${tzString}` : null;
+                                    
+                                    const { error } = await supabase
+                                      .from('tournaments')
+                                      .update({ points_table_sync_time: fullTime } as any)
+                                      .eq('id', tournament.id);
+                                    
+                                    if (!error) {
+                                      queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+                                      toast({ title: "Sync time updated", description: fullTime ? `Set to ${timeValue} (${Intl.DateTimeFormat().resolvedOptions().timeZone})` : 'Sync time cleared' });
+                                    }
+                                  }}
+                                />
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                                </span>
+                              </div>
+                              {/* Show/hide toggle */}
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs text-muted-foreground whitespace-nowrap">Show</Label>
+                                <Switch
+                                  checked={isVisible}
+                                  onCheckedChange={async (checked) => {
+                                    const { error } = await supabase
+                                      .from('tournaments')
+                                      .update({ show_points_table: checked } as any)
+                                      .eq('id', tournament.id);
+                                    
+                                    if (!error) {
+                                      queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+                                      toast({ title: checked ? "Points table visible" : "Points table hidden" });
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        {isVisible && (
+                          <CardContent className="pt-2 pb-6 px-6">
+                            <PointsTableManager 
+                              tournament={tournament} 
+                              teams={teams || []} 
+                            />
+                          </CardContent>
+                        )}
+                      </Card>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">

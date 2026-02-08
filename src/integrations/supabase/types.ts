@@ -1722,6 +1722,7 @@ export type Database = {
           logo_url: string | null
           name: string
           participating_teams_position: string | null
+          points_table_sync_time: string | null
           season: string
           seo_description: string | null
           seo_keywords: string | null
@@ -1751,6 +1752,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           participating_teams_position?: string | null
+          points_table_sync_time?: string | null
           season: string
           seo_description?: string | null
           seo_keywords?: string | null
@@ -1780,6 +1782,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           participating_teams_position?: string | null
+          points_table_sync_time?: string | null
           season?: string
           seo_description?: string | null
           seo_keywords?: string | null
