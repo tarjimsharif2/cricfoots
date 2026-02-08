@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     // Fetch live football matches with a running timer (match_minute is not null and > 0)
     const { data: matches, error: matchesError } = await supabase
       .from('matches')
-      .select('id, match_minute, status, sport_id')
+      .select('id, match_minute, status, sport_id, match_start_time')
       .eq('status', 'live')
       .in('sport_id', footballSportIds)
       .not('match_minute', 'is', null)
@@ -78,33 +78,83 @@ Deno.serve(async (req) => {
     console.log(`[increment-football-timer] Found ${matches.length} live football matches with timers`);
 
     let updatedCount = 0;
-    const updates: { id: string; from: number; to: number | null; paused?: boolean }[] = [];
+    const updates: { id: string; from: number; to: number | null; paused?: boolean; autoResumed?: boolean }[] = [];
 
-    for (const match of matches as FootballMatch[]) {
+    for (const match of matches) {
       const currentMinute = match.match_minute ?? 0;
       
-      // Pause points where timer should stop:
-      // - 45: Halftime (end of 1st half)
-      // - 90: Full Time (end of regular time) - needs manual resume for extra time
-      // - 105: Extra Time Halftime (end of ET 1st half)
-      // - 120: After Extra Time (end of ET 2nd half)
-      const pausePoints = [45, 90, 105, 120];
+      // Pause points where timer should stop temporarily:
+      // - 45: Halftime (end of 1st half) — auto-resumes after ~15 min break
+      // - 90: Full Time (end of regular time) — needs manual resume for extra time
+      // - 105: Extra Time Halftime (end of ET 1st half) — auto-resumes after ~5 min
+      // - 120: After Extra Time (end of ET 2nd half) — permanent stop
       
-      if (pausePoints.includes(currentMinute)) {
-        const pauseLabels: Record<number, string> = {
-          45: 'HALFTIME',
-          90: 'FULL TIME',
-          105: 'ET HALFTIME',
-          120: 'AFTER EXTRA TIME'
-        };
-        console.log(`[increment-football-timer] Match ${match.id} at pause point: ${pauseLabels[currentMinute]} (${currentMinute}')`);
-        updates.push({ id: match.id, from: currentMinute, to: null, paused: true });
+      // Check if at a pause point
+      if (currentMinute === 45 || currentMinute === 105) {
+        // Auto-resume logic: check if enough break time has passed using match_start_time
+        let shouldResume = false;
+        
+        if (match.match_start_time) {
+          const startTime = new Date(match.match_start_time).getTime();
+          const elapsedMinutes = (Date.now() - startTime) / 1000 / 60;
+          
+          if (currentMinute === 45) {
+            // 1st half = 45 min + ~2 min stoppage + 15 min break = ~62 min from start
+            // Resume 2nd half if at least 60 min have passed from kick-off
+            shouldResume = elapsedMinutes >= 60;
+            if (shouldResume) {
+              console.log(`[increment-football-timer] Match ${match.id}: Auto-resuming after HALFTIME (elapsed: ${Math.floor(elapsedMinutes)} min from start)`);
+            }
+          } else if (currentMinute === 105) {
+            // ET 1st half done. ET halftime is ~5 min.
+            // Total from start: 45+15+45+2+15+5 = ~127 min
+            shouldResume = elapsedMinutes >= 125;
+            if (shouldResume) {
+              console.log(`[increment-football-timer] Match ${match.id}: Auto-resuming after ET HALFTIME (elapsed: ${Math.floor(elapsedMinutes)} min from start)`);
+            }
+          }
+        }
+        
+        if (!shouldResume) {
+          const pauseLabels: Record<number, string> = { 45: 'HALFTIME', 105: 'ET HALFTIME' };
+          console.log(`[increment-football-timer] Match ${match.id} at pause point: ${pauseLabels[currentMinute]} (${currentMinute}')`);
+          updates.push({ id: match.id, from: currentMinute, to: null, paused: true });
+          continue;
+        }
+        
+        // Auto-resume: calculate correct minute from match_start_time
+        const startTime = new Date(match.match_start_time!).getTime();
+        const elapsedMinutes = (Date.now() - startTime) / 1000 / 60;
+        
+        let newMinute: number;
+        if (currentMinute === 45) {
+          // 2nd half: subtract ~15 min break from elapsed
+          newMinute = Math.min(Math.floor(elapsedMinutes - 15), 90);
+        } else {
+          // ET 2nd half: subtract ~35 min total breaks (15 HT + 15 before ET + 5 ET HT)
+          newMinute = Math.min(Math.floor(elapsedMinutes - 35), 120);
+        }
+        
+        // Ensure we move forward
+        newMinute = Math.max(newMinute, currentMinute + 1);
+        
+        const { error: updateError } = await supabase
+          .from('matches')
+          .update({ match_minute: newMinute })
+          .eq('id', match.id);
+          
+        if (!updateError) {
+          console.log(`[increment-football-timer] Match ${match.id}: AUTO-RESUMED ${currentMinute}' → ${newMinute}'`);
+          updates.push({ id: match.id, from: currentMinute, to: newMinute, autoResumed: true });
+          updatedCount++;
+        }
         continue;
       }
       
-      // Don't increment beyond 120 minutes
-      if (currentMinute >= 120) {
-        console.log(`[increment-football-timer] Match ${match.id} has completed extra time (${currentMinute}')`);
+      // Full Time (90) and After Extra Time (120) - require manual intervention
+      if (currentMinute === 90 || currentMinute >= 120) {
+        const label = currentMinute >= 120 ? 'AFTER EXTRA TIME' : 'FULL TIME';
+        console.log(`[increment-football-timer] Match ${match.id} at ${label} (${currentMinute}') - needs manual action`);
         updates.push({ id: match.id, from: currentMinute, to: null, paused: true });
         continue;
       }
@@ -125,17 +175,6 @@ Deno.serve(async (req) => {
       console.log(`[increment-football-timer] Match ${match.id}: ${currentMinute}' → ${newMinute}'`);
       updates.push({ id: match.id, from: currentMinute, to: newMinute });
       updatedCount++;
-
-      // Log when reaching pause points
-      if (newMinute === 45) {
-        console.log(`[increment-football-timer] Match ${match.id} reached HALFTIME (45') - Timer paused`);
-      } else if (newMinute === 90) {
-        console.log(`[increment-football-timer] Match ${match.id} reached FULL TIME (90') - Timer paused. Start Extra Time manually if needed.`);
-      } else if (newMinute === 105) {
-        console.log(`[increment-football-timer] Match ${match.id} reached ET HALFTIME (105') - Timer paused`);
-      } else if (newMinute === 120) {
-        console.log(`[increment-football-timer] Match ${match.id} reached AFTER EXTRA TIME (120') - Match should end`);
-      }
     }
 
     console.log(`[increment-football-timer] Completed. Updated ${updatedCount}/${matches.length} matches`);
