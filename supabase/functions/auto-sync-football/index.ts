@@ -296,6 +296,24 @@ serve(async (req) => {
           newMinute = 45;
         } else if (matchedApi.status === 'Live') {
           newStatus = 'live';
+          
+          // Fallback: if ESPN returned no minute for a live match, calculate from match_start_time
+          if (newMinute === null && dbMatch.match_start_time) {
+            const startTime = new Date(dbMatch.match_start_time).getTime();
+            const elapsedMin = (Date.now() - startTime) / 1000 / 60;
+            
+            if (elapsedMin <= 47) {
+              // 1st half
+              newMinute = Math.min(Math.floor(elapsedMin), 45);
+            } else if (elapsedMin <= 63) {
+              // Halftime break
+              newMinute = 45;
+            } else {
+              // 2nd half: subtract ~15 min break
+              newMinute = Math.min(Math.floor(elapsedMin - 15), 90);
+            }
+            console.log(`[auto-sync-football] Fallback minute from start_time: ${newMinute}' (elapsed: ${Math.floor(elapsedMin)} min)`);
+          }
         }
 
         // Check if update needed
