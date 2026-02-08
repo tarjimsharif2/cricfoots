@@ -677,6 +677,77 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
     }
   };
 
+  // Client-side CricAPI match auto-detection (browser can reach cricapi.com, edge functions can't)
+  const autoDetectCricapiMatchId = async (): Promise<string | null> => {
+    // Get API key from site_settings (admin only)
+    const { data: settings } = await supabase
+      .from('site_settings')
+      .select('cricket_api_key')
+      .limit(1)
+      .maybeSingle();
+
+    if (!settings?.cricket_api_key) {
+      throw new Error('CricAPI key not configured. Please add your API key in Settings → API Keys → CricAPI.');
+    }
+
+    const apiKey = settings.cricket_api_key;
+    const normName = (n: string) => n.toLowerCase().replace(/\s*(women|men|u19|u-19|under-19|under 19)\s*/gi, '').replace(/\s+/g, ' ').trim();
+    const normA = normName(teamA.name);
+    const normB = normName(teamB.name);
+    const shortA = teamA.short_name?.toLowerCase().trim() || '';
+    const shortB = teamB.short_name?.toLowerCase().trim() || '';
+
+    const findInList = (matches: any[]): string | null => {
+      for (const m of matches) {
+        if (!m.teams || m.teams.length < 2) continue;
+        const t1 = normName(m.teams[0]);
+        const t2 = normName(m.teams[1]);
+        const s1 = m.teamInfo?.[0]?.shortname?.toLowerCase().trim() || '';
+        const s2 = m.teamInfo?.[1]?.shortname?.toLowerCase().trim() || '';
+
+        const matchA = t1 === normA || t1.includes(normA) || normA.includes(t1) || s1 === shortA ||
+                       t2 === normA || t2.includes(normA) || normA.includes(t2) || s2 === shortA;
+        const matchB = t1 === normB || t1.includes(normB) || normB.includes(t1) || s1 === shortB ||
+                       t2 === normB || t2.includes(normB) || normB.includes(t2) || s2 === shortB;
+        if (matchA && matchB) {
+          console.log(`[CricAPI Client] Found match: "${m.name}" (ID: ${m.id})`);
+          return m.id;
+        }
+      }
+      return null;
+    };
+
+    // Try currentMatches first
+    try {
+      const res = await fetch(`https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success' && data.data?.length > 0) {
+          const found = findInList(data.data);
+          if (found) return found;
+        }
+      }
+    } catch (e) {
+      console.warn('[CricAPI Client] currentMatches failed:', e);
+    }
+
+    // Fallback to matches (includes upcoming)
+    try {
+      const res = await fetch(`https://api.cricapi.com/v1/matches?apikey=${apiKey}&offset=0`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success' && data.data?.length > 0) {
+          const found = findInList(data.data);
+          if (found) return found;
+        }
+      }
+    } catch (e) {
+      console.warn('[CricAPI Client] matches list failed:', e);
+    }
+
+    return null;
+  };
+
   // Fetch squad from RapidAPI (Cricbuzz)
   const handleFetchSquad = async (source: 'cricbuzz' | 'espn' | 'scrape' | 'rapidapi' | 'cricapi', forceRefresh = false) => {
     setFetchingSquad(true);
@@ -705,10 +776,22 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
         functionName = 'sync-cricapi-playing-xi';
       }
       
+      // For CricAPI: auto-detect match ID from browser if not set
+      let detectedCricapiId: string | undefined;
+      if (source === 'cricapi' && !cricapiMatchId) {
+        toast({ title: "Auto-detecting match...", description: "Searching CricAPI for this match..." });
+        detectedCricapiId = (await autoDetectCricapiMatchId()) || undefined;
+        if (!detectedCricapiId) {
+          throw new Error(`Could not find ${teamA.name} vs ${teamB.name} on CricAPI. The match may not be listed yet. Please set the CricAPI Match ID manually.`);
+        }
+        toast({ title: "Match found!", description: `CricAPI Match ID: ${detectedCricapiId}` });
+      }
+
       const response = await supabase.functions.invoke(functionName, {
         body: {
           matchId,
           cricbuzzMatchId,
+          cricapiMatchId: detectedCricapiId || cricapiMatchId,
           teamAId: teamA.id,
           teamBId: teamB.id,
           teamAName: teamA.name,
