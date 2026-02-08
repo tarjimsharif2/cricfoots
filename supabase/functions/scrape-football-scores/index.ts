@@ -24,6 +24,7 @@ interface PlayerInfo {
   position: string;
   jerseyNumber?: string;
   isCaptain?: boolean;
+  playerImage?: string;
 }
 
 interface FootballMatch {
@@ -160,6 +161,7 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
             position: entry.position?.abbreviation || player.position?.abbreviation || '',
             jerseyNumber: player.jersey || entry.jersey,
             isCaptain: entry.captain || false,
+            playerImage: player.headshot?.href || player.headshot || undefined,
           });
         }
       }
@@ -183,6 +185,7 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
                 position: athlete.position?.abbreviation || player.position?.abbreviation || '',
                 jerseyNumber: athlete.jersey,
                 isCaptain: false,
+                playerImage: athlete.headshot?.href || athlete.headshot || undefined,
               });
             }
           }
@@ -204,6 +207,7 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
             position: player.position?.abbreviation || player.position || '',
             jerseyNumber: player.jersey,
             isCaptain: player.captain || false,
+            playerImage: player.headshot?.href || player.headshot || undefined,
           });
         }
       }
