@@ -1,7 +1,7 @@
 import { Match, useMatchInnings, GoalEvent } from "@/hooks/useSportsData";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Clock, Star, Calendar } from "lucide-react";
 import TossCoin from "@/components/TossCoin";
@@ -143,8 +143,10 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
   const displayStatus = effectiveStatus || match.status;
   const [countdown, setCountdown] = useState<string | null>(null);
   const [localTime, setLocalTime] = useState<string>("");
-  const [matchSeconds, setMatchSeconds] = useState<number>(0);
+  const [displayMinute, setDisplayMinute] = useState<number>(0);
+  const [displaySeconds, setDisplaySeconds] = useState<number>(0);
   const [timezone, setTimezone] = useState<string>("");
+  const minuteReceivedAt = useRef<number>(Date.now());
 
   // Get date label (Today/Tomorrow/Date)
   const dateLabel = useMemo(() => getDateLabel(match.match_start_time, match.match_date), [match.match_start_time, match.match_date]);
@@ -175,17 +177,29 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
     setTimezone(tzAbbr);
   }, []);
 
-  // Live seconds counter for football matches
+  // Track when match_minute was last updated from DB
+  useEffect(() => {
+    if (match.match_minute != null) {
+      minuteReceivedAt.current = Date.now();
+    }
+  }, [match.match_minute]);
+
+  // Live timer for football matches - auto-increments minutes too
   useEffect(() => {
     if (displayStatus === 'live' && isFootball && match.match_minute != null) {
-      // Reset seconds when minute changes
-      setMatchSeconds(0);
-      
-      // Always count seconds - no pausing
-      const interval = setInterval(() => {
-        setMatchSeconds(prev => (prev >= 59 ? 0 : prev + 1));
-      }, 1000);
-      
+      const baseMinute = match.match_minute;
+      const baseTime = minuteReceivedAt.current;
+
+      const updateTimer = () => {
+        const elapsedSeconds = Math.floor((Date.now() - baseTime) / 1000);
+        const totalMinute = baseMinute + Math.floor(elapsedSeconds / 60);
+        const seconds = elapsedSeconds % 60;
+        setDisplayMinute(totalMinute);
+        setDisplaySeconds(seconds);
+      };
+
+      updateTimer(); // Set immediately
+      const interval = setInterval(updateTimer, 1000);
       return () => clearInterval(interval);
     }
   }, [displayStatus, isFootball, match.match_minute]);
@@ -457,7 +471,7 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
                       {/* Match time indicators for football */}
                       {displayStatus === 'live' && match.match_minute != null && (
                         <div className="flex flex-col items-center gap-0.5 mt-1">
-                          <FootballTimer minute={match.match_minute} seconds={matchSeconds} />
+                          <FootballTimer minute={displayMinute} seconds={displaySeconds} />
                         </div>
                       )}
                       {/* Full Time indicator for completed matches with match minute */}
