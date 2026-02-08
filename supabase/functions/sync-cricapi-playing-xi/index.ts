@@ -138,7 +138,48 @@ function matchTeam(
   return null;
 }
 
-// Auto-detect CricAPI match ID from currentMatches endpoint
+// Search through a list of CricAPI matches for our team pair
+function findMatchInList(
+  matches: CricApiMatch[],
+  teamAName: string,
+  teamAShortName: string,
+  teamBName: string,
+  teamBShortName: string
+): { matchId: string; matchName: string } | null {
+  const normA = normalizeTeamName(teamAName);
+  const normB = normalizeTeamName(teamBName);
+  const shortA = teamAShortName?.toLowerCase().trim() || '';
+  const shortB = teamBShortName?.toLowerCase().trim() || '';
+
+  for (const match of matches) {
+    if (!match.teams || match.teams.length < 2) continue;
+
+    const team1 = normalizeTeamName(match.teams[0]);
+    const team2 = normalizeTeamName(match.teams[1]);
+
+    const short1 = match.teamInfo?.[0]?.shortname?.toLowerCase().trim() || '';
+    const short2 = match.teamInfo?.[1]?.shortname?.toLowerCase().trim() || '';
+
+    const matchesA = (
+      team1 === normA || team1.includes(normA) || normA.includes(team1) ||
+      short1 === shortA || team2 === normA || team2.includes(normA) || normA.includes(team2) ||
+      short2 === shortA
+    );
+    
+    const matchesB = (
+      team1 === normB || team1.includes(normB) || normB.includes(team1) ||
+      short1 === shortB || team2 === normB || team2.includes(normB) || normB.includes(team2) ||
+      short2 === shortB
+    );
+
+    if (matchesA && matchesB) {
+      return { matchId: match.id, matchName: match.name };
+    }
+  }
+  return null;
+}
+
+// Auto-detect CricAPI match ID - tries currentMatches first, then upcoming matches
 async function autoDetectMatchId(
   apiKey: string,
   teamAName: string,
@@ -149,67 +190,53 @@ async function autoDetectMatchId(
   try {
     console.log(`[CricAPI Auto] Searching for match: ${teamAName} vs ${teamBName}`);
     
-    const response = await fetch(`https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}`);
-    if (!response.ok) {
-      return { matchId: null, matchName: null, error: `currentMatches API returned ${response.status}` };
-    }
-
-    const data: CricApiMatchesResponse = await response.json();
-    
-    if (data.status !== 'success' || !data.data || data.data.length === 0) {
-      return { matchId: null, matchName: null, error: 'No current matches found from CricAPI' };
-    }
-
-    console.log(`[CricAPI Auto] Found ${data.data.length} current matches, searching...`);
-
-    const normA = normalizeTeamName(teamAName);
-    const normB = normalizeTeamName(teamBName);
-    const shortA = teamAShortName?.toLowerCase().trim() || '';
-    const shortB = teamBShortName?.toLowerCase().trim() || '';
-
-    for (const match of data.data) {
-      if (!match.teams || match.teams.length < 2) continue;
-
-      const team1 = normalizeTeamName(match.teams[0]);
-      const team2 = normalizeTeamName(match.teams[1]);
-
-      // Also check teamInfo shortnames if available
-      const short1 = match.teamInfo?.[0]?.shortname?.toLowerCase().trim() || '';
-      const short2 = match.teamInfo?.[1]?.shortname?.toLowerCase().trim() || '';
-
-      // Check if both our teams match (in any order)
-      const matchesA = (
-        team1 === normA || team1.includes(normA) || normA.includes(team1) ||
-        short1 === shortA || team2 === normA || team2.includes(normA) || normA.includes(team2) ||
-        short2 === shortA
-      );
-      
-      const matchesB = (
-        team1 === normB || team1.includes(normB) || normB.includes(team1) ||
-        short1 === shortB || team2 === normB || team2.includes(normB) || normB.includes(team2) ||
-        short2 === shortB
-      );
-
-      if (matchesA && matchesB) {
-        console.log(`[CricAPI Auto] Found match: "${match.name}" (ID: ${match.id})`);
-        return { matchId: match.id, matchName: match.name, error: null };
+    // Step 1: Try currentMatches first (live/recent)
+    const currentRes = await fetch(`https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}`);
+    if (currentRes.ok) {
+      const currentData: CricApiMatchesResponse = await currentRes.json();
+      if (currentData.status === 'success' && currentData.data && currentData.data.length > 0) {
+        console.log(`[CricAPI Auto] Checking ${currentData.data.length} current matches...`);
+        const found = findMatchInList(currentData.data, teamAName, teamAShortName, teamBName, teamBShortName);
+        if (found) {
+          console.log(`[CricAPI Auto] Found in currentMatches: "${found.matchName}" (ID: ${found.matchId})`);
+          return { matchId: found.matchId, matchName: found.matchName, error: null };
+        }
+        console.log('[CricAPI Auto] Not found in currentMatches, trying upcoming matches...');
       }
     }
 
-    // Log available matches for debugging
-    const availableTeams = data.data.map(m => m.teams?.join(' vs ') || m.name).join(', ');
-    console.log(`[CricAPI Auto] No match found. Available: ${availableTeams}`);
+    // Step 2: Fallback to matches list (includes upcoming)
+    const matchesRes = await fetch(`https://api.cricapi.com/v1/matches?apikey=${apiKey}&offset=0`);
+    if (matchesRes.ok) {
+      const matchesData: CricApiMatchesResponse = await matchesRes.json();
+      if (matchesData.status === 'success' && matchesData.data && matchesData.data.length > 0) {
+        console.log(`[CricAPI Auto] Checking ${matchesData.data.length} all matches...`);
+        const found = findMatchInList(matchesData.data, teamAName, teamAShortName, teamBName, teamBShortName);
+        if (found) {
+          console.log(`[CricAPI Auto] Found in matches list: "${found.matchName}" (ID: ${found.matchId})`);
+          return { matchId: found.matchId, matchName: found.matchName, error: null };
+        }
+      }
+    }
+
+    // Log what was available for debugging
+    const debugInfo: string[] = [];
+    try {
+      const currentRes2 = await fetch(`https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}`);
+      const d = await currentRes2.json();
+      if (d.data) debugInfo.push(...d.data.map((m: any) => m.teams?.join(' vs ') || m.name));
+    } catch {}
+    
+    console.log(`[CricAPI Auto] No match found. Available: ${debugInfo.join(', ')}`);
     
     return { 
       matchId: null, 
       matchName: null, 
-      error: `Could not find ${teamAName} vs ${teamBName} in current matches. Available: ${availableTeams.substring(0, 200)}` 
+      error: `Could not find ${teamAName} vs ${teamBName} in current or upcoming matches.${debugInfo.length > 0 ? ' Available: ' + debugInfo.slice(0, 5).join(', ') : ''}` 
     };
   } catch (err) {
     console.error('[CricAPI Auto] Error:', err);
     return { matchId: null, matchName: null, error: `Auto-detect failed: ${err.message}` };
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
