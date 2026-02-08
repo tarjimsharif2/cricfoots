@@ -46,6 +46,7 @@ interface PlayingXIManagerProps {
   teamA: Team;
   teamB: Team;
   cricbuzzMatchId?: string | null;
+  cricapiMatchId?: string | null;
 }
 
 // Hooks for Playing XI management
@@ -162,7 +163,7 @@ const PLAYER_ROLES = [
   'Spin Bowler',
 ];
 
-const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIManagerProps) => {
+const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatchId }: PlayingXIManagerProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: players, isLoading } = usePlayingXI(matchId);
@@ -677,7 +678,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
   };
 
   // Fetch squad from RapidAPI (Cricbuzz)
-  const handleFetchSquad = async (source: 'cricbuzz' | 'espn' | 'scrape' | 'rapidapi', forceRefresh = false) => {
+  const handleFetchSquad = async (source: 'cricbuzz' | 'espn' | 'scrape' | 'rapidapi' | 'cricapi', forceRefresh = false) => {
     setFetchingSquad(true);
 
     try {
@@ -700,6 +701,8 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
         functionName = 'scrape-playing-xi';
       } else if (source === 'rapidapi') {
         functionName = 'sync-rapidapi-playing-xi';
+      } else if (source === 'cricapi') {
+        functionName = 'sync-cricapi-playing-xi';
       }
       
       const response = await supabase.functions.invoke(functionName, {
@@ -1143,6 +1146,15 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId }: PlayingXIM
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-background border">
+              <DropdownMenuItem 
+                onClick={() => handleFetchSquad('cricapi', players && players.length > 0)}
+                disabled={fetchingSquad || !cricapiMatchId}
+                title={!cricapiMatchId ? 'CricAPI Match ID not set' : ''}
+              >
+                <CloudDownload className="w-4 h-4 mr-2" />
+                CricAPI (cricapi.com)
+                {!cricapiMatchId && <span className="text-xs text-muted-foreground ml-1">- ID missing</span>}
+              </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => handleFetchSquad('rapidapi', players && players.length > 0)}
                 disabled={fetchingSquad}

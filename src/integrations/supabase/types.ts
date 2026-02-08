@@ -690,6 +690,7 @@ export type Database = {
           api_score_enabled: boolean | null
           auto_sync_enabled: boolean | null
           created_at: string
+          cricapi_match_id: string | null
           cricbuzz_match_id: string | null
           day_start_time: string | null
           espn_event_id: string | null
@@ -739,6 +740,7 @@ export type Database = {
           api_score_enabled?: boolean | null
           auto_sync_enabled?: boolean | null
           created_at?: string
+          cricapi_match_id?: string | null
           cricbuzz_match_id?: string | null
           day_start_time?: string | null
           espn_event_id?: string | null
@@ -788,6 +790,7 @@ export type Database = {
           api_score_enabled?: boolean | null
           auto_sync_enabled?: boolean | null
           created_at?: string
+          cricapi_match_id?: string | null
           cricbuzz_match_id?: string | null
           day_start_time?: string | null
           espn_event_id?: string | null

@@ -203,6 +203,7 @@ const Admin = () => {
     api_score_enabled: false,
     auto_sync_enabled: false,
     cricbuzz_match_id: '' as string | null,
+    cricapi_match_id: '' as string | null,
     manual_status_override: false,
     score_source: 'manual' as 'manual' | 'api_cricket' | 'espn',
     espn_event_id: '' as string | null,
@@ -642,6 +643,7 @@ const Admin = () => {
         api_score_enabled: matchForm.api_score_enabled,
         auto_sync_enabled: matchForm.auto_sync_enabled,
         cricbuzz_match_id: matchForm.cricbuzz_match_id || null,
+        cricapi_match_id: (matchForm as any).cricapi_match_id || null,
         manual_status_override: matchForm.manual_status_override,
         score_source: matchForm.score_source || 'manual',
         espn_event_id: matchForm.espn_event_id || null,
@@ -719,6 +721,7 @@ const Admin = () => {
       api_score_enabled: match.api_score_enabled !== false,
       auto_sync_enabled: (match as any).auto_sync_enabled || false,
       cricbuzz_match_id: match.cricbuzz_match_id || '',
+      cricapi_match_id: (match as any).cricapi_match_id || '',
       manual_status_override: (match as any).manual_status_override || false,
       score_source: (match as any).score_source || 'manual',
       espn_event_id: (match as any).espn_event_id || '',
@@ -826,6 +829,7 @@ const Admin = () => {
       api_score_enabled: false,
       auto_sync_enabled: false,
       cricbuzz_match_id: '',
+      cricapi_match_id: '',
       manual_status_override: false,
       score_source: 'manual',
       espn_event_id: '',
@@ -875,6 +879,7 @@ const Admin = () => {
       api_score_enabled: false,
       auto_sync_enabled: false,
       cricbuzz_match_id: '',
+      cricapi_match_id: '',
       manual_status_override: false,
       score_source: 'manual',
       espn_event_id: '',
@@ -2451,6 +2456,19 @@ const Admin = () => {
                         />
                       </div>
 
+                      {/* CricAPI Match ID */}
+                      <div className="space-y-2">
+                        <Label>CricAPI Match ID</Label>
+                        <Input
+                          placeholder="e.g., ea479cff-ddbe-48e0-..."
+                          value={(matchForm as any).cricapi_match_id || ''}
+                          onChange={(e) => setMatchForm({ ...matchForm, cricapi_match_id: e.target.value } as any)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Used for fetching Playing XI from cricapi.com. Get the ID from the API URL.
+                        </p>
+                      </div>
+
 
                       {/* Football Auto-Sync Toggle */}
                       <div className="flex items-center justify-between rounded-lg border p-4 shadow-sm bg-muted/20">
@@ -2988,6 +3006,7 @@ const Admin = () => {
                         matchId={selectedMatchForPlayingXI.id}
                         teamA={selectedMatchForPlayingXI.team_a}
                         teamB={selectedMatchForPlayingXI.team_b}
+                        cricapiMatchId={(selectedMatchForPlayingXI as any).cricapi_match_id}
                       />
                     )}
                   </div>
@@ -4256,6 +4275,49 @@ const Admin = () => {
                       {updateSiteSettings.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                       <Save className="w-4 h-4 mr-2" />
                       Save RapidAPI Settings
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* CricAPI Settings (cricapi.com) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-green-500" />
+                    CricAPI (cricapi.com)
+                  </CardTitle>
+                  <CardDescription>Configure API key for fetching Playing XI / Full Squad from cricapi.com</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label>CricAPI Key</Label>
+                    <Input 
+                      type="password"
+                      placeholder="Enter your API key from cricapi.com" 
+                      value={siteSettingsForm.cricket_api_key} 
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, cricket_api_key: e.target.value })} 
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from{' '}
+                      <a href="https://cricapi.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        cricapi.com
+                      </a>
+                      . Used in Playing XI → Fetch Squad → CricAPI.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Usage:</strong> Go to Match → Playing XI → Fetch Squad → "CricAPI (cricapi.com)". Make sure the CricAPI Match ID is set in the match edit form.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button variant="gradient" onClick={handleSaveSiteSettings} disabled={updateSiteSettings.isPending}>
+                      {updateSiteSettings.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                      <Save className="w-4 h-4 mr-2" />
+                      Save CricAPI Settings
                     </Button>
                   </div>
                 </CardContent>
