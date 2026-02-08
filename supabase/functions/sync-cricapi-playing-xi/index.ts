@@ -237,6 +237,8 @@ async function autoDetectMatchId(
   } catch (err) {
     console.error('[CricAPI Auto] Error:', err);
     return { matchId: null, matchName: null, error: `Auto-detect failed: ${err.message}` };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
