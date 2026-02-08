@@ -801,17 +801,11 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
         let effectiveCricapiId = cricapiMatchId;
         
         if (!effectiveCricapiId) {
-          toast({ title: "Auto-detecting match...", description: "Searching CricAPI for this match..." });
-          detectedCricapiId = (await autoDetectCricapiMatchId()) || undefined;
-          if (!detectedCricapiId) {
-            // Open the CricAPI Match Browser for manual selection
-            setPendingCricapiSource({ forceRefresh: players && players.length > 0 ? true : false });
-            setCricapiBrowserOpen(true);
-            setFetchingSquad(false);
-            return; // Exit - will resume after user selects a match
-          }
-          effectiveCricapiId = detectedCricapiId;
-          toast({ title: "Match found!", description: `CricAPI Match ID: ${detectedCricapiId}` });
+          // Always open the CricAPI Match Browser for manual selection
+          setPendingCricapiSource({ forceRefresh: players && players.length > 0 ? true : false });
+          setCricapiBrowserOpen(true);
+          setFetchingSquad(false);
+          return; // Exit - will resume after user selects a match
         }
 
         // Fetch squad data from browser (CricAPI blocks edge function IPs)
@@ -911,7 +905,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
 
   // Handle match selection from CricAPI browser
   const handleCricApiMatchSelected = async (selectedMatchId: string, matchName: string) => {
-    toast({ title: "ম্যাচ সিলেক্ট হয়েছে!", description: matchName });
+    toast({ title: "Match selected!", description: matchName });
     
     // Save the cricapi match ID to the match record
     try {
