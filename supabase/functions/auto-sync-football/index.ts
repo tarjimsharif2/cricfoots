@@ -24,6 +24,7 @@ interface PlayerInfo {
   position: string;
   jerseyNumber?: string;
   isCaptain?: boolean;
+  playerImage?: string;
 }
 
 interface FootballMatch {
@@ -406,6 +407,7 @@ serve(async (req) => {
                   batting_order: i + 1,
                   is_captain: player.isCaptain || false,
                   is_vice_captain: false,
+                  player_image: player.playerImage || null,
                 });
               }
             }
@@ -431,6 +433,7 @@ serve(async (req) => {
                   batting_order: i + 1,
                   is_captain: player.isCaptain || false,
                   is_vice_captain: false,
+                  player_image: player.playerImage || null,
                 });
               }
             }
