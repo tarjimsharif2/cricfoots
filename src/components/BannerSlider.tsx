@@ -122,7 +122,7 @@ const CountdownBadge = ({ targetDate }: { targetDate: Date }) => {
       className="inline-flex items-center gap-2 bg-gradient-to-r from-primary/15 to-accent/15 backdrop-blur-md border border-primary/30 text-primary px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl shadow-lg"
     >
       <Timer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-      <span className="text-[10px] sm:text-xs font-semibold tracking-wide uppercase text-primary/80">Starts In</span>
+      <span className="text-[10px] sm:text-xs font-semibold tracking-wide uppercase text-primary/80">Next Match In</span>
       <div className="flex items-center gap-1">
         {timeLeft.days > 0 && (
           <span className="bg-primary/20 text-primary font-bold text-xs sm:text-sm px-1.5 py-0.5 rounded-md font-mono tabular-nums">
