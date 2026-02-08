@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +7,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Goal, ArrowRightLeft, Shirt, Clock, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Team, GoalEvent } from '@/hooks/useSportsData';
+
+const PlayerAvatar = ({ player }: { player: Player }) => {
+  const [imgError, setImgError] = useState(false);
+  
+  const showImage = player.player_image && !imgError;
+  
+  return (
+    <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden border border-border/30 bg-muted/40">
+      {showImage ? (
+        <img 
+          src={player.player_image!} 
+          alt={player.player_name}
+          className="w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          {player.batting_order ? (
+            <span className="text-[10px] font-bold text-muted-foreground">{player.batting_order}</span>
+          ) : (
+            <User className="w-4 h-4 text-muted-foreground/50" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface Player {
   id: string;
@@ -187,29 +215,7 @@ const FootballMatchDetails = ({ matchId, teamA, teamB, goalsTeamA, goalsTeamB, s
             >
               <div className="flex items-center gap-2 min-w-0">
                 {/* Player Image */}
-                <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden border border-border/30 bg-muted/40">
-                  {player.player_image ? (
-                    <img 
-                      src={player.player_image} 
-                      alt={player.player_name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        const fallback = (e.target as HTMLImageElement).nextElementSibling;
-                        if (fallback) (fallback as HTMLElement).style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <div 
-                    className={`w-full h-full flex items-center justify-center ${player.player_image ? 'hidden' : ''}`}
-                  >
-                    {player.batting_order ? (
-                      <span className="text-[10px] font-bold text-muted-foreground">{player.batting_order}</span>
-                    ) : (
-                      <User className="w-4 h-4 text-muted-foreground/50" />
-                    )}
-                  </div>
-                </div>
+                <PlayerAvatar player={player} />
                 <span className="text-xs font-medium truncate">{player.player_name}</span>
                 {player.is_captain && (
                   <Badge className="text-[8px] px-1 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30">C</Badge>
