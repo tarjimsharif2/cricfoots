@@ -138,121 +138,31 @@ function matchTeam(
   return null;
 }
 
-// Search through a list of CricAPI matches for our team pair
-function findMatchInList(
-  matches: CricApiMatch[],
-  teamAName: string,
-  teamAShortName: string,
-  teamBName: string,
-  teamBShortName: string
-): { matchId: string; matchName: string } | null {
-  const normA = normalizeTeamName(teamAName);
-  const normB = normalizeTeamName(teamBName);
-  const shortA = teamAShortName?.toLowerCase().trim() || '';
-  const shortB = teamBShortName?.toLowerCase().trim() || '';
-
-  for (const match of matches) {
-    if (!match.teams || match.teams.length < 2) continue;
-
-    const team1 = normalizeTeamName(match.teams[0]);
-    const team2 = normalizeTeamName(match.teams[1]);
-
-    const short1 = match.teamInfo?.[0]?.shortname?.toLowerCase().trim() || '';
-    const short2 = match.teamInfo?.[1]?.shortname?.toLowerCase().trim() || '';
-
-    const matchesA = (
-      team1 === normA || team1.includes(normA) || normA.includes(team1) ||
-      short1 === shortA || team2 === normA || team2.includes(normA) || normA.includes(team2) ||
-      short2 === shortA
-    );
-    
-    const matchesB = (
-      team1 === normB || team1.includes(normB) || normB.includes(team1) ||
-      short1 === shortB || team2 === normB || team2.includes(normB) || normB.includes(team2) ||
-      short2 === shortB
-    );
-
-    if (matchesA && matchesB) {
-      return { matchId: match.id, matchName: match.name };
-    }
-  }
-  return null;
-}
-
 // Fetch with retry logic for transient network errors
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+async function fetchWithRetry(url: string, maxRetries = 3, timeoutMs = 15000): Promise<Response> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
       return res;
     } catch (err) {
       console.warn(`[CricAPI] Fetch attempt ${attempt}/${maxRetries} failed: ${err.message}`);
       if (attempt === maxRetries) throw err;
-      // Wait before retry: 1s, 2s, 3s
-      await new Promise(r => setTimeout(r, attempt * 1000));
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
     }
   }
   throw new Error('All fetch retries exhausted');
 }
 
-// Auto-detect CricAPI match ID - tries currentMatches first, then upcoming matches
-async function autoDetectMatchId(
-  apiKey: string,
-  teamAName: string,
-  teamAShortName: string,
-  teamBName: string,
-  teamBShortName: string
-): Promise<{ matchId: string | null; matchName: string | null; error: string | null }> {
-  try {
-    console.log(`[CricAPI Auto] Searching for match: ${teamAName} vs ${teamBName}`);
-    
-    // Step 1: Try currentMatches first (live/recent)
-    try {
-      const currentRes = await fetchWithRetry(`https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}`);
-      if (currentRes.ok) {
-        const currentData: CricApiMatchesResponse = await currentRes.json();
-        if (currentData.status === 'success' && currentData.data && currentData.data.length > 0) {
-          console.log(`[CricAPI Auto] Checking ${currentData.data.length} current matches...`);
-          const found = findMatchInList(currentData.data, teamAName, teamAShortName, teamBName, teamBShortName);
-          if (found) {
-            console.log(`[CricAPI Auto] Found in currentMatches: "${found.matchName}" (ID: ${found.matchId})`);
-            return { matchId: found.matchId, matchName: found.matchName, error: null };
-          }
-          console.log('[CricAPI Auto] Not found in currentMatches, trying upcoming matches...');
-        }
-      }
-    } catch (e) {
-      console.warn(`[CricAPI Auto] currentMatches failed after retries: ${e.message}, trying matches list...`);
-    }
-
-    // Step 2: Fallback to matches list (includes upcoming)
-    try {
-      const matchesRes = await fetchWithRetry(`https://api.cricapi.com/v1/matches?apikey=${apiKey}&offset=0`);
-      if (matchesRes.ok) {
-        const matchesData: CricApiMatchesResponse = await matchesRes.json();
-        if (matchesData.status === 'success' && matchesData.data && matchesData.data.length > 0) {
-          console.log(`[CricAPI Auto] Checking ${matchesData.data.length} all matches...`);
-          const found = findMatchInList(matchesData.data, teamAName, teamAShortName, teamBName, teamBShortName);
-          if (found) {
-            console.log(`[CricAPI Auto] Found in matches list: "${found.matchName}" (ID: ${found.matchId})`);
-            return { matchId: found.matchId, matchName: found.matchName, error: null };
-          }
-        }
-      }
-    } catch (e) {
-      console.warn(`[CricAPI Auto] matches list failed after retries: ${e.message}`);
-    }
-    
-    return { 
-      matchId: null, 
-      matchName: null, 
-      error: `Could not find ${teamAName} vs ${teamBName} in current or upcoming matches. Please try again or set the CricAPI Match ID manually.` 
-    };
-  } catch (err) {
-    console.error('[CricAPI Auto] Error:', err);
-    return { matchId: null, matchName: null, error: `Auto-detect failed: ${err.message}. Please try again.` };
-  }
-}
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -263,7 +173,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { matchId, teamAId, teamBId, teamAName, teamAShortName, teamBName, teamBShortName } = await req.json();
+    const { matchId, teamAId, teamBId, teamAName, teamAShortName, teamBName, teamBShortName, cricapiMatchId: providedCricapiId } = await req.json();
 
     if (!matchId) {
       return new Response(JSON.stringify({ success: false, error: 'matchId required' }), {
@@ -309,38 +219,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    let cricapiMatchId = match.cricapi_match_id;
+    // Use: 1) provided ID from client, 2) saved ID from DB, 3) error
+    let cricapiMatchId = providedCricapiId || match.cricapi_match_id;
     let autoDetected = false;
 
-    // Auto-detect match ID if not set
     if (!cricapiMatchId) {
-      console.log('[CricAPI Squad] No cricapi_match_id set, auto-detecting...');
-      
-      const detection = await autoDetectMatchId(apiKey, teamAName, teamAShortName, teamBName, teamBShortName);
-      
-      if (!detection.matchId) {
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: detection.error || 'Could not auto-detect match ID from CricAPI. Try setting it manually.' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
+      console.error('[CricAPI Squad] No CricAPI match ID available');
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'CricAPI Match ID not found. Auto-detection from the API could not connect. Please set the CricAPI Match ID manually on the match settings.' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-      cricapiMatchId = detection.matchId;
+    // Save the provided match ID if it's new
+    if (providedCricapiId && providedCricapiId !== match.cricapi_match_id) {
       autoDetected = true;
-
-      // Save the detected match ID to the database for future use
       const { error: updateError } = await supabase
         .from('matches')
-        .update({ cricapi_match_id: cricapiMatchId })
+        .update({ cricapi_match_id: providedCricapiId })
         .eq('id', matchId);
 
       if (updateError) {
-        console.warn('[CricAPI Squad] Failed to save auto-detected ID:', updateError);
+        console.warn('[CricAPI Squad] Failed to save match ID:', updateError);
       } else {
-        console.log(`[CricAPI Squad] Auto-detected and saved match ID: ${cricapiMatchId} (${detection.matchName})`);
+        console.log(`[CricAPI Squad] Saved new CricAPI match ID: ${cricapiMatchId}`);
       }
     }
 
