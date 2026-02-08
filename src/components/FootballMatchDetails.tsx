@@ -20,6 +20,8 @@ const PlayerAvatar = ({ player }: { player: Player }) => {
           src={player.player_image!} 
           alt={player.player_name}
           className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
           onError={() => setImgError(true)}
         />
       ) : (
