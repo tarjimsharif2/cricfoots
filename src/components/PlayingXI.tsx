@@ -131,6 +131,14 @@ const getRoleBadgeColor = (role: string | null): string => {
   return 'bg-muted/50 text-muted-foreground';
 };
 
+// Check if a player image URL is a valid player photo (not an API logo/placeholder)
+const isValidPlayerImage = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  // Filter out known API placeholder/logo images
+  if (url.includes('icon512.png') || url.includes('/img/icon') || url.includes('placeholder')) return false;
+  return true;
+};
+
 const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo, teamBLogo }: PlayingXIProps) => {
   const { data: players, isLoading } = usePlayingXI(matchId);
 
@@ -198,12 +206,12 @@ const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo,
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         {/* Player image or default avatar */}
-        <div className={`w-8 h-8 rounded-full flex-shrink-0 overflow-hidden ${
+        <div className={`w-9 h-9 rounded-full flex-shrink-0 overflow-hidden border border-border/30 ${
           isBench ? 'opacity-70' : ''
         }`}>
-          {player.player_image ? (
+          {isValidPlayerImage(player.player_image) ? (
             <img 
-              src={player.player_image} 
+              src={player.player_image!} 
               alt={player.player_name}
               className="w-full h-full object-cover bg-muted/30"
               onError={(e) => {
@@ -214,9 +222,9 @@ const PlayingXI = ({ matchId, teamAId, teamBId, teamAName, teamBName, teamALogo,
             />
           ) : null}
           <div 
-            className={`w-full h-full bg-muted/40 flex items-center justify-center ${player.player_image ? 'hidden' : ''}`}
+            className={`w-full h-full bg-muted/40 flex items-center justify-center ${isValidPlayerImage(player.player_image) ? 'hidden' : ''}`}
           >
-            <User className="w-4 h-4 text-muted-foreground/60" />
+            <User className="w-5 h-5 text-muted-foreground/50" />
           </div>
         </div>
         
