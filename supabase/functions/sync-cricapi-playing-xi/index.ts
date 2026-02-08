@@ -1,0 +1,307 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface CricApiPlayer {
+  id: string;
+  name: string;
+  role: string;
+  battingStyle?: string;
+  bowlingStyle?: string;
+  country?: string;
+  playerImg?: string;
+}
+
+interface CricApiTeam {
+  teamName: string;
+  shortname: string;
+  img?: string;
+  players: CricApiPlayer[];
+}
+
+interface CricApiResponse {
+  apikey: string;
+  data: CricApiTeam[];
+  status: string;
+  info?: {
+    hitsToday: number;
+    hitsUsed: number;
+    hitsLimit: number;
+  };
+}
+
+// Normalize team name for matching
+function normalizeTeamName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s*(women|men|u19|u-19|under-19|under 19)\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Map CricAPI role to our role format
+function mapRole(role: string): string | null {
+  if (!role || role === '--') return null;
+  
+  const roleMap: Record<string, string> = {
+    'batsman': 'Batsman',
+    'bowler': 'Bowler',
+    'batting allrounder': 'All-rounder',
+    'bowling allrounder': 'All-rounder',
+    'allrounder': 'All-rounder',
+    'wk-batsman': 'Wicket-keeper',
+    'wicketkeeper': 'Wicket-keeper',
+  };
+  
+  const lower = role.toLowerCase().trim();
+  return roleMap[lower] || role;
+}
+
+// Check if role indicates wicket keeper
+function isWicketKeeper(role: string): boolean {
+  const lower = (role || '').toLowerCase();
+  return lower.includes('wk') || lower.includes('wicket') || lower.includes('keeper');
+}
+
+// Match API team to our team using name comparison
+function matchTeam(
+  apiTeam: CricApiTeam,
+  teamAName: string,
+  teamAShortName: string,
+  teamBName: string,
+  teamBShortName: string,
+  teamAId: string,
+  teamBId: string
+): string | null {
+  const apiName = normalizeTeamName(apiTeam.teamName);
+  const apiShort = apiTeam.shortname?.toLowerCase().trim() || '';
+  
+  const nameA = normalizeTeamName(teamAName);
+  const shortA = teamAShortName?.toLowerCase().trim() || '';
+  const nameB = normalizeTeamName(teamBName);
+  const shortB = teamBShortName?.toLowerCase().trim() || '';
+  
+  // Exact matches
+  if (apiName === nameA || apiShort === shortA) return teamAId;
+  if (apiName === nameB || apiShort === shortB) return teamBId;
+  
+  // Partial matches
+  if (apiName.includes(nameA) || nameA.includes(apiName)) return teamAId;
+  if (apiName.includes(nameB) || nameB.includes(apiName)) return teamBId;
+  
+  // Short name in full name
+  if (apiName.includes(shortA) || shortA.includes(apiShort)) return teamAId;
+  if (apiName.includes(shortB) || shortB.includes(apiShort)) return teamBId;
+  
+  return null;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { matchId, teamAId, teamBId, teamAName, teamAShortName, teamBName, teamBShortName } = await req.json();
+
+    if (!matchId) {
+      return new Response(JSON.stringify({ success: false, error: 'matchId required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`[CricAPI Squad] Fetching squad for match ${matchId}`);
+
+    // Get the match to find cricapi_match_id
+    const { data: match, error: matchError } = await supabase
+      .from('matches')
+      .select('cricapi_match_id')
+      .eq('id', matchId)
+      .single();
+
+    if (matchError || !match) {
+      console.error('[CricAPI Squad] Match not found:', matchError);
+      return new Response(JSON.stringify({ success: false, error: 'Match not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const cricapiMatchId = match.cricapi_match_id;
+    if (!cricapiMatchId) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'CricAPI Match ID not set. Please add the CricAPI Match ID in the match settings first.' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get the CricAPI key from site_settings
+    const { data: settings, error: settingsError } = await supabase
+      .from('site_settings')
+      .select('cricket_api_key')
+      .limit(1)
+      .maybeSingle();
+
+    if (settingsError || !settings?.cricket_api_key) {
+      console.error('[CricAPI Squad] API key not configured:', settingsError);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'CricAPI key not configured. Please add your API key in Settings → API Keys → CricAPI.' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const apiKey = settings.cricket_api_key;
+
+    // Fetch squad from CricAPI
+    const apiUrl = `https://api.cricapi.com/v1/match_squad?apikey=${apiKey}&id=${cricapiMatchId}`;
+    console.log(`[CricAPI Squad] Fetching from: ${apiUrl.replace(apiKey, '***')}`);
+
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      console.error(`[CricAPI Squad] API returned ${response.status}`);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: `CricAPI returned status ${response.status}` 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const apiData: CricApiResponse = await response.json();
+    console.log(`[CricAPI Squad] Response status: ${apiData.status}, teams: ${apiData.data?.length || 0}`);
+
+    if (apiData.status !== 'success' || !apiData.data || apiData.data.length < 2) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: `CricAPI returned: ${apiData.status}. Teams found: ${apiData.data?.length || 0}. Need at least 2 teams.`,
+        info: apiData.info
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Match API teams to our teams
+    const teamMapping: Record<string, string> = {};
+    const unmatchedTeams: string[] = [];
+
+    for (const apiTeam of apiData.data) {
+      const matchedTeamId = matchTeam(
+        apiTeam, teamAName, teamAShortName, teamBName, teamBShortName, teamAId, teamBId
+      );
+      
+      if (matchedTeamId) {
+        teamMapping[apiTeam.teamName] = matchedTeamId;
+        console.log(`[CricAPI Squad] Matched \"${apiTeam.teamName}\" → ${matchedTeamId === teamAId ? teamAName : teamBName}`);
+      } else {
+        unmatchedTeams.push(apiTeam.teamName);
+        console.warn(`[CricAPI Squad] Could not match team: \"${apiTeam.teamName}\"`);
+      }
+    }
+
+    // If we couldn't match both teams, try positional fallback (first = teamA, second = teamB)
+    if (Object.keys(teamMapping).length < 2 && apiData.data.length >= 2) {
+      console.log('[CricAPI Squad] Using positional fallback for team matching');
+      teamMapping[apiData.data[0].teamName] = teamAId;
+      teamMapping[apiData.data[1].teamName] = teamBId;
+    }
+
+    // Delete existing players for this match
+    const { error: deleteError } = await supabase
+      .from('match_playing_xi')
+      .delete()
+      .eq('match_id', matchId);
+
+    if (deleteError) {
+      console.error('[CricAPI Squad] Failed to clear existing players:', deleteError);
+      throw deleteError;
+    }
+
+    // Insert players for each team
+    const allPlayers: any[] = [];
+    let teamACount = 0;
+    let teamBCount = 0;
+
+    for (const apiTeam of apiData.data) {
+      const teamId = teamMapping[apiTeam.teamName];
+      if (!teamId) continue;
+
+      for (let i = 0; i < apiTeam.players.length; i++) {
+        const player = apiTeam.players[i];
+        
+        allPlayers.push({
+          match_id: matchId,
+          team_id: teamId,
+          player_name: player.name,
+          player_role: mapRole(player.role),
+          is_captain: false,
+          is_vice_captain: false,
+          is_wicket_keeper: isWicketKeeper(player.role),
+          batting_order: i + 1,
+          is_bench: true, // All added to squad, user can select Playing XI
+        });
+
+        if (teamId === teamAId) teamACount++;
+        else teamBCount++;
+      }
+    }
+
+    if (allPlayers.length === 0) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'No players found in API response' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { error: insertError } = await supabase
+      .from('match_playing_xi')
+      .insert(allPlayers);
+
+    if (insertError) {
+      console.error('[CricAPI Squad] Failed to insert players:', insertError);
+      throw insertError;
+    }
+
+    console.log(`[CricAPI Squad] Successfully added ${allPlayers.length} players (${teamACount} + ${teamBCount})`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      totalPlayers: allPlayers.length,
+      teamA: { count: teamACount },
+      teamB: { count: teamBCount },
+      info: apiData.info,
+      message: `${allPlayers.length} players added from CricAPI (${teamACount} + ${teamBCount})`
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('[CricAPI Squad] Error:', error);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message || 'Unknown error' 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
+
