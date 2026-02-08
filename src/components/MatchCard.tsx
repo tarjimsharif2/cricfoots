@@ -177,32 +177,58 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
     setTimezone(tzAbbr);
   }, []);
 
-  // Track when match_minute was last updated from DB
+  // Live timer for football matches - calculates from match_start_time for accuracy
   useEffect(() => {
-    if (match.match_minute != null) {
-      minuteReceivedAt.current = Date.now();
-    }
-  }, [match.match_minute]);
+    if (displayStatus !== 'live' || !isFootball) return;
 
-  // Live timer for football matches - auto-increments minutes too
-  useEffect(() => {
-    if (displayStatus === 'live' && isFootball && match.match_minute != null) {
-      const baseMinute = match.match_minute;
-      const baseTime = minuteReceivedAt.current;
+    const updateTimer = () => {
+      // Primary: calculate from match_start_time
+      if (match.match_start_time) {
+        const startTime = new Date(match.match_start_time).getTime();
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        const elapsedMin = elapsedSec / 60;
 
-      const updateTimer = () => {
-        const elapsedSeconds = Math.floor((Date.now() - baseTime) / 1000);
-        const totalMinute = baseMinute + Math.floor(elapsedSeconds / 60);
-        const seconds = elapsedSeconds % 60;
-        setDisplayMinute(totalMinute);
-        setDisplaySeconds(seconds);
-      };
+        let matchMin: number;
+        let matchSec: number;
 
-      updateTimer(); // Set immediately
-      const interval = setInterval(updateTimer, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [displayStatus, isFootball, match.match_minute]);
+        if (elapsedMin <= 47) {
+          // 1st half (~45 min + ~2 min stoppage buffer)
+          matchMin = Math.min(Math.floor(elapsedMin), 45);
+          matchSec = matchMin >= 45 ? 0 : Math.floor(elapsedSec % 60);
+        } else if (elapsedMin <= 63) {
+          // Half-time break (~15 min)
+          matchMin = 45;
+          matchSec = 0;
+        } else {
+          // 2nd half: starts from 45'
+          const secondHalfSec = elapsedSec - (63 * 60);
+          matchMin = 45 + Math.floor(secondHalfSec / 60);
+          matchSec = Math.floor(secondHalfSec) % 60;
+        }
+
+        // If DB has a higher minute (e.g. extra time, stoppage), prefer DB + interpolation
+        if (match.match_minute != null && match.match_minute > matchMin) {
+          const baseTime = minuteReceivedAt.current;
+          const sinceSyncSec = Math.floor((Date.now() - baseTime) / 1000);
+          matchMin = match.match_minute + Math.floor(sinceSyncSec / 60);
+          matchSec = sinceSyncSec % 60;
+        }
+
+        setDisplayMinute(matchMin);
+        setDisplaySeconds(matchSec);
+      } else if (match.match_minute != null) {
+        // Fallback: DB minute + elapsed since last sync
+        const baseTime = minuteReceivedAt.current;
+        const sinceSyncSec = Math.floor((Date.now() - baseTime) / 1000);
+        setDisplayMinute(match.match_minute + Math.floor(sinceSyncSec / 60));
+        setDisplaySeconds(sinceSyncSec % 60);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [displayStatus, isFootball, match.match_start_time, match.match_minute]);
 
   useEffect(() => {
     if (match.match_start_time) {
@@ -469,7 +495,7 @@ const MatchCard = ({ match, index = 0, effectiveStatus }: MatchCardProps) => {
                     <div className="flex flex-col items-center">
                       <span className="text-xl md:text-2xl font-bold text-muted-foreground/60">-</span>
                       {/* Match time indicators for football */}
-                      {displayStatus === 'live' && match.match_minute != null && (
+                      {displayStatus === 'live' && (match.match_minute != null || match.match_start_time) && (
                         <div className="flex flex-col items-center gap-0.5 mt-1">
                           <FootballTimer minute={displayMinute} seconds={displaySeconds} />
                         </div>
