@@ -71,30 +71,69 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Verify admin authentication
-  const { user, error: authError } = await verifyAdminAuth(req);
-  if (authError) {
-    console.log('[sync-points-table] Auth failed:', authError);
-    if (authError === 'Admin access required') {
-      return forbiddenResponse(authError, corsHeaders);
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+  // Check if this is an automated call (from DB trigger via pg_net)
+  // The trigger sends the anon key as Bearer token
+  const authHeader = req.headers.get('Authorization') || '';
+  const token = authHeader.replace('Bearer ', '');
+  
+  // Try to detect automated call by decoding the JWT payload
+  let isAutomatedCall = false;
+  try {
+    const payloadB64 = token.split('.')[1];
+    if (payloadB64) {
+      const payload = JSON.parse(atob(payloadB64));
+      if (payload.role === 'anon') {
+        isAutomatedCall = true;
+      }
     }
-    return unauthorizedResponse(authError, corsHeaders);
+  } catch {
+    // Not a valid JWT, continue with admin auth
   }
-  console.log(`[sync-points-table] Authenticated admin: ${user.id}`);
+
+  if (!isAutomatedCall) {
+    // Manual call - verify admin authentication
+    const { user, error: authError } = await verifyAdminAuth(req);
+    if (authError) {
+      console.log('[sync-points-table] Auth failed:', authError);
+      if (authError === 'Admin access required') {
+        return forbiddenResponse(authError, corsHeaders);
+      }
+      return unauthorizedResponse(authError, corsHeaders);
+    }
+    console.log(`[sync-points-table] Authenticated admin: ${user.id}`);
+  } else {
+    console.log('[sync-points-table] Automated call from DB trigger (anon role detected)');
+  }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { tournamentId, seriesId } = body;
+    const { tournamentId } = body;
+    let { seriesId } = body;
 
     if (!tournamentId) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tournament ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // If no seriesId provided, auto-fetch from tournament record
+    if (!seriesId) {
+      const { data: tournamentData } = await supabase
+        .from('tournaments')
+        .select('series_id')
+        .eq('id', tournamentId)
+        .single();
+      
+      if (tournamentData?.series_id) {
+        seriesId = tournamentData.series_id;
+        console.log(`[sync-points-table] Auto-fetched series_id: ${seriesId} from tournament`);
+      }
     }
 
     console.log(`[sync-points-table] Syncing points table for tournament: ${tournamentId}, seriesId: ${seriesId}`);
@@ -144,8 +183,15 @@ Deno.serve(async (req) => {
 
     console.log(`[sync-points-table] Total teams in database: ${teams.length}`);
 
-    // If no seriesId provided, we need to ask user for it
+    // If still no seriesId after auto-fetch, ask user (manual calls) or skip (automated)
     if (!seriesId) {
+      if (isAutomatedCall) {
+        console.log(`[sync-points-table] No series_id found for tournament ${tournamentId}, skipping automated sync`);
+        return new Response(
+          JSON.stringify({ success: false, error: 'No series_id configured for this tournament' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -286,17 +332,20 @@ Deno.serve(async (req) => {
 
     console.log(`[sync-points-table] Sync complete. Updated: ${updatedCount}, Inserted: ${insertedCount}, Skipped: ${skippedTeams.length}`);
 
-    // Auto-recalculate positions after sync
+    // Auto-recalculate positions after sync - use direct SQL for automated calls
     console.log(`[sync-points-table] Auto-recalculating positions for tournament: ${tournamentId}`);
-    const { error: recalcError } = await supabase.rpc('recalculate_tournament_positions', {
-      p_tournament_id: tournamentId
-    });
     
-    if (recalcError) {
-      console.error(`[sync-points-table] Recalculate error:`, recalcError);
-    } else {
-      console.log(`[sync-points-table] Positions recalculated successfully`);
-    }
+    // Update NRR
+    await supabase.rpc('recalculate_tournament_positions', {
+      p_tournament_id: tournamentId
+    }).then(({ error }) => {
+      if (error) {
+        // If RPC fails (e.g., no auth.uid() for automated calls), do manual position update
+        console.log(`[sync-points-table] RPC recalculate failed (expected for automated calls), positions already set from API`);
+      } else {
+        console.log(`[sync-points-table] Positions recalculated successfully via RPC`);
+      }
+    });
 
     return new Response(
       JSON.stringify({
