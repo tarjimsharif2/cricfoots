@@ -600,7 +600,7 @@ const MatchPage = () => {
           {/* Points Table Section */}
           {tournament?.id && (
             <div id="points-table-section" className="mt-6 scroll-mt-20">
-              <PointsTable tournamentId={tournament.id} tournamentName={tournament.name} syncTime={(tournament as any).points_table_sync_time} />
+              <PointsTable tournamentId={tournament.id} tournamentName={tournament.name} syncTime={(tournament as any).points_table_sync_time} dailySyncEnabled={(tournament as any).points_table_daily_sync_enabled} onCompleteSyncEnabled={(tournament as any).points_table_on_complete_sync_enabled} />
             </div>
           )}
 
