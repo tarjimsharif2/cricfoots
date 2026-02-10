@@ -280,33 +280,12 @@ Deno.serve(async (req) => {
 
       if (onCompleteTournaments) {
         for (const t of onCompleteTournaments) {
-          // Cooldown check: only try if points table hasn't been updated in last 15 minutes
-          const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
-          
-          const { data: recentUpdate } = await supabase
-            .from('tournament_points_table')
-            .select('updated_at')
-            .eq('tournament_id', t.id)
-            .gte('updated_at', fifteenMinutesAgo)
-            .limit(1);
-          
-          if (recentUpdate && recentUpdate.length > 0) {
-            console.log(`[auto-sync-points-table] Skipping ${t.name} - already synced within 15 min cooldown`);
-            continue;
-          }
+          // No cooldown on updated_at - it only updates on SUCCESS
+          // The 5-min interval check below is sufficient to avoid hammering
 
-          // Also check if we've been rate limited recently by looking at the cron interval
-          // Only attempt on-complete sync at specific intervals: 2, 5, 10, 20, 30 min after completion
-          const oldestCompletedMatch = recentlyCompletedMatches
-            .filter(m => m.tournament_id === t.id)
-            .reduce((oldest: string | null, m: any) => {
-              // We don't have exact completion time, so we use the window approach
-              return oldest;
-            }, null);
-
-          // Simple approach: only try every 5 minutes (minute 0, 5, 10, etc.)
-          if (currentMinute % 5 !== 0) {
-            console.log(`[auto-sync-points-table] Skipping ${t.name} - waiting for 5-min interval (current: ${currentMinute})`);
+          // Only try every 10 minutes to avoid rate limits
+          if (currentMinute % 10 !== 0) {
+            console.log(`[auto-sync-points-table] Skipping ${t.name} - waiting for 10-min interval (current: ${currentMinute})`);
             continue;
           }
 

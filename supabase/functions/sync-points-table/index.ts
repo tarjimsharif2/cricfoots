@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to fetch with retry logic
+// Helper function to fetch with retry logic (skips retry on 429)
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
   let lastError: Error | null = null;
   
@@ -21,6 +21,13 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
       });
       
       clearTimeout(timeoutId);
+      
+      // Don't retry on rate limit - return immediately
+      if (response.status === 429) {
+        console.warn('[sync-points-table] Rate limited (429) - not retrying');
+        return response;
+      }
+      
       return response;
     } catch (error) {
       lastError = error as Error;
