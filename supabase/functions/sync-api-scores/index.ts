@@ -99,8 +99,7 @@ const teamsMatch = (name1: string, name2: string): boolean => {
   // Canonical name match (handles aliases like AUS = Australia)
   const canonical1 = getCanonicalName(n1);
   const canonical2 = getCanonicalName(n2);
-  if (canonical1 === canonical2 && canonical1 !== n1 && canonical2 !== n2) {
-    // Both resolved to a known alias
+  if (canonical1 === canonical2) {
     return true;
   }
   
@@ -110,7 +109,7 @@ const teamsMatch = (name1: string, name2: string): boolean => {
   // If either is a short code (3 chars or less, single word), ONLY check against known aliases
   if (words1.length === 1 && n1.length <= 3) {
     for (const [canonical, aliases] of Object.entries(teamAliases)) {
-      if (aliases.includes(n1) && (canonical2 === canonical || n2.includes(canonical))) {
+      if ((n1 === canonical || aliases.includes(n1)) && (canonical2 === canonical || n2.includes(canonical) || aliases.some(a => n2.includes(a)))) {
         return true;
       }
     }
@@ -118,7 +117,7 @@ const teamsMatch = (name1: string, name2: string): boolean => {
   }
   if (words2.length === 1 && n2.length <= 3) {
     for (const [canonical, aliases] of Object.entries(teamAliases)) {
-      if (aliases.includes(n2) && (canonical1 === canonical || n1.includes(canonical))) {
+      if ((n2 === canonical || aliases.includes(n2)) && (canonical1 === canonical || n1.includes(canonical) || aliases.some(a => n1.includes(a)))) {
         return true;
       }
     }
