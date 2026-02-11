@@ -94,6 +94,94 @@ async function getActiveLeagueCodes(): Promise<string[]> {
   }
 }
 
+// TheSportsDB: fetch all players of a team and return name->image map
+async function fetchTheSportsDBPlayerImages(teamName: string): Promise<Map<string, string>> {
+  const imageMap = new Map<string, string>();
+  try {
+    // Free API key "3" for TheSportsDB v1
+    const url = `https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?t=${encodeURIComponent(teamName)}`;
+    console.log(`[TheSportsDB] Fetching players for team: ${teamName}`);
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    });
+    if (!response.ok) {
+      console.warn(`[TheSportsDB] API returned ${response.status} for team: ${teamName}`);
+      return imageMap;
+    }
+    const data = await response.json();
+    const players = data?.player || [];
+    for (const p of players) {
+      const name = p.strPlayer as string;
+      // Prefer cutout (transparent bg), then thumb, then render
+      const image = (p.strCutout || p.strThumb || p.strRender) as string | null;
+      if (name && image) {
+        // Store with lowercase key for fuzzy matching
+        imageMap.set(name.toLowerCase(), image);
+      }
+    }
+    console.log(`[TheSportsDB] Found ${imageMap.size} player images for ${teamName}`);
+  } catch (err) {
+    console.warn(`[TheSportsDB] Error fetching players for ${teamName}:`, err);
+  }
+  return imageMap;
+}
+
+// Match a player name against TheSportsDB map (fuzzy: last name match)
+function findTheSportsDBImage(playerName: string, imageMap: Map<string, string>): string | undefined {
+  if (imageMap.size === 0) return undefined;
+  const lowerName = playerName.toLowerCase();
+  // Exact match first
+  if (imageMap.has(lowerName)) return imageMap.get(lowerName);
+  // Try last name match
+  const parts = lowerName.split(' ');
+  const lastName = parts[parts.length - 1];
+  if (lastName.length >= 3) {
+    for (const [key, url] of imageMap) {
+      if (key.endsWith(lastName) || key.includes(lastName)) {
+        return url;
+      }
+    }
+  }
+  // Try first name match for single-name players (e.g., "Neymar")
+  if (parts.length === 1 && lowerName.length >= 4) {
+    for (const [key, url] of imageMap) {
+      if (key.includes(lowerName)) return url;
+    }
+  }
+  return undefined;
+}
+
+// Fill missing player images using TheSportsDB as fallback
+async function enrichLineupWithTheSportsDB(
+  homeLineup: PlayerInfo[], awayLineup: PlayerInfo[],
+  homeTeamName: string, awayTeamName: string
+): Promise<void> {
+  const homeMissing = homeLineup.some(p => !p.playerImage);
+  const awayMissing = awayLineup.some(p => !p.playerImage);
+  
+  if (!homeMissing && !awayMissing) return; // All images present
+  
+  // Fetch both teams in parallel
+  const [homeImages, awayImages] = await Promise.all([
+    homeMissing ? fetchTheSportsDBPlayerImages(homeTeamName) : Promise.resolve(new Map<string, string>()),
+    awayMissing ? fetchTheSportsDBPlayerImages(awayTeamName) : Promise.resolve(new Map<string, string>()),
+  ]);
+  
+  // Fill missing images
+  for (const player of homeLineup) {
+    if (!player.playerImage) {
+      const img = findTheSportsDBImage(player.name, homeImages);
+      if (img) player.playerImage = img;
+    }
+  }
+  for (const player of awayLineup) {
+    if (!player.playerImage) {
+      const img = findTheSportsDBImage(player.name, awayImages);
+      if (img) player.playerImage = img;
+    }
+  }
+}
+
 // Helper to safely extract headshot URL from ESPN player data
 // Try explicit headshot first, then construct from player ID as fallback
 // Some constructed URLs may 404 — UI handles this with onError fallback
@@ -251,6 +339,17 @@ async function fetchMatchDetails(eventId: string, leagueCode: string): Promise<{
             playerImage: headshotUrl,
           });
         }
+      }
+    }
+    
+    // Enrich lineup with TheSportsDB player images (fallback for missing ESPN headshots)
+    const homeTeamName = homeTeamData?.team?.displayName || homeTeamData?.team?.shortDisplayName || '';
+    const awayTeamName = awayTeamData?.team?.displayName || awayTeamData?.team?.shortDisplayName || '';
+    if (homeLineup.length > 0 || awayLineup.length > 0) {
+      try {
+        await enrichLineupWithTheSportsDB(homeLineup, awayLineup, homeTeamName, awayTeamName);
+      } catch (err) {
+        console.warn(`[Match ${eventId}] TheSportsDB enrichment failed:`, err);
       }
     }
     
