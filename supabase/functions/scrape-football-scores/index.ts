@@ -159,12 +159,8 @@ async function enrichLineupWithTheSportsDB(
   const homeMissing = homeLineup.some(p => !p.playerImage);
   const awayMissing = awayLineup.some(p => !p.playerImage);
   
-  if (!homeMissing && !awayMissing) {
-    console.log(`[TheSportsDB] All players have ESPN headshots, skipping`);
-    return;
-  }
-  
-  console.log(`[TheSportsDB] Home missing: ${homeLineup.filter(p => !p.playerImage).length}, Away missing: ${awayLineup.filter(p => !p.playerImage).length}`);
+  // Always try to enrich - TheSportsDB can fill in missing images
+  console.log(`[TheSportsDB] Enriching: Home missing ${homeLineup.filter(p => !p.playerImage).length}/${homeLineup.length}, Away missing ${awayLineup.filter(p => !p.playerImage).length}/${awayLineup.length}`);
   
   // Fetch both teams in parallel
   const [homeImages, awayImages] = await Promise.all([
