@@ -233,14 +233,7 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
       if (error) throw error;
 
       if (data?.matches) {
-        // Filter out completed matches - only import upcoming/live
-        const filteredMatches = data.matches.filter((m: ESPNCricketMatch) => {
-          const status = m.status?.toLowerCase() || '';
-          const isCompleted = status.includes('completed') || status.includes('final') || status.includes('result');
-          return !isCompleted;
-        });
-
-        const matchesWithMappings: MatchToImport[] = filteredMatches.map((m: ESPNCricketMatch) => ({
+        const matchesWithMappings: MatchToImport[] = data.matches.map((m: ESPNCricketMatch) => ({
           ...m,
           selected: false,
           teamAId: findTeamMatch(m.homeTeam),
@@ -248,13 +241,6 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
           tournamentId: defaultTournamentId,
         }));
         setApiMatches(matchesWithMappings);
-        
-        if (filteredMatches.length === 0 && data.matches.length > 0) {
-          toast({
-            title: "No upcoming matches",
-            description: `All ${data.matches.length} matches are completed.`,
-          });
-        }
       }
     } catch (error) {
       console.error('Error fetching matches:', error);
@@ -303,41 +289,9 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
       if (error) throw error;
 
       if (data?.matches) {
-        // Filter to keep only upcoming and live matches
-        const filteredMatches = data.matches.filter((m: ESPNCricketMatch) => {
-          const status = m.status?.toLowerCase() || '';
-          
-          // Check for completed match indicators
-          const isCompleted = status.includes('complete') || 
-            status.includes(' won ') || 
-            status.includes(' beat ') ||
-            status.includes(' defeated ') ||
-            status.includes('match drawn') ||
-            status.includes('match tied') ||
-            (status.includes('result') && !status.includes('no result'));
-          
-          // Explicitly allow these statuses from RapidAPI
-          const isUpcoming = status.includes('upcoming') || 
-            status.includes('scheduled') || 
-            status.includes('starts') || 
-            status.includes('match starts') ||
-            status.includes('preview') ||  // Cricbuzz "Preview" status
-            status === '' ||
-            !status;
-            
-          const isLive = status.includes('live') || 
-            status.includes('in progress') || 
-            status.includes('innings') ||
-            status.includes('batting');
-          
-          // Return true if not completed OR explicitly upcoming/live
-          return !isCompleted || isUpcoming || isLive;
-        });
-
-        // Use default tournament if selected
         const targetTournamentId = defaultTournamentId || null;
         
-        const matchesWithMappings: MatchToImport[] = filteredMatches.map((m: ESPNCricketMatch) => ({
+        const matchesWithMappings: MatchToImport[] = data.matches.map((m: ESPNCricketMatch) => ({
           ...m,
           selected: false,
           teamAId: findTeamMatch(m.homeTeam),
@@ -346,22 +300,19 @@ export default function CricketMatchImporter({ onImportComplete }: CricketMatchI
         }));
         setApiMatches(matchesWithMappings);
         
-        // Also set default tournament for SEO
         if (targetTournamentId) {
           setDefaultTournamentId(targetTournamentId);
         }
         
         toast({
           title: "Matches Fetched",
-          description: `Found ${filteredMatches.length} upcoming/live match(es) from ${data.matches.length} total`,
+          description: `Found ${data.matches.length} match(es)`,
         });
         
-        if (filteredMatches.length === 0) {
+        if (data.matches.length === 0) {
           toast({
-            title: "No upcoming matches",
-            description: data.matches.length > 0 
-              ? `All ${data.matches.length} matches are completed.`
-              : "No matches found for this series. Check series ID.",
+            title: "No matches found",
+            description: "No matches found for this series. Check series ID.",
             variant: "destructive"
           });
         }
