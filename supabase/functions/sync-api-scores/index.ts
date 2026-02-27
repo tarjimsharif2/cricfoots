@@ -982,6 +982,50 @@ Deno.serve(async (req) => {
         matchStatus = 'completed';
       }
 
+      // Auto-detect match_result from API data when match is completed
+      let detectedMatchResult: string | null = null;
+      if (matchStatus === 'completed') {
+        const resultText = (detailedEvent.event_final_result || detailedEvent.event_status_info || '').toLowerCase();
+        console.log(`[sync-api-scores] Detecting match_result from: "${resultText}"`);
+        
+        if (resultText.includes('no result') || resultText.includes('abandoned') || resultText.includes('no res')) {
+          detectedMatchResult = 'no_result';
+        } else if (resultText.includes('tied') || resultText.includes('tie')) {
+          detectedMatchResult = 'tied';
+        } else if (resultText.includes('draw') || resultText.includes('drawn')) {
+          detectedMatchResult = 'draw';
+        } else if (resultText.includes('won') || resultText.includes('win')) {
+          // Extract winning team name from result text
+          const wonByMatch = resultText.match(/^(.+?)\s+won\s+by/i);
+          if (wonByMatch) {
+            const winnerName = wonByMatch[1].trim();
+            const winnerIsTeamA = teamsMatch(winnerName, teamAName) || teamsMatch(winnerName, teamAShort);
+            const winnerIsTeamB = teamsMatch(winnerName, teamBName) || teamsMatch(winnerName, teamBShort);
+            
+            if (winnerIsTeamA && !winnerIsTeamB) {
+              detectedMatchResult = 'team_a_won';
+            } else if (winnerIsTeamB && !winnerIsTeamA) {
+              detectedMatchResult = 'team_b_won';
+            }
+            console.log(`[sync-api-scores] Winner "${winnerName}" -> teamA=${winnerIsTeamA}, teamB=${winnerIsTeamB} -> result=${detectedMatchResult}`);
+          }
+          
+          // Fallback: compare scores if we couldn't parse winner name
+          if (!detectedMatchResult && scoreA && scoreB) {
+            const extractRuns = (s: string) => parseInt(s.match(/^(\d+)/)?.[1] || '0');
+            const runsA = extractRuns(scoreA);
+            const runsB = extractRuns(scoreB);
+            if (runsA > runsB) detectedMatchResult = 'team_a_won';
+            else if (runsB > runsA) detectedMatchResult = 'team_b_won';
+            console.log(`[sync-api-scores] Score comparison fallback: ${runsA} vs ${runsB} -> ${detectedMatchResult}`);
+          }
+        }
+        
+        if (detectedMatchResult) {
+          console.log(`[sync-api-scores] Auto-detected match_result: ${detectedMatchResult}`);
+        }
+      }
+
       // Upsert to match_api_scores - STORE AS team_a/team_b (not API's home/away)
       // IMPORTANT: Check existing record first to preserve scores when API returns NULL
       const { data: existingApiScores } = await supabase
@@ -1056,6 +1100,18 @@ Deno.serve(async (req) => {
       }
       
       if (match.status !== matchStatus) matchUpdate.status = matchStatus;
+      
+      // Set match_result if detected and not already set
+      if (detectedMatchResult && matchStatus === 'completed') {
+        matchUpdate.match_result = detectedMatchResult;
+        
+        // Also set result_margin from API
+        const resultText = detailedEvent.event_final_result || detailedEvent.event_status_info || '';
+        const marginMatch = resultText.match(/won by (.+)/i);
+        if (marginMatch) {
+          matchUpdate.result_margin = marginMatch[1].trim();
+        }
+      }
 
       console.log(`[sync-api-scores] Updating match: score_a="${matchUpdate.score_a || '(unchanged)'}", score_b="${matchUpdate.score_b || '(unchanged)'}"`);
 
