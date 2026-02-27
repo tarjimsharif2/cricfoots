@@ -511,6 +511,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
         batting_order: p.batting_order,
         is_bench: p.is_bench ?? false,
         change_status: null,
+        player_image: p.player_image || null,
       }));
 
       const { error } = await supabase
