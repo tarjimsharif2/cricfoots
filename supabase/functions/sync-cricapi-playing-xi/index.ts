@@ -306,6 +306,9 @@ Deno.serve(async (req) => {
       throw deleteError;
     }
 
+    // Build a set of playing XI player names for matching bench
+    const playingXINames = new Set<string>();
+
     // Insert players for each team
     const allPlayers: any[] = [];
     let teamACount = 0;
@@ -318,6 +321,10 @@ Deno.serve(async (req) => {
       for (let i = 0; i < apiTeam.players.length; i++) {
         const player = apiTeam.players[i];
         
+        if (isMatchXI) {
+          playingXINames.add(player.name.toLowerCase().trim());
+        }
+
         allPlayers.push({
           match_id: matchId,
           team_id: teamId,
@@ -334,6 +341,55 @@ Deno.serve(async (req) => {
         if (teamId === teamAId) teamACount++;
         else teamBCount++;
       }
+    }
+
+    // If isMatchXI and full squad data is available, add bench players
+    const fullSquadData = apiData._fullSquadData as CricApiResponse | undefined;
+    if (isMatchXI && fullSquadData && fullSquadData.data) {
+      console.log(`[CricAPI] Adding bench players from full squad data`);
+      
+      // Build team mapping for full squad (reuse same logic)
+      const fullTeamMapping: Record<string, string> = {};
+      for (const apiTeam of fullSquadData.data) {
+        const matchedTeamId = matchTeam(
+          apiTeam, teamAName, teamAShortName, teamBName, teamBShortName, teamAId, teamBId
+        );
+        if (matchedTeamId) {
+          fullTeamMapping[apiTeam.teamName] = matchedTeamId;
+        }
+      }
+      if (Object.keys(fullTeamMapping).length < 2 && fullSquadData.data.length >= 2) {
+        fullTeamMapping[fullSquadData.data[0].teamName] = teamAId;
+        fullTeamMapping[fullSquadData.data[1].teamName] = teamBId;
+      }
+
+      let benchCount = 0;
+      for (const apiTeam of fullSquadData.data) {
+        const teamId = fullTeamMapping[apiTeam.teamName];
+        if (!teamId) continue;
+
+        for (const player of apiTeam.players) {
+          const playerKey = player.name.toLowerCase().trim();
+          if (!playingXINames.has(playerKey)) {
+            allPlayers.push({
+              match_id: matchId,
+              team_id: teamId,
+              player_name: player.name,
+              player_role: mapRole(player.role),
+              is_captain: false,
+              is_vice_captain: false,
+              is_wicket_keeper: isWicketKeeper(player.role),
+              batting_order: null,
+              is_bench: true,
+              player_image: (player.playerImg && !player.playerImg.includes('icon512.png') && !player.playerImg.includes('/img/icon')) ? player.playerImg : null,
+            });
+            benchCount++;
+            if (teamId === teamAId) teamACount++;
+            else teamBCount++;
+          }
+        }
+      }
+      console.log(`[CricAPI] Added ${benchCount} bench players from full squad`);
     }
 
     if (allPlayers.length === 0) {
