@@ -196,6 +196,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
   // Touch swap state for mobile
   const [selectedForSwap, setSelectedForSwap] = useState<Player | null>(null);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [fetchingImages, setFetchingImages] = useState(false);
   
   const [form, setForm] = useState({
     player_name: '',
@@ -1061,6 +1062,43 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
     }
   };
 
+  // Fetch missing player images from TheSportsDB
+  const handleFetchMissingImages = async () => {
+    if (!players || players.length === 0) return;
+    
+    const missingCount = players.filter(p => !p.player_image).length;
+    if (missingCount === 0) {
+      toast({ title: "All players have images", description: "No missing images to fetch" });
+      return;
+    }
+
+    setFetchingImages(true);
+    try {
+      toast({ title: "Fetching images...", description: `Looking up ${missingCount} players on TheSportsDB...` });
+      
+      const response = await supabase.functions.invoke('fetch-player-images', {
+        body: { matchId },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+
+      const result = response.data;
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ['playing_xi', matchId] });
+        toast({ 
+          title: "Images fetched!", 
+          description: `${result.updated}/${result.total} missing images found` 
+        });
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setFetchingImages(false);
+    }
+  };
+
   const renderPlayerCard = (player: Player, benchPlayers: Player[], isInXI: boolean) => {
     const effectiveBench = getEffectiveBench(player);
     const hasPendingChange = pendingChanges.hasOwnProperty(player.id);
@@ -1482,6 +1520,24 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
             Import from Match
           </Button>
           
+          {/* Fetch Missing Images Button */}
+          {players && players.length > 0 && players.some(p => !p.player_image) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFetchMissingImages}
+              disabled={fetchingImages}
+              className="gap-2"
+            >
+              {fetchingImages ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Image className="w-4 h-4" />
+              )}
+              Fetch Images ({players.filter(p => !p.player_image).length})
+            </Button>
+          )}
+
           {players && players.length > 0 && (
             <Button
               variant="destructive"
