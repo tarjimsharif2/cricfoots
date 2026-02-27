@@ -808,8 +808,8 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
           return; // Exit - will resume after user selects a match
         }
 
-        // Fetch squad data from browser (CricAPI blocks edge function IPs)
-        toast({ title: "Fetching squad...", description: "Loading player data from CricAPI..." });
+        // Fetch data from browser (CricAPI blocks edge function IPs)
+        toast({ title: source === 'cricapi_xi' ? "Fetching Match XI..." : "Fetching squad...", description: "Loading player data from CricAPI..." });
         const { data: settings } = await supabase
           .from('site_settings')
           .select('cricket_api_key')
@@ -830,7 +830,30 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
         if (clientSquadData.status !== 'success' || !clientSquadData.data || clientSquadData.data.length < 2) {
           throw new Error(`CricAPI returned: ${clientSquadData.status}. Teams found: ${clientSquadData.data?.length || 0}. Need at least 2 teams.`);
         }
-        console.log(`[CricAPI Client] Squad fetched: ${clientSquadData.data.length} teams, info:`, clientSquadData.info);
+        console.log(`[CricAPI Client] ${apiEndpoint} fetched: ${clientSquadData.data.length} teams, info:`, clientSquadData.info);
+
+        // For match_xi: also fetch full squad to get bench players
+        let clientSquadFullData: any = undefined;
+        if (source === 'cricapi_xi') {
+          try {
+            const fullSquadUrl = `https://api.cricapi.com/v1/match_squad?apikey=${settings.cricket_api_key}&id=${effectiveCricapiId}`;
+            const fullRes = await fetch(fullSquadUrl);
+            if (fullRes.ok) {
+              const fullData = await fullRes.json();
+              if (fullData.status === 'success' && fullData.data && fullData.data.length >= 2) {
+                clientSquadFullData = fullData;
+                console.log(`[CricAPI Client] Full squad also fetched for bench players: ${fullData.data.length} teams`);
+              }
+            }
+          } catch (e) {
+            console.warn('[CricAPI Client] Could not fetch full squad for bench:', e);
+          }
+        }
+
+        // Store full squad data for edge function
+        if (clientSquadFullData) {
+          clientSquadData._fullSquadData = clientSquadFullData;
+        }
       }
 
       const response = await supabase.functions.invoke(functionName, {
@@ -953,6 +976,23 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
       const clientSquadData = await squadRes.json();
       if (clientSquadData.status !== 'success' || !clientSquadData.data || clientSquadData.data.length < 2) {
         throw new Error(`${isMatchXI ? 'Match XI' : 'Squad'} data not available yet. Teams found: ${clientSquadData.data?.length || 0}`);
+      }
+
+      // For match_xi: also fetch full squad to get bench players
+      if (isMatchXI) {
+        try {
+          const fullSquadUrl = `https://api.cricapi.com/v1/match_squad?apikey=${settings.cricket_api_key}&id=${selectedMatchId}`;
+          const fullRes = await fetch(fullSquadUrl);
+          if (fullRes.ok) {
+            const fullData = await fullRes.json();
+            if (fullData.status === 'success' && fullData.data && fullData.data.length >= 2) {
+              clientSquadData._fullSquadData = fullData;
+              console.log('[CricAPI Client] Full squad also fetched for bench players');
+            }
+          }
+        } catch (e) {
+          console.warn('[CricAPI Client] Could not fetch full squad for bench:', e);
+        }
       }
 
       const response = await supabase.functions.invoke('sync-cricapi-playing-xi', {
