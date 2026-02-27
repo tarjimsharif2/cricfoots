@@ -267,8 +267,43 @@ Deno.serve(async (req) => {
       }
     }
 
-    // NOTE: on-complete sync is handled by the database trigger (update_points_on_match_complete)
-    // No need to duplicate it here. This function only handles scheduled daily syncs.
+    // === CHECK 2: On-complete sync (recently completed matches) ===
+    const { data: onCompleteTournaments } = await supabase
+      .from('tournaments')
+      .select('id, name, series_id, points_table_on_complete_sync_enabled')
+      .eq('is_active', true)
+      .eq('is_completed', false)
+      .eq('points_table_on_complete_sync_enabled', true)
+      .not('series_id', 'is', null);
+
+    if (onCompleteTournaments && onCompleteTournaments.length > 0) {
+      const tournamentIds = onCompleteTournaments.map(t => t.id);
+      
+      // Find matches completed in the last 10 minutes with a valid match_result
+      const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+      const { data: recentlyCompleted } = await supabase
+        .from('matches')
+        .select('id, tournament_id, match_result, updated_at')
+        .eq('status', 'completed')
+        .not('match_result', 'is', null)
+        .gte('updated_at', tenMinutesAgo.toISOString())
+        .in('tournament_id', tournamentIds);
+
+      if (recentlyCompleted && recentlyCompleted.length > 0) {
+        const completedTournamentIds = [...new Set(recentlyCompleted.map(m => m.tournament_id))];
+        console.log(`[auto-sync-points-table] Found ${recentlyCompleted.length} recently completed matches in ${completedTournamentIds.length} tournaments`);
+        
+        for (const tid of completedTournamentIds) {
+          if (!tournamentsToSync.find(t => t.id === tid)) {
+            const tournament = onCompleteTournaments.find(t => t.id === tid);
+            if (tournament) {
+              tournamentsToSync.push(tournament);
+              syncReasons.set(tid, 'on_match_complete');
+            }
+          }
+        }
+      }
+    }
 
     if (tournamentsToSync.length === 0) {
       const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
