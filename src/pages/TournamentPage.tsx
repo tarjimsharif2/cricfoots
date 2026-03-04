@@ -316,13 +316,16 @@ const TournamentPage = () => {
                       </p>
                     )}
                   </div>
+                  {(tournament.total_matches || matches.length > 0 || tournament.total_teams || participatingTeams.length > 0 || tournament.total_venues) && (
                   <div className="flex gap-6 flex-wrap justify-center">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-primary">
-                        {tournament.total_matches ?? matches.length}
+                    {(tournament.total_matches || matches.length > 0) && (
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-primary">
+                          {tournament.total_matches ?? matches.length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Total Matches</div>
                       </div>
-                      <div className="text-sm text-muted-foreground">Total Matches</div>
-                    </div>
+                    )}
                     {(tournament.total_teams || participatingTeams.length > 0) && (
                       <div className="text-center">
                         <div className="text-3xl font-bold text-primary">
@@ -340,6 +343,7 @@ const TournamentPage = () => {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
