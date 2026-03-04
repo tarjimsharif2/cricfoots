@@ -316,20 +316,20 @@ const TournamentPage = () => {
                       </p>
                     )}
                   </div>
-                  {(tournament.total_matches || matches.length > 0 || tournament.total_teams || participatingTeams.length > 0 || tournament.total_venues) && (
+                  {(tournament.total_matches || tournament.total_teams || tournament.total_venues) && (
                   <div className="flex gap-6 flex-wrap justify-center">
-                    {(tournament.total_matches || matches.length > 0) && (
+                    {tournament.total_matches && (
                       <div className="text-center">
                         <div className="text-3xl font-bold text-primary">
-                          {tournament.total_matches ?? matches.length}
+                          {tournament.total_matches}
                         </div>
                         <div className="text-sm text-muted-foreground">Total Matches</div>
                       </div>
                     )}
-                    {(tournament.total_teams || participatingTeams.length > 0) && (
+                    {tournament.total_teams && (
                       <div className="text-center">
                         <div className="text-3xl font-bold text-primary">
-                          {tournament.total_teams ?? participatingTeams.length}
+                          {tournament.total_teams}
                         </div>
                         <div className="text-sm text-muted-foreground">Total Teams</div>
                       </div>
