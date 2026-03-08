@@ -184,6 +184,7 @@ const App = () => (
               </GoogleAnalyticsProvider>
             </BrowserRouter>
           </TooltipProvider>
+          </AdClickProtectionProvider>
         </RealtimeSyncProvider>
       </AuthProvider>
     </ThemeProvider>
