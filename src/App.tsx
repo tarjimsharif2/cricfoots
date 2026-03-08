@@ -153,6 +153,7 @@ const App = () => (
     <ThemeProvider>
       <AuthProvider>
         <RealtimeSyncProvider>
+          <AdClickProtectionProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
