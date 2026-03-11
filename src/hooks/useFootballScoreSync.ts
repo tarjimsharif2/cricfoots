@@ -92,7 +92,7 @@ function teamsMatch(dbTeam: string, apiTeam: string): boolean {
 export function useFootballScoreSync(intervalSeconds: number = 60) {
   const queryClient = useQueryClient();
   const { data: siteSettings } = usePublicSiteSettings();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isSyncingRef = useRef(false);
 
   const syncScores = useCallback(async (): Promise<SyncResult[]> => {

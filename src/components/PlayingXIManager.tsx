@@ -195,7 +195,7 @@ const PlayingXIManager = ({ matchId, teamA, teamB, cricbuzzMatchId, cricapiMatch
   
   // Touch swap state for mobile
   const [selectedForSwap, setSelectedForSwap] = useState<Player | null>(null);
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [fetchingImages, setFetchingImages] = useState(false);
   
   const [form, setForm] = useState({
