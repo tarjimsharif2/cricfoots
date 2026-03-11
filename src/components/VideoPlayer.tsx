@@ -460,7 +460,7 @@ const VideoPlayer = ({ url, type, headers, onStreamError, onStreamSuccess }: Vid
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [iframeTimedOut, setIframeTimedOut] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const successNotifiedRef = useRef(false);
 
   // Handle iframe timeout detection

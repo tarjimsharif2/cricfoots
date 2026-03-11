@@ -30,7 +30,7 @@ const AutoScoreSyncManager = ({ matches, onSyncComplete }: AutoScoreSyncManagerP
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [syncResults, setSyncResults] = useState<{ matchId: string; success: boolean; message: string }[]>([]);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Get matches that are eligible for auto-sync (live + api_score_enabled + auto_sync_enabled)
   const eligibleMatches = matches.filter(

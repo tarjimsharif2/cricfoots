@@ -26,7 +26,7 @@ const LiveScoreUpdater = ({ match }: LiveScoreUpdaterProps) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isHalftime, setIsHalftime] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSyncRef = useRef<number>(Date.now());
 
   const sportName = match.sport?.name?.toLowerCase() || match.tournament?.sport?.toLowerCase() || "";
