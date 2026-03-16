@@ -1763,6 +1763,47 @@ export type Database = {
           },
         ]
       }
+      tournament_venues: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string
+          display_order: number | null
+          id: string
+          tournament_id: string
+          updated_at: string
+          venue_name: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          tournament_id: string
+          updated_at?: string
+          venue_name: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          tournament_id?: string
+          updated_at?: string
+          venue_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_venues_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tournaments: {
         Row: {
           created_at: string
