@@ -485,6 +485,42 @@ const TournamentPage = () => {
                   </div>
                 )}
               </TabsContent>
+
+              {tournamentVenues.length > 0 && (
+                <TabsContent value="venues">
+                  <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <MapPin className="w-4 h-4 text-primary" />
+                        <h2 className="font-display text-lg text-gradient">Venues</h2>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {tournamentVenues.map((venue, index) => (
+                          <motion.div
+                            key={venue.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/30"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <MapPin className="w-4 h-4 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium block truncate">{venue.venue_name}</span>
+                              {(venue.city || venue.country) && (
+                                <span className="text-xs text-muted-foreground block truncate">
+                                  {[venue.city, venue.country].filter(Boolean).join(', ')}
+                                </span>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
             </Tabs>
           </motion.div>
 
