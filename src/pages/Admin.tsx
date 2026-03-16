@@ -2158,7 +2158,11 @@ const Admin = () => {
                       
                       <div className="space-y-2">
                         <Label>Venue (optional)</Label>
-                        <Input placeholder="Stadium name" value={matchForm.venue} onChange={(e) => setMatchForm({ ...matchForm, venue: e.target.value })} />
+                        <VenueComboInput
+                          tournamentId={matchForm.tournament_id || undefined}
+                          value={matchForm.venue}
+                          onChange={(v) => setMatchForm({ ...matchForm, venue: v })}
+                        />
                       </div>
                       
                       {/* Page Type Selection */}
