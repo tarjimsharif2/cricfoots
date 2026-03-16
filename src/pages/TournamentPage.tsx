@@ -398,7 +398,7 @@ const TournamentPage = () => {
             transition={{ delay: 0.2 }}
           >
             <Tabs defaultValue="all" className="w-full">
-              <TabsList className="w-full justify-start mb-6 bg-muted/50">
+              <TabsList className="w-full justify-start mb-6 bg-muted/50 overflow-x-auto overflow-y-hidden flex-nowrap no-scrollbar">
                 <TabsTrigger value="all" className="gap-2">
                   All
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{matches.length}</Badge>
