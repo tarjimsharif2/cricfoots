@@ -60,6 +60,9 @@ import RapidApiEndpointsManager from "@/components/RapidApiEndpointsManager";
 import MaintenanceModeManager from "@/components/MaintenanceModeManager";
 import ChannelsManager from "@/components/ChannelsManager";
 import MenuManager from "@/components/MenuManager";
+import TournamentVenueManager from "@/components/TournamentVenueManager";
+import { useTournamentVenues } from "@/hooks/useTournamentVenues";
+import VenueComboInput from "@/components/VenueComboInput";
 
 const Admin = () => {
   const { user, loading, signOut } = useAuth();
@@ -2156,7 +2159,11 @@ const Admin = () => {
                       
                       <div className="space-y-2">
                         <Label>Venue (optional)</Label>
-                        <Input placeholder="Stadium name" value={matchForm.venue} onChange={(e) => setMatchForm({ ...matchForm, venue: e.target.value })} />
+                        <VenueComboInput
+                          tournamentId={matchForm.tournament_id || undefined}
+                          value={matchForm.venue}
+                          onChange={(v) => setMatchForm({ ...matchForm, venue: v })}
+                        />
                       </div>
                       
                       {/* Page Type Selection */}
@@ -3546,7 +3553,14 @@ const Admin = () => {
                               )}
                             </>
                           )}
+                      </div>
+
+                      {/* Venue Management */}
+                      {editingTournament && (
+                        <div className="border-t pt-4 mt-4">
+                          <TournamentVenueManager tournamentId={editingTournament.id} />
                         </div>
+                      )}
                       </div>
                       <div className="border-t pt-4 mt-4">
                         <h4 className="font-medium mb-3 text-sm text-muted-foreground">SEO Settings</h4>
