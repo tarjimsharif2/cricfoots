@@ -26,6 +26,7 @@ const TournamentPage = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const { venues: tournamentVenues, loading: venuesLoading } = useTournamentVenues(tournament?.id);
   
   const { data: siteSettings } = useSiteSettings();
   const { data: publicSettings } = usePublicSiteSettings();
