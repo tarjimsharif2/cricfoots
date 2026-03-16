@@ -3552,7 +3552,14 @@ const Admin = () => {
                               )}
                             </>
                           )}
+                      </div>
+
+                      {/* Venue Management */}
+                      {editingTournament && (
+                        <div className="border-t pt-4 mt-4">
+                          <TournamentVenueManager tournamentId={editingTournament.id} />
                         </div>
+                      )}
                       </div>
                       <div className="border-t pt-4 mt-4">
                         <h4 className="font-medium mb-3 text-sm text-muted-foreground">SEO Settings</h4>
