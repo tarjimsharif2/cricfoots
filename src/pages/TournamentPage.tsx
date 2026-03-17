@@ -196,6 +196,53 @@ const TournamentPage = () => {
     );
   };
 
+  // Venues Section - shown below Participating Teams
+  const VenuesSection = () => {
+    if (!tournamentVenues || tournamentVenues.length === 0) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="mb-6"
+      >
+        <Card className="border-border/50 bg-card/80 backdrop-blur">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Landmark className="w-4 h-4 text-primary" />
+              <h2 className="font-display text-lg text-gradient">Venues</h2>
+              <Badge variant="secondary" className="ml-auto text-[10px] px-1.5">{tournamentVenues.length}</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {tournamentVenues.map((venue, index) => (
+                <motion.div
+                  key={venue.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="flex items-center gap-2.5 p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-primary/50 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Landmark className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-medium block truncate">{venue.venue_name}</span>
+                    {(venue.city || venue.country) && (
+                      <span className="text-[10px] text-muted-foreground block truncate">
+                        {[venue.city, venue.country].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
