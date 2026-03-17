@@ -17,7 +17,7 @@ import { Tournament, Match } from '@/hooks/useSportsData';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { usePublicSiteSettings } from '@/hooks/usePublicSiteSettings';
 import { useRealtimeLiveMatches } from '@/hooks/useRealtimeMatch';
-import { Trophy, Calendar, Loader2, Radio, Users, ChevronDown, MapPin } from 'lucide-react';
+import { Trophy, Calendar, Loader2, Radio, Users, ChevronDown, MapPin, Landmark } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DOMPurify from 'dompurify';
 
@@ -196,6 +196,53 @@ const TournamentPage = () => {
     );
   };
 
+  // Venues Section - shown below Participating Teams
+  const VenuesSection = () => {
+    if (!tournamentVenues || tournamentVenues.length === 0) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="mb-6"
+      >
+        <Card className="border-border/50 bg-card/80 backdrop-blur">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Landmark className="w-4 h-4 text-primary" />
+              <h2 className="font-display text-lg text-gradient">Venues</h2>
+              <Badge variant="secondary" className="ml-auto text-[10px] px-1.5">{tournamentVenues.length}</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {tournamentVenues.map((venue, index) => (
+                <motion.div
+                  key={venue.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="flex items-center gap-2.5 p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-primary/50 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Landmark className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-medium block truncate">{venue.venue_name}</span>
+                    {(venue.city || venue.country) && (
+                      <span className="text-[10px] text-muted-foreground block truncate">
+                        {[venue.city, venue.country].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -359,6 +406,7 @@ const TournamentPage = () => {
                 <MultiAdSlot position="tournament_before_teams" className="my-4" />
               )}
               <ParticipatingTeamsSection />
+              <VenuesSection />
               {/* Ad - After Teams */}
               {tournamentAdPositions.after_teams && (
                 <MultiAdSlot position="tournament_after_teams" className="my-4" />
@@ -421,13 +469,6 @@ const TournamentPage = () => {
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{completedMatches.length}</Badge>
                   )}
                 </TabsTrigger>
-                {tournamentVenues.length > 0 && (
-                  <TabsTrigger value="venues" className="gap-2 flex-shrink-0">
-                    <MapPin className="w-3.5 h-3.5" />
-                    Venues
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tournamentVenues.length}</Badge>
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               <TabsContent value="all">
@@ -486,41 +527,6 @@ const TournamentPage = () => {
                 )}
               </TabsContent>
 
-              {tournamentVenues.length > 0 && (
-                <TabsContent value="venues">
-                  <Card className="border-border/50 bg-card/80 backdrop-blur">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <MapPin className="w-4 h-4 text-primary" />
-                        <h2 className="font-display text-lg text-gradient">Venues</h2>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {tournamentVenues.map((venue, index) => (
-                          <motion.div
-                            key={venue.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/30"
-                          >
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                              <MapPin className="w-4 h-4 text-primary" />
-                            </div>
-                            <div className="min-w-0">
-                              <span className="text-sm font-medium block truncate">{venue.venue_name}</span>
-                              {(venue.city || venue.country) && (
-                                <span className="text-xs text-muted-foreground block truncate">
-                                  {[venue.city, venue.country].filter(Boolean).join(', ')}
-                                </span>
-                              )}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              )}
             </Tabs>
           </motion.div>
 
@@ -531,6 +537,7 @@ const TournamentPage = () => {
                 <MultiAdSlot position="tournament_before_teams" className="my-4" />
               )}
               <ParticipatingTeamsSection />
+              <VenuesSection />
               {tournamentAdPositions.after_teams && (
                 <MultiAdSlot position="tournament_after_teams" className="my-4" />
               )}
