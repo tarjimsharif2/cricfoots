@@ -468,13 +468,6 @@ const TournamentPage = () => {
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{completedMatches.length}</Badge>
                   )}
                 </TabsTrigger>
-                {tournamentVenues.length > 0 && (
-                  <TabsTrigger value="venues" className="gap-2 flex-shrink-0">
-                    <MapPin className="w-3.5 h-3.5" />
-                    Venues
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tournamentVenues.length}</Badge>
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               <TabsContent value="all">
